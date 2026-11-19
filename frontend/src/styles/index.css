@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Custom Luxury Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070707;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c5a880;
+}
+
+/* Subtle dark texture background */
+body {
+  background-color: #050505;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(197, 168, 128, 0.04) 0%, transparent 65%),
+    linear-gradient(180deg, #050505 0%, #070707 100%);
+  background-attachment: fixed;
+}
+
+/* Luxury border utilities */
+.border-luxury {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.border-luxury-gold {
+  border-color: rgba(197, 168, 128, 0.3);
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(13, 13, 13, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-nav {
+  background: rgba(5, 5, 5, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Smooth Image hover zoom */
+.zoom-image-container {
+  overflow: hidden;
+}
+
+.zoom-image-container img {
+  transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.zoom-image-container:hover img {
+  transform: scale(1.05);
+}
+
+/* Luxury Text Gradient */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #dfc8a7 0%, #c5a880 50%, #9b7e55 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

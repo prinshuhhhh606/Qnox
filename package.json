@@ -1,0 +1,24 @@
+{
+  "name": "qnoxgym-monorepo",
+  "version": "1.0.0",
+  "description": "QNOX GYM - Ultra Luxury Fitness Sanctuary Fullstack MERN Application",
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "start": "node backend/server.js",
+    "backend": "node backend/server.js",
+    "frontend": "npm run dev --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:backend": "npm test --prefix backend"
+  },
+  "keywords": [
+    "mern",
+    "luxury-gym",
+    "thirdspace",
+    "qnoxgym",
+    "mvc",
+    "react",
+    "node"
+  ],
+  "author": "QNOX Engineering",
+  "license": "ISC"
+}

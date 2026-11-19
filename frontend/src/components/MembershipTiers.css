@@ -1,0 +1,65 @@
+/* MembershipTiers.css - Residency Tiers & Privileges */
+.qnox-membership-section {
+  padding-top: 110px;
+  padding-bottom: 110px;
+  background-color: #070707;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.qnox-tier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 36px 32px;
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.4s ease;
+}
+
+.qnox-tier-card.highlight {
+  background-color: #0d0d0d;
+  border: 2px solid #c5a880;
+  box-shadow: 0 25px 60px -15px rgba(197, 168, 128, 0.1);
+}
+
+.qnox-tier-card:hover:not(.highlight) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.qnox-tier-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.qnox-tier-btn.primary {
+  background-color: #c5a880;
+  color: #050505;
+  border: none;
+}
+
+.qnox-tier-btn.primary:hover {
+  background-color: #ffffff;
+}
+
+.qnox-tier-btn.secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.qnox-tier-btn.secondary:hover {
+  border-color: #c5a880;
+  color: #c5a880;
+}

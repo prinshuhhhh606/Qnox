@@ -1,0 +1,128 @@
+/* DisciplinesSection.css - Curated Sanctuaries & Studios */
+.qnox-disciplines-section {
+  padding-top: 110px;
+  padding-bottom: 110px;
+  background-color: #070707;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.qnox-tab-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  margin-bottom: 48px;
+}
+
+.qnox-tab-btn {
+  padding: 12px 20px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+  color: #a3a3a3;
+  cursor: pointer;
+}
+
+.qnox-tab-btn.active {
+  background-color: #c5a880;
+  color: #050505;
+  border-color: #c5a880;
+}
+
+.qnox-tab-btn:hover:not(.active) {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.qnox-discipline-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #000000;
+}
+
+/* Luxury Bottom-to-Top Slide-Up Reveal Animations */
+@keyframes qnoxImageSlideUpFromBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(80px) scale(0.96);
+    filter: blur(6px);
+  }
+  60% {
+    opacity: 0.85;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes qnoxBadgeFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qnoxCaptionSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(35px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Viewport Scroll Entrance Trigger Container */
+.qnox-showcase-container {
+  opacity: 0;
+  transform: translateY(80px);
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.qnox-showcase-container.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Card image element with smooth bottom-to-top entrance */
+.qnox-showcase-card {
+  animation: qnoxImageSlideUpFromBottom 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.qnox-showcase-card:hover {
+  border-color: rgba(197, 168, 128, 0.45);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.95), 0 0 40px rgba(197, 168, 128, 0.12);
+}
+
+/* Top Badge Animation */
+.qnox-showcase-badge {
+  animation: qnoxBadgeFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+}
+
+/* Bottom Title & Architecture Caption Animation */
+.qnox-showcase-caption {
+  animation: qnoxCaptionSlideUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}

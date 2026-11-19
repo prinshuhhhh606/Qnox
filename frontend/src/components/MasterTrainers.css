@@ -1,0 +1,34 @@
+/* MasterTrainers.css - World-Class Coaches Roster */
+.qnox-trainers-section {
+  padding-top: 110px;
+  padding-bottom: 110px;
+  background-color: #070707;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.qnox-trainer-card {
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.4s ease;
+}
+
+.qnox-trainer-card:hover {
+  border-color: rgba(197, 168, 128, 0.6);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.9);
+}
+
+.qnox-trainer-badge {
+  padding: 4px 10px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #c5a880;
+  border: 1px solid rgba(197, 168, 128, 0.35);
+  backdrop-filter: blur(12px);
+}
