@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Award, Trophy, ArrowUpRight, Search, CheckCircle, Mail, Phone, Calendar, X, Star } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Award, Trophy, ArrowUpRight, Search, CheckCircle, Mail, Phone, Calendar, X, Star, ChevronLeft, ChevronRight, SlidersHorizontal, LayoutGrid, Sparkles } from 'lucide-react';
 import { fetchTrainers } from '../services/api';
+import '../components/MasterTrainers.css';
 
 const defaultTrainers = [
   {
@@ -120,6 +121,48 @@ export default function TrainersPage({ onOpenTourModal }) {
   const [selectedTrainerModal, setSelectedTrainerModal] = useState(null);
   const [consultationSubmitted, setConsultationSubmitted] = useState(false);
 
+  // Horizontal Slider View states
+  const [viewMode, setViewMode] = useState('horizontal'); // 'horizontal' | 'grid'
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+  const sliderRef = useRef(null);
+
+  const handleSliderScroll = () => {
+    if (!sliderRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+    const maxScroll = scrollWidth - clientWidth;
+    setScrollProgress(maxScroll > 0 ? (scrollLeft / maxScroll) * 100 : 0);
+  };
+
+  const slidePrev = () => {
+    if (!sliderRef.current) return;
+    sliderRef.current.scrollBy({ left: -360, behavior: 'smooth' });
+  };
+
+  const slideNext = () => {
+    if (!sliderRef.current) return;
+    sliderRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+  };
+
+  const handleMouseDown = (e) => {
+    if (!sliderRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - sliderRef.current.offsetLeft);
+    setScrollLeftState(sliderRef.current.scrollLeft);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !sliderRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - sliderRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    sliderRef.current.scrollLeft = scrollLeftState - walk;
+  };
+
+  const stopDragging = () => setIsDragging(false);
+
   useEffect(() => {
     const loadTrainers = async () => {
       try {
@@ -210,102 +253,258 @@ export default function TrainersPage({ onOpenTourModal }) {
             ))}
           </div>
 
-          <div className="flex items-center space-x-2 bg-[#0a0a0a] border border-white/10 px-4 py-2.5 w-full md:w-80">
-            <Search className="w-4 h-4 text-neutral-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search coach by name or credential..."
-              className="bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none flex-1 font-mono"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-neutral-500 hover:text-white text-xs">
-                &times;
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center space-x-2 bg-[#0a0a0a] border border-white/10 px-4 py-2.5 w-full sm:w-72">
+              <Search className="w-4 h-4 text-neutral-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search coach by name..."
+                className="bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none flex-1 font-mono"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="text-neutral-500 hover:text-white text-xs">
+                  &times;
+                </button>
+              )}
+            </div>
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center border border-white/10 bg-[#0a0a0a] p-1">
+              <button
+                onClick={() => setViewMode('horizontal')}
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider flex items-center space-x-1.5 transition ${
+                  viewMode === 'horizontal'
+                    ? 'bg-[#c5a880] text-black font-bold'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+                title="Horizontal Sliding Carousel"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>SLIDER</span>
               </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider flex items-center space-x-1.5 transition ${
+                  viewMode === 'grid'
+                    ? 'bg-[#c5a880] text-black font-bold'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+                title="Grid Directory View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>GRID</span>
+              </button>
+            </div>
+
+            {viewMode === 'horizontal' && (
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={slidePrev}
+                  className="p-2 border border-white/15 bg-[#0a0a0a] text-white hover:border-[#c5a880] hover:text-[#c5a880] transition"
+                  title="Previous Coach"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={slideNext}
+                  className="p-2 border border-white/15 bg-[#0a0a0a] text-white hover:border-[#c5a880] hover:text-[#c5a880] transition"
+                  title="Next Coach"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Trainers Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-          {filteredTrainers.map((t) => (
+        {/* View Mode: Horizontal Sliding Carousel vs Grid Directory */}
+        {viewMode === 'horizontal' ? (
+          <div className="relative mb-20">
+            <div className="qnox-slider-fade-left hidden md:block" />
+            <div className="qnox-slider-fade-right hidden md:block" />
+
             <div
-              key={t._id || t.name}
-              className="group bg-[#0a0a0a] border border-white/10 hover:border-[#c5a880]/60 transition-all flex flex-col justify-between"
+              ref={sliderRef}
+              onScroll={handleSliderScroll}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={stopDragging}
+              onMouseLeave={stopDragging}
+              className={`qnox-trainers-slider ${isDragging ? 'is-dragging' : ''}`}
             >
-              <div>
-                {/* Photo container */}
-                <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900">
-                  <img
-                    src={t.image || t.avatar}
-                    alt={t.name}
-                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+              {filteredTrainers.map((t) => (
+                <div
+                  key={t._id || t.name}
+                  className="qnox-trainer-slide group flex-shrink-0"
+                >
+                  <div>
+                    {/* Photo container */}
+                    <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900 select-none">
+                      <img
+                        src={t.image || t.avatar}
+                        alt={t.name}
+                        draggable="false"
+                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-108"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-85" />
 
-                  {/* Badge */}
-                  <div className="absolute top-4 left-4">
-                    <span className="text-[9px] font-mono tracking-widest uppercase px-2.5 py-1 bg-black/80 backdrop-blur-md border border-[#c5a880]/40 text-[#c5a880] font-bold">
-                      {t.badge || 'MASTER COACH'}
-                    </span>
+                      {/* Badge */}
+                      <div className="absolute top-4 left-4">
+                        <span className="text-[9px] font-mono tracking-widest uppercase px-2.5 py-1 bg-black/85 backdrop-blur-md border border-[#c5a880]/40 text-[#c5a880] font-bold">
+                          {t.badge || 'MASTER COACH'}
+                        </span>
+                      </div>
+
+                      {/* Rating */}
+                      <div className="absolute top-4 right-4 bg-black/85 px-2 py-1 border border-white/10 text-[10px] font-mono text-neutral-300 flex items-center space-x-1">
+                        <Star className="w-3 h-3 text-[#c5a880] fill-[#c5a880]" />
+                        <span>{t.rating || '5.0'}</span>
+                      </div>
+
+                      {/* Bottom Role overlay */}
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#c5a880] block mb-1">
+                          {t.role}
+                        </span>
+                        <h3 className="font-serif text-2xl text-white font-medium group-hover:text-[#c5a880] transition-colors">
+                          {t.name}
+                        </h3>
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="p-6 space-y-4">
+                      <p className="text-xs text-neutral-400 font-light leading-relaxed line-clamp-3">
+                        {t.bio}
+                      </p>
+
+                      {/* Specialties Pills */}
+                      <div className="flex flex-wrap gap-1.5 pt-2">
+                        {t.specialties?.slice(0, 3).map((spec, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-mono px-2 py-0.5 bg-[#121212] border border-white/5 text-neutral-300"
+                          >
+                            {spec}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Rating / Experience */}
-                  <div className="absolute top-4 right-4 bg-black/80 px-2 py-1 border border-white/10 text-[10px] font-mono text-neutral-300 flex items-center space-x-1">
-                    <Star className="w-3 h-3 text-[#c5a880] fill-[#c5a880]" />
-                    <span>{t.rating || '5.0'}</span>
-                  </div>
-
-                  {/* Bottom Role overlay */}
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#c5a880] block mb-1">
-                      {t.role}
-                    </span>
-                    <h3 className="font-serif text-2xl text-white font-medium">
-                      {t.name}
-                    </h3>
+                  {/* Actions */}
+                  <div className="p-6 pt-0 border-t border-white/5 flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedTrainerModal(t)}
+                      className="flex-1 py-3 border border-white/10 hover:border-white text-white text-xs font-mono uppercase tracking-wider transition text-center"
+                    >
+                      VIEW DOSSIER
+                    </button>
+                    <button
+                      onClick={() => setSelectedTrainerModal(t)}
+                      className="flex-1 py-3 bg-[#c5a880] hover:bg-white text-black text-xs font-bold uppercase tracking-wider transition text-center"
+                    >
+                      INQUIRE COACH
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                {/* Details */}
-                <div className="p-6 space-y-4">
-                  <p className="text-xs text-neutral-400 font-light leading-relaxed line-clamp-3">
-                    {t.bio}
-                  </p>
-
-                  {/* Specialties Pills */}
-                  <div className="flex flex-wrap gap-1.5 pt-2">
-                    {t.specialties?.slice(0, 3).map((spec, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] font-mono px-2 py-0.5 bg-[#121212] border border-white/5 text-neutral-300"
-                      >
-                        {spec}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action */}
-              <div className="p-6 pt-0 border-t border-white/5 flex items-center gap-3">
-                <button
-                  onClick={() => setSelectedTrainerModal(t)}
-                  className="flex-1 py-3 border border-white/10 hover:border-white text-white text-xs font-mono uppercase tracking-wider transition text-center"
-                >
-                  VIEW DOSSIER
-                </button>
-                <button
-                  onClick={() => setSelectedTrainerModal(t)}
-                  className="flex-1 py-3 bg-[#c5a880] hover:bg-white text-black text-xs font-bold uppercase tracking-wider transition text-center"
-                >
-                  INQUIRE COACH
-                </button>
+            {/* Slider bottom progress rail */}
+            <div className="mt-4 flex items-center justify-between text-xs text-neutral-400 font-mono">
+              <span className="text-[10px] uppercase tracking-wider flex items-center space-x-1.5">
+                <Sparkles className="w-3 h-3 text-[#c5a880]" />
+                <span>DRAG HORIZONTALLY OR CLICK ARROWS TO SLIDE</span>
+              </span>
+              <div className="w-32 qnox-progress-rail">
+                <div className="qnox-progress-fill" style={{ width: `${Math.max(15, scrollProgress)}%` }} />
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          /* Grid View */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+            {filteredTrainers.map((t) => (
+              <div
+                key={t._id || t.name}
+                className="group bg-[#0a0a0a] border border-white/10 hover:border-[#c5a880]/60 transition-all flex flex-col justify-between"
+              >
+                <div>
+                  {/* Photo container */}
+                  <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900">
+                    <img
+                      src={t.image || t.avatar}
+                      alt={t.name}
+                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+
+                    {/* Badge */}
+                    <div className="absolute top-4 left-4">
+                      <span className="text-[9px] font-mono tracking-widest uppercase px-2.5 py-1 bg-black/80 backdrop-blur-md border border-[#c5a880]/40 text-[#c5a880] font-bold">
+                        {t.badge || 'MASTER COACH'}
+                      </span>
+                    </div>
+
+                    {/* Rating / Experience */}
+                    <div className="absolute top-4 right-4 bg-black/80 px-2 py-1 border border-white/10 text-[10px] font-mono text-neutral-300 flex items-center space-x-1">
+                      <Star className="w-3 h-3 text-[#c5a880] fill-[#c5a880]" />
+                      <span>{t.rating || '5.0'}</span>
+                    </div>
+
+                    {/* Bottom Role overlay */}
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#c5a880] block mb-1">
+                        {t.role}
+                      </span>
+                      <h3 className="font-serif text-2xl text-white font-medium">
+                        {t.name}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div className="p-6 space-y-4">
+                    <p className="text-xs text-neutral-400 font-light leading-relaxed line-clamp-3">
+                      {t.bio}
+                    </p>
+
+                    {/* Specialties Pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {t.specialties?.slice(0, 3).map((spec, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] font-mono px-2 py-0.5 bg-[#121212] border border-white/5 text-neutral-300"
+                        >
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action */}
+                <div className="p-6 pt-0 border-t border-white/5 flex items-center gap-3">
+                  <button
+                    onClick={() => setSelectedTrainerModal(t)}
+                    className="flex-1 py-3 border border-white/10 hover:border-white text-white text-xs font-mono uppercase tracking-wider transition text-center"
+                  >
+                    VIEW DOSSIER
+                  </button>
+                  <button
+                    onClick={() => setSelectedTrainerModal(t)}
+                    className="flex-1 py-3 bg-[#c5a880] hover:bg-white text-black text-xs font-bold uppercase tracking-wider transition text-center"
+                  >
+                    INQUIRE COACH
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Private Coaching Consultation Callout */}
         <div className="border border-white/10 bg-[#090909] p-10 sm:p-14 text-center max-w-3xl mx-auto space-y-6">
