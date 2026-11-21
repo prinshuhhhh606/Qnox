@@ -78,6 +78,8 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
+exports.sendEmail = sendEmail;
+
 exports.sendWelcomeRegistrationEmail = async (user) => {
   const content = `
     <p class="text">Welcome to QNOX GYM, <strong>${user.name}</strong>. Your sanctuary identity has been established across our global ecosystem.</p>
@@ -193,3 +195,99 @@ exports.sendCampaignEmail = async (campaign, recipientEmail) => {
     html: getLuxuryTemplate(campaign.subject, 'QNOX EDITORIAL DISPATCH', campaign.contentHtml),
   });
 };
+
+exports.sendMembershipExpiryReminderEmail = async ({
+  user,
+  planName = 'The Metropolitan',
+  expiryDate,
+  daysRemaining = 0,
+  stage = 'EXPIRY_DATE',
+}) => {
+  const formattedDate = new Date(expiryDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  let preheader = 'MEMBERSHIP RENEWAL NOTICE';
+  let title = 'Your Gym Membership Has Expired!';
+  let message = `Hello <strong>${user.name}</strong>, your <strong>${planName}</strong> membership expired on <strong>${formattedDate}</strong>. Renew your membership today to continue enjoying your fitness journey at QNOX GYM.`;
+
+  if (daysRemaining > 1) {
+    preheader = `RENEWAL ALERT &bull; ${daysRemaining} DAYS REMAINING`;
+    title = `Membership Expiring in ${daysRemaining} Days`;
+    message = `Hello <strong>${user.name}</strong>, your <strong>${planName}</strong> membership at QNOX GYM will expire in <strong>${daysRemaining} days</strong> on <strong>${formattedDate}</strong>. Renew early to maintain uninterrupted biometric sanctuary access, reserved lockers, and recovery spa privileges.`;
+  } else if (daysRemaining === 1) {
+    preheader = 'FINAL NOTICE &bull; EXPIRES TOMORROW';
+    title = 'Membership Expires Tomorrow';
+    message = `Hello <strong>${user.name}</strong>, your <strong>${planName}</strong> membership will expire tomorrow on <strong>${formattedDate}</strong>. Renew your residency today to keep all club booking benefits active.`;
+  } else if (daysRemaining === 0) {
+    preheader = 'SANCTUARY ACCESS EXPIRED';
+    title = 'Your Gym Membership Has Expired!';
+    message = `Hello <strong>${user.name}</strong>, your <strong>${planName}</strong> membership expired on <strong>${formattedDate}</strong>. Renew your membership today to continue enjoying your fitness journey at QNOX GYM.`;
+  } else if (daysRemaining < 0) {
+    preheader = 'SANCTUARY MEMBERSHIP RECOVERY';
+    title = 'We Miss You at QNOX GYM';
+    message = `Hello <strong>${user.name}</strong>, your <strong>${planName}</strong> membership expired 3 days ago on <strong>${formattedDate}</strong>. We invite you back to re-establish your residency today.`;
+  }
+
+  const ctaUrl = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}#membership` : 'http://localhost:5173#membership';
+
+  const content = `
+    <p class="text">${message}</p>
+    <div class="highlight-box">
+      <div class="code-label">RESIDENCY TIER</div>
+      <div class="code-val">${planName.toUpperCase()}</div>
+      <p style="color:#c5a880; font-size:13px; margin-top:8px;">Expiry Date: <strong>${formattedDate}</strong></p>
+    </div>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${ctaUrl}" class="btn" style="display:inline-block; background-color:#c5a880; color:#050505; text-decoration:none; padding:14px 28px; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; font-weight:700;">RENEW MEMBERSHIP</a>
+    </div>
+    <p class="text" style="font-size:12px; color:#737373; text-align:center;">
+      Prefer personal concierge assistance? Visit the front reception or contact our Mayfair Concierge Desk.
+    </p>
+  `;
+
+  return sendEmail({
+    to: user.email,
+    subject: daysRemaining === 0
+      ? 'Your Gym Membership Has Expired! | QNOX GYM'
+      : daysRemaining > 0
+      ? `Notice: Your QNOX Membership Expires in ${daysRemaining} Day${daysRemaining > 1 ? 's' : ''}`
+      : 'Reactivate Your QNOX Membership | Follow-Up Concierge Notice',
+    html: getLuxuryTemplate(title, preheader, content),
+  });
+};
+
+exports.sendMembershipRenewalSuccessEmail = async ({
+  user,
+  planName,
+  expiryDate,
+  invoiceNumber,
+  amount,
+}) => {
+  const formattedDate = new Date(expiryDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const content = `
+    <p class="text">Hello <strong>${user.name}</strong>,</p>
+    <p class="text">Your <strong>${planName}</strong> membership at QNOX GYM has been successfully renewed. Your residency is now active through <strong>${formattedDate}</strong>.</p>
+    <div class="highlight-box">
+      <div class="code-label">RENEWED UNTIL</div>
+      <div class="code-val">${formattedDate}</div>
+      ${invoiceNumber ? `<p style="color:#737373; font-size:11px; margin-top:8px;">Official Invoice: ${invoiceNumber}</p>` : ''}
+      ${amount ? `<p style="color:#c5a880; font-size:14px; margin-top:4px;">Amount Paid: ₹${Number(amount).toLocaleString('en-IN')}</p>` : ''}
+    </div>
+    <p class="text">All privileges—including biometric club entry, 25m slate pool access, altitude chambers, and coach reservations—remain uninterrupted.</p>
+  `;
+
+  return sendEmail({
+    to: user.email,
+    subject: `Membership Successfully Renewed! | ${planName}`,
+    html: getLuxuryTemplate('Membership Successfully Renewed!', 'RESIDENCY EXTENSION CONFIRMED', content),
+  });
+};
+

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowUpRight, User, Shield, LogOut } from 'lucide-react';
+import { Link, NavLink } from 'react-router-dom';
+import { Menu, X, ArrowUpRight, User, Shield, LogOut, Bell } from 'lucide-react';
+import { fetchNotificationUnreadCount } from '../services/api';
 import './Navbar.css';
 
 export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpenMemberPortal, onOpenAdmin, onLogout }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,13 +17,32 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (currentUser) {
+      loadUnread();
+      const interval = setInterval(loadUnread, 30000);
+      return () => clearInterval(interval);
+    } else {
+      setUnreadCount(0);
+    }
+  }, [currentUser]);
+
+  const loadUnread = async () => {
+    try {
+      const count = await fetchNotificationUnreadCount();
+      setUnreadCount(count);
+    } catch (e) {
+      // Non-blocking
+    }
+  };
+
   const navLinks = [
-    { label: 'CLUBS', href: '#clubs' },
-    { label: 'SANCTUARIES', href: '#disciplines' },
-    { label: 'MEMBERSHIP', href: '#membership' },
-    { label: 'TIMETABLE', href: '#timetable' },
-    { label: 'TRAINERS', href: '#trainers' },
-    { label: 'PRESS', href: '#press' },
+    { label: 'CLUBS', path: '/clubs' },
+    { label: 'SANCTUARIES', path: '/sanctuaries' },
+    { label: 'MEMBERSHIP', path: '/membership' },
+    { label: 'TIMETABLE', path: '/timetable' },
+    { label: 'TRAINERS', path: '/trainers' },
+    { label: 'PRESS', path: '/press' },
   ];
 
   const isAdmin = currentUser && ['Admin', 'Super Admin'].includes(currentUser.role);
@@ -47,25 +69,31 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
           
           {/* Brand Mark - Unbreakable single-line luxury mark */}
-          <a href="#" className="qnox-brand-container group focus:outline-none">
+          <Link to="/" className="qnox-brand-container group focus:outline-none">
             <span className="qnox-brand-mark text-xl sm:text-2xl">
               QNOX
             </span>
             <span className="qnox-brand-sub">
               LUXURY GYM
             </span>
-          </a>
+          </Link>
 
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center space-x-3.5 xl:space-x-6 2xl:space-x-7 flex-shrink">
             {navLinks.map((link) => (
-              <a
+              <NavLink
                 key={link.label}
-                href={link.href}
-                className="qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px]"
+                to={link.path}
+                className={({ isActive }) =>
+                  `qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px] pb-1 border-b-2 transition-all ${
+                    isActive
+                      ? 'text-[#c5a880] border-[#c5a880] font-bold'
+                      : 'border-transparent text-neutral-300 hover:text-white'
+                  }`
+                }
               >
                 {link.label}
-              </a>
+              </NavLink>
             ))}
           </nav>
 
@@ -83,6 +111,18 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
 
             {currentUser ? (
               <div className="flex items-center space-x-1.5 flex-shrink-0">
+                <button
+                  onClick={isAdmin ? onOpenAdmin : onOpenMemberPortal}
+                  className="relative p-2 border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white transition-colors flex-shrink-0"
+                  title="Notifications & Expiry Alerts"
+                >
+                  <Bell className="w-3.5 h-3.5 text-[#c5a880]" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 px-1.5 py-0.2 text-[8px] font-bold bg-rose-600 text-white rounded-full animate-pulse shadow">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
                 <button
                   onClick={onOpenMemberPortal}
                   className="px-3.5 py-2 bg-transparent border border-white/20 hover:border-white text-white text-[11px] font-semibold tracking-wider uppercase flex items-center space-x-1.5 transition-colors whitespace-nowrap"
@@ -147,16 +187,32 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
         </div>
 
         <nav className="flex flex-col space-y-6 my-auto">
+          <NavLink
+            to="/"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `text-2xl font-serif tracking-[0.15em] transition-colors flex items-center justify-between group ${
+                isActive ? 'text-[#c5a880] font-bold' : 'text-neutral-300 hover:text-[#c5a880]'
+              }`
+            }
+          >
+            <span>HOME</span>
+            <span className="text-xs font-sans tracking-widest text-neutral-600 group-hover:text-[#c5a880]">00</span>
+          </NavLink>
           {navLinks.map((link, idx) => (
-            <a
+            <NavLink
               key={link.label}
-              href={link.href}
+              to={link.path}
               onClick={() => setMobileMenuOpen(false)}
-              className="text-2xl font-serif text-neutral-300 hover:text-[#c5a880] tracking-[0.15em] transition-colors flex items-center justify-between group"
+              className={({ isActive }) =>
+                `text-2xl font-serif tracking-[0.15em] transition-colors flex items-center justify-between group ${
+                  isActive ? 'text-[#c5a880] font-bold' : 'text-neutral-300 hover:text-[#c5a880]'
+                }`
+              }
             >
               <span>{link.label}</span>
               <span className="text-xs font-sans tracking-widest text-neutral-600 group-hover:text-[#c5a880]">0{idx + 1}</span>
-            </a>
+            </NavLink>
           ))}
           {isAdmin && (
             <button

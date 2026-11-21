@@ -15,17 +15,29 @@
   padding: 36px 32px;
   background-color: #0a0a0a;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.4s ease;
+  transition: all 0.35s ease;
+}
+
+.qnox-tier-card:hover {
+  border-color: #c5a880;
+  box-shadow: 0 20px 50px -10px rgba(197, 168, 128, 0.25);
+  transform: translateY(-6px);
+}
+
+.qnox-tier-card:hover .qnox-tier-btn.secondary {
+  border-color: #c5a880;
+  color: #c5a880;
 }
 
 .qnox-tier-card.highlight {
   background-color: #0d0d0d;
   border: 2px solid #c5a880;
-  box-shadow: 0 25px 60px -15px rgba(197, 168, 128, 0.1);
+  box-shadow: 0 25px 60px -15px rgba(197, 168, 128, 0.15);
 }
 
-.qnox-tier-card:hover:not(.highlight) {
-  border-color: rgba(255, 255, 255, 0.3);
+.qnox-tier-card.highlight:hover {
+  box-shadow: 0 25px 60px -10px rgba(197, 168, 128, 0.35);
+  transform: translateY(-6px);
 }
 
 .qnox-tier-btn {

@@ -59,6 +59,10 @@ const PaymentSchema = new mongoose.Schema(
       enum: ['Razorpay', 'Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'],
       default: 'Razorpay',
     },
+    isSimulated: {
+      type: Boolean,
+      default: false,
+    },
     referenceNumber: {
       type: String,
       default: '',

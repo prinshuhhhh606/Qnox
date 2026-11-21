@@ -7,9 +7,9 @@ const defaultTiers = [
     name: 'THE RESIDENT',
     code: 'RESIDENT',
     subtitle: 'Dedicated Single Sanctuary Access',
-    price: '₹24,500',
+    price: '₹1,200',
     period: 'per month',
-    pricing: { monthly: 24500, quarterly: 69000, halfYearly: 132000, yearly: 249000 },
+    pricing: { monthly: 1200, quarterly: 4000, halfYearly: 7000, yearly: 12000 },
     description: 'Designed for high performers seeking absolute proximity and dedicated sanctuary access to their primary London neighbourhood.',
     features: [
       'Unlimited access to your chosen primary club',
@@ -26,9 +26,9 @@ const defaultTiers = [
     name: 'THE METROPOLITAN',
     code: 'METROPOLITAN',
     subtitle: 'London All-Sanctuary Access',
-    price: '₹32,500',
+    price: '₹1,800',
     period: 'per month',
-    pricing: { monthly: 32500, quarterly: 92000, halfYearly: 175000, yearly: 329000 },
+    pricing: { monthly: 1800, quarterly: 4500, halfYearly: 7500, yearly: 12500 },
     description: 'Seamless athletic mobility. Unrestricted entry across Mayfair, Soho, Canary Wharf, Marylebone, and Chelsea clubs.',
     features: [
       'Universal access to all 5 London QNOX sanctuaries',
@@ -47,9 +47,9 @@ const defaultTiers = [
     name: 'THE OBSIDIAN BLACK',
     code: 'OBSIDIAN',
     subtitle: 'Global Private Founder Tier (Strictly 150)',
-    price: '₹68,000',
+    price: '₹2,500',
     period: 'per month',
-    pricing: { monthly: 68000, quarterly: 195000, halfYearly: 375000, yearly: 699000 },
+    pricing: { monthly: 2500, quarterly: 5000, halfYearly: 8000, yearly: 13000 },
     description: 'Strictly capped at 150 members globally. Unrivalled biometric personalization, private elevator access, and 24/7 concierge.',
     features: [
       'Global all-access including upcoming NY & Dubai sanctuaries',
@@ -92,7 +92,7 @@ export default function MembershipTiers({ plans = [], onOpenTourModal, onSelectP
             const isHighlight = tier.highlight || tier.isPopular;
             const displayPrice = tier.pricing?.monthly
               ? `₹${tier.pricing.monthly.toLocaleString('en-IN')}`
-              : tier.price;
+              : (tier.price || '₹1,200');
 
             return (
               <div
@@ -146,7 +146,7 @@ export default function MembershipTiers({ plans = [], onOpenTourModal, onSelectP
                   <button
                     onClick={() => {
                       if (onSelectPlanForCheckout) {
-                        onSelectPlanForCheckout(tier);
+                        onSelectPlanForCheckout(tier, 'monthly');
                       } else {
                         onOpenTourModal(tier.name);
                       }

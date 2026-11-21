@@ -23,6 +23,7 @@ const {
   restoreMember,
   getMemberAuditLogs,
   deleteMember,
+  triggerManualExpiryCheck,
 } = require('../controllers/adminController');
 const { protect, authorize } = require('../middlewares/auth');
 
@@ -67,5 +68,8 @@ router.put('/members/:id/restore', restoreMember);
 // Audit Logs & Deletion
 router.get('/members/:id/audit-logs', getMemberAuditLogs);
 router.delete('/members/:id', deleteMember);
+
+// Automated Expiry Scheduler Manual Trigger
+router.post('/cron/run-expiry-check', triggerManualExpiryCheck);
 
 module.exports = router;

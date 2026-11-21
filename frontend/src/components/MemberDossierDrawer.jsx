@@ -45,6 +45,10 @@ import {
   archiveMember,
   restoreMember,
   fetchMemberAuditLogs,
+  extendMembershipAdmin,
+  suspendMembershipAdmin,
+  reactivateMembershipAdmin,
+  sendRenewalReminderAdmin,
 } from '../services/api';
 import './MemberDossierDrawer.css';
 
@@ -232,6 +236,56 @@ export default function MemberDossierDrawer({ memberId, initialMember, onClose, 
       if (onUpdated) onUpdated();
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleExtendDuration = async () => {
+    const daysStr = window.prompt(`Extend membership validity for ${member.name} by how many days?`, '30');
+    if (!daysStr) return;
+    const days = parseInt(daysStr, 10);
+    if (isNaN(days) || days <= 0) return alert('Invalid number of days.');
+    const reason = window.prompt('Reason / administrative note for extension:', 'Executive courtesy extension') || 'Executive courtesy';
+    try {
+      await extendMembershipAdmin(member._id, { days, reason });
+      notify(`Membership extended by ${days} days.`);
+      loadDossier();
+      if (onUpdated) onUpdated();
+    } catch (err) {
+      alert(err.message || 'Failed to extend membership');
+    }
+  };
+
+  const handleToggleSuspension = async () => {
+    if (member.membership?.status === 'Suspended') {
+      if (!window.confirm(`Reactivate residency privileges for ${member.name}?`)) return;
+      try {
+        await reactivateMembershipAdmin(member._id);
+        notify('Residency privileges reactivated.');
+        loadDossier();
+        if (onUpdated) onUpdated();
+      } catch (err) {
+        alert(err.message || 'Failed to reactivate membership');
+      }
+    } else {
+      const reason = window.prompt(`Enter administrative reason to suspend residency for ${member.name}:`, 'Disciplinary review or facility rule breach');
+      if (!reason) return;
+      try {
+        await suspendMembershipAdmin(member._id, { reason });
+        notify('Residency privileges suspended.');
+        loadDossier();
+        if (onUpdated) onUpdated();
+      } catch (err) {
+        alert(err.message || 'Failed to suspend membership');
+      }
+    }
+  };
+
+  const handleSendReminderDossier = async () => {
+    try {
+      await sendRenewalReminderAdmin(member._id);
+      notify(`Personalized renewal reminder dispatched to ${member.name}.`);
+    } catch (err) {
+      alert(err.message || 'Failed to dispatch renewal reminder');
     }
   };
 
@@ -722,51 +776,85 @@ export default function MemberDossierDrawer({ memberId, initialMember, onClose, 
                     )}
                   </div>
 
-                  {/* Quick Action Commands Row */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      onClick={() => setIsRenewModalOpen(true)}
-                      className="px-4 py-2 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Renew Residency</span>
-                    </button>
-
-                    {member.membership?.status === 'Frozen' ? (
+                    {/* Quick Action Commands Row */}
+                    <div className="flex flex-wrap items-center gap-3">
                       <button
-                        onClick={handleUnfreeze}
-                        className="px-4 py-2 bg-sky-900 border border-sky-400 text-sky-200 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                        onClick={() => setIsRenewModalOpen(true)}
+                        className="px-4 py-2 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
                       >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Resume Residency</span>
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Renew Residency</span>
                       </button>
-                    ) : (
+
                       <button
-                        onClick={() => setIsFreezeModalOpen(true)}
-                        disabled={member.membership?.status !== 'Active'}
-                        className="px-4 py-2 border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40"
+                        onClick={handleExtendDuration}
+                        className="px-4 py-2 border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
                       >
-                        <Pause className="w-3.5 h-3.5" />
-                        <span>Freeze / Pause</span>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Extend Validity</span>
                       </button>
-                    )}
 
-                    <button
-                      onClick={() => setIsOfflinePayModalOpen(true)}
-                      className="px-4 py-2 border border-white/20 hover:border-[#c5a880] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-                    >
-                      <CreditCard className="w-3.5 h-3.5 text-[#c5a880]" />
-                      <span>Record Offline Payment</span>
-                    </button>
+                      {member.membership?.status === 'Frozen' ? (
+                        <button
+                          onClick={handleUnfreeze}
+                          className="px-4 py-2 bg-sky-900 border border-sky-400 text-sky-200 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Resume Residency</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setIsFreezeModalOpen(true)}
+                          disabled={member.membership?.status !== 'Active'}
+                          className="px-4 py-2 border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40"
+                        >
+                          <Pause className="w-3.5 h-3.5" />
+                          <span>Freeze / Pause</span>
+                        </button>
+                      )}
 
-                    <button
-                      onClick={() => setIsCheckInModalOpen(true)}
-                      className="px-4 py-2 border border-white/20 hover:border-white/50 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-                    >
-                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Register Check-in</span>
-                    </button>
-                  </div>
+                      {member.membership?.status === 'Suspended' ? (
+                        <button
+                          onClick={handleToggleSuspension}
+                          className="px-4 py-2 bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Restore Privileges</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleToggleSuspension}
+                          className="px-4 py-2 border border-rose-500/40 text-rose-400 hover:bg-rose-950/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>Suspend Residency</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleSendReminderDossier}
+                        className="px-4 py-2 border border-amber-500/40 text-amber-400 hover:bg-amber-950/40 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Send Reminder</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsOfflinePayModalOpen(true)}
+                        className="px-4 py-2 border border-white/20 hover:border-[#c5a880] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-[#c5a880]" />
+                        <span>Record Offline Payment</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsCheckInModalOpen(true)}
+                        className="px-4 py-2 border border-white/20 hover:border-white/50 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Register Check-in</span>
+                      </button>
+                    </div>
                 </div>
               )}
 

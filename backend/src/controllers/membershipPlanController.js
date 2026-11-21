@@ -3,7 +3,22 @@ const MembershipPlan = require('../models/MembershipPlan');
 exports.getPlans = async (req, res, next) => {
   try {
     const query = req.query.all === 'true' ? {} : { isActive: true };
-    const plans = await MembershipPlan.find(query).sort({ createdAt: 1 });
+    let plans = await MembershipPlan.find(query).sort({ createdAt: 1 });
+
+    const { sampleMembershipPlans } = require('../seed/seedData');
+
+    // Auto-seed if empty
+    if (plans.length === 0) {
+      await MembershipPlan.insertMany(sampleMembershipPlans);
+      plans = await MembershipPlan.find(query).sort({ createdAt: 1 });
+    } else {
+      // Synchronize database records to required pricing: 1 Mo: 1500, 3 Mo: 4000, 6 Mo: 7000, 12 Mo: 12000
+      for (const sp of sampleMembershipPlans) {
+        await MembershipPlan.updateOne({ code: sp.code }, { $set: { pricing: sp.pricing } });
+      }
+      plans = await MembershipPlan.find(query).sort({ createdAt: 1 });
+    }
+
     res.status(200).json({
       success: true,
       count: plans.length,

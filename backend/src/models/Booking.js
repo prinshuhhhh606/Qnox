@@ -19,7 +19,7 @@ const BookingSchema = new mongoose.Schema(
       type: String,
     },
     classId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: 'ClassSchedule',
       required: true,
     },

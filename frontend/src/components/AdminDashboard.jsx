@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Crown, DollarSign, Calendar, MessageSquare, ArrowLeft, LogOut, Search,
-  Plus, Edit, Trash2, CheckCircle, XCircle, X, Download, Send, RefreshCw, Eye, Shield, MapPin
+  Plus, Edit, Trash2, CheckCircle, XCircle, X, Download, Send, RefreshCw, Eye, Shield, MapPin,
+  Bell, Clock, AlertTriangle, Phone, Mail, ExternalLink, Check, Sparkles, Pause, Play, Power, ShieldAlert,
+  LayoutDashboard, Menu, ChevronRight, Activity, TrendingUp, Layers, CreditCard
 } from 'lucide-react';
 import {
   fetchAdminOverview, fetchRevenueAnalytics, fetchAdminMembers, exportMembersCsv, updateMemberResidency, deleteMemberRecord,
@@ -11,7 +13,10 @@ import {
   fetchClubs, createClubRecord, updateClubRecord, deleteClubRecord,
   fetchAllPayments, refundPaymentRecord,
   fetchAllSubscribers, exportSubscribersCsv, dispatchNewsletterCampaign,
-  fetchAllInquiries
+  fetchAllInquiries,
+  fetchAdminNotifications, markNotificationRead, markAllNotificationsRead, deleteNotificationRecord, triggerAdminExpiryCheck, fetchNotificationUnreadCount,
+  fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest, fetchMembershipStats,
+  extendMembershipAdmin, suspendMembershipAdmin, reactivateMembershipAdmin, sendRenewalReminderAdmin
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
 import ImageUploadField from './ImageUploadField';
@@ -36,6 +41,16 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [subscribers, setSubscribers] = useState([]);
   const [inquiries, setInquiries] = useState([]);
 
+  // Notification Feed states
+  const [adminNotifications, setAdminNotifications] = useState([]);
+  const [adminUnreadCount, setAdminUnreadCount] = useState(0);
+  const [notifStatusFilter, setNotifStatusFilter] = useState('all');
+  const [notifTypeFilter, setNotifTypeFilter] = useState('all');
+  const [notifSearch, setNotifSearch] = useState('');
+  const [notifMetrics, setNotifMetrics] = useState({ total: 0, unread: 0, expired: 0, expiringSoon: 0, renewed: 0 });
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [runningExpiryEngine, setRunningExpiryEngine] = useState(false);
+
   // Filter & Search states
   const [memberSearch, setMemberSearch] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('All');
@@ -54,7 +69,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [editingPlan, setEditingPlan] = useState(null);
   const [planForm, setPlanForm] = useState({
     name: '', code: '', subtitle: '', description: '',
-    pricing: { monthly: 25000, quarterly: 70000, halfYearly: 135000, yearly: 255000 },
+    pricing: { monthly: 1200, quarterly: 4500, halfYearly: 7500, yearly: 12500 },
     benefits: 'Unlimited access, Slate pool, Altitude suite',
   });
 
@@ -75,8 +90,30 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [campaignForm, setCampaignForm] = useState({ subject: '', contentHtml: '' });
   const [sendingCampaign, setSendingCampaign] = useState(false);
 
+  // Membership Requests state
+  const [membershipRequests, setMembershipRequests] = useState([]);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [requestsFilter, setRequestsFilter] = useState('All'); // All, Freeze, Cancellation
+  const [requestsStatusFilter, setRequestsStatusFilter] = useState('All'); // All, Pending, Approved, Rejected
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [selectedRequestAction, setSelectedRequestAction] = useState(null); // { request, action: 'approve' | 'reject' }
+  const [approvalNotes, setApprovalNotes] = useState('');
+  const [refundAmount, setRefundAmount] = useState(0);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Quick Action Modals for Members
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendTargetUser, setExtendTargetUser] = useState(null);
+  const [extendDays, setExtendDays] = useState(30);
+  const [extendReason, setExtendReason] = useState('Executive courtesy extension');
+  const [processingExtend, setProcessingExtend] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   useEffect(() => {
     loadOverview();
+    loadAdminUnreadBadge();
+    const interval = setInterval(loadAdminUnreadBadge, 30000);
+    return () => clearInterval(interval);
   }, [analyticsPeriod]);
 
   useEffect(() => {
@@ -88,7 +125,193 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     if (activeTab === 'payments') loadPayments();
     if (activeTab === 'newsletter') loadNewsletter();
     if (activeTab === 'inquiries') loadInquiries();
+    if (activeTab === 'notifications') loadNotifications();
+    if (activeTab === 'requests') loadMembershipRequests();
   }, [activeTab]);
+
+  const loadAdminUnreadBadge = async () => {
+    try {
+      const count = await fetchNotificationUnreadCount();
+      setAdminUnreadCount(count);
+      const reqs = await fetchMembershipRequests({ status: 'Pending' });
+      if (reqs) setPendingRequestsCount(reqs.length);
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  const loadNotifications = async (status = notifStatusFilter, filterType = notifTypeFilter, search = notifSearch) => {
+    setNotifLoading(true);
+    try {
+      const res = await fetchAdminNotifications({ status, filterType, search });
+      if (res && res.data) {
+        setAdminNotifications(res.data);
+        if (res.metrics) {
+          setNotifMetrics(res.metrics);
+          setAdminUnreadCount(res.metrics.unread || 0);
+        }
+      }
+    } catch (err) {
+      console.warn(err.message);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const handleRunExpiryEngine = async () => {
+    setRunningExpiryEngine(true);
+    try {
+      const res = await triggerAdminExpiryCheck();
+      if (onShowToast) {
+        onShowToast({
+          type: 'success',
+          message: `Engine Complete: ${res.data?.processedMembers || 0} members evaluated, ${res.data?.markedExpired || 0} marked expired, ${res.data?.notificationsCreated || 0} alerts dispatched.`,
+        });
+      }
+      await loadNotifications();
+      await loadAdminUnreadBadge();
+      loadMembers(memberPage);
+      loadOverview();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setRunningExpiryEngine(false);
+    }
+  };
+
+  const handleMarkNotifAsRead = async (id) => {
+    try {
+      await markNotificationRead(id);
+      loadNotifications();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleMarkAllNotifsAsRead = async () => {
+    try {
+      await markAllNotificationsRead('admin');
+      if (onShowToast) onShowToast({ type: 'success', message: 'All expiry alerts marked as read.' });
+      loadNotifications();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleDeleteNotif = async (id) => {
+    try {
+      await deleteNotificationRecord(id);
+      loadNotifications();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const loadMembershipRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const params = {};
+      if (requestsFilter !== 'All') params.type = requestsFilter;
+      if (requestsStatusFilter !== 'All') params.status = requestsStatusFilter;
+      const data = await fetchMembershipRequests(params);
+      if (data) {
+        setMembershipRequests(data);
+        const pendingCount = data.filter((r) => r.status === 'Pending').length;
+        setPendingRequestsCount(pendingCount);
+      }
+    } catch (err) {
+      console.warn(err.message);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveRequest = async (e) => {
+    e.preventDefault();
+    if (!selectedRequestAction?.request) return;
+    try {
+      await approveMembershipRequest(selectedRequestAction.request._id, {
+        adminNotes: approvalNotes,
+        refundAmount: Number(refundAmount) || 0,
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request successfully approved.' });
+      setSelectedRequestAction(null);
+      setApprovalNotes('');
+      setRefundAmount(0);
+      loadMembershipRequests();
+      loadMembers();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleRejectRequest = async (e) => {
+    e.preventDefault();
+    if (!selectedRequestAction?.request) return;
+    try {
+      await rejectMembershipRequest(selectedRequestAction.request._id, {
+        rejectionReason: rejectionReason || 'Policy non-compliance',
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request has been rejected.' });
+      setSelectedRequestAction(null);
+      setRejectionReason('');
+      loadMembershipRequests();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleExtendSubmit = async (e) => {
+    e.preventDefault();
+    if (!extendTargetUser) return;
+    setProcessingExtend(true);
+    try {
+      const res = await extendMembershipAdmin(extendTargetUser._id, {
+        days: extendDays,
+        reason: extendReason,
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      setShowExtendModal(false);
+      setExtendTargetUser(null);
+      loadMembers();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingExtend(false);
+    }
+  };
+
+  const handleSendReminder = async (userId, memberName) => {
+    try {
+      const res = await sendRenewalReminderAdmin(userId);
+      if (onShowToast) onShowToast({ type: 'success', message: `Personalized renewal reminder sent to ${memberName}.` });
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleSuspendMember = async (userId, memberName) => {
+    const reason = window.prompt(`Enter administrative reason to suspend residency for ${memberName}:`, 'Disciplinary review or facility rule breach');
+    if (!reason) return;
+    try {
+      const res = await suspendMembershipAdmin(userId, { reason });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      loadMembers();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleReactivateMember = async (userId, memberName) => {
+    if (!window.confirm(`Reactivate sanctuary residency privileges for ${memberName}?`)) return;
+    try {
+      const res = await reactivateMembershipAdmin(userId);
+      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      loadMembers();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
 
   const loadOverview = async () => {
     try {
@@ -318,80 +541,239 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
 
   const maxChartVal = chartData.reduce((acc, cur) => Math.max(acc, cur.revenue || 0), 1);
 
+  const navSections = [
+    {
+      title: 'CORE INTELLIGENCE',
+      items: [
+        { id: 'overview', label: 'Overview & Analytics', icon: LayoutDashboard },
+        {
+          id: 'notifications',
+          label: 'Expiry Alerts',
+          icon: Bell,
+          badge: adminUnreadCount > 0 ? adminUnreadCount : null,
+          badgeColor: 'bg-rose-500 text-white animate-pulse',
+        },
+        {
+          id: 'requests',
+          label: 'Residency Requests',
+          icon: Clock,
+          badge: pendingRequestsCount > 0 ? pendingRequestsCount : null,
+          badgeColor: 'bg-sky-400 text-black font-bold',
+        },
+      ],
+    },
+    {
+      title: 'SANCTUARY RESIDENCY',
+      items: [
+        { id: 'members', label: 'Members Dossier', icon: Users, badge: memberMetrics.total ? String(memberMetrics.total) : null, badgeColor: 'bg-white/10 text-neutral-300 font-mono' },
+        { id: 'plans', label: 'Membership Tiers', icon: Crown },
+        { id: 'bookings', label: 'Class Sessions', icon: Calendar },
+        { id: 'trainers', label: 'Master Coaches', icon: Sparkles },
+        { id: 'clubs', label: 'Clubs Portfolio', icon: MapPin },
+      ],
+    },
+    {
+      title: 'FINANCE & OPERATIONS',
+      items: [
+        { id: 'payments', label: 'Financial Audit', icon: CreditCard },
+        {
+          id: 'inquiries',
+          label: 'VIP Tour Inquiries',
+          icon: MessageSquare,
+          badge: stats.pendingInquiries > 0 ? stats.pendingInquiries : null,
+          badgeColor: 'bg-amber-400 text-black font-bold',
+        },
+        { id: 'newsletter', label: 'Inner Circle Letters', icon: Mail },
+      ],
+    },
+  ];
+
+  const currentNav = navSections.flatMap(s => s.items).find(i => i.id === activeTab);
+
   return (
-    <div className="qnox-admin-container">
-      {/* Admin Sticky Header */}
-      <header className="qnox-admin-header">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onBackToSite}
-            className="p-2 border border-white/10 hover:border-[#c5a880] text-neutral-400 hover:text-white transition-colors"
-            title="Return to Public Website"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+    <div className="min-h-screen bg-[#070707] text-[#f5f5f5] flex font-sans antialiased selection:bg-[#c5a880] selection:text-black">
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Modern Dashboard Sidebar */}
+      <aside
+        className={`fixed lg:sticky top-0 left-0 h-screen w-72 bg-[#090909] border-r border-white/10 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
+          mobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Sidebar Brand Header */}
+        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#080808]">
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-serif text-xl font-bold tracking-[0.25em] text-white">Q N O X</span>
-              <span className="text-[9px] px-2 py-0.5 bg-[#c5a880] text-black font-bold uppercase tracking-widest">
-                EXECUTIVE SUITE
+            <div className="flex items-center space-x-2.5">
+              <span className="font-serif text-2xl font-bold tracking-[0.28em] text-white">Q N O X</span>
+              <span className="text-[9px] px-2 py-0.5 bg-[#c5a880] text-black font-extrabold uppercase tracking-widest">
+                SUITE
               </span>
             </div>
-            <p className="text-[10px] text-neutral-500 uppercase tracking-widest">
-              Signed in as {currentUser?.name} &bull; {currentUser?.role}
-            </p>
+            <div className="flex items-center space-x-2 mt-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[9px] tracking-[0.2em] text-neutral-400 uppercase font-mono">
+                EXECUTIVE COMMAND
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="lg:hidden p-1.5 text-neutral-400 hover:text-white border border-white/10"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Sidebar Categorized Navigation */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 qnox-sidebar-scroll">
+          {navSections.map((section) => (
+            <div key={section.title} className="space-y-1.5">
+              <div className="px-3 pb-1 text-[9px] font-mono tracking-[0.25em] text-neutral-500 uppercase font-bold">
+                {section.title}
+              </div>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setMobileSidebarOpen(false);
+                      }}
+                      className={`qnox-sidebar-item ${isActive ? 'active' : ''}`}
+                    >
+                      <div className="flex items-center space-x-3 truncate">
+                        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#c5a880]' : 'text-neutral-400'}`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 ml-2 flex-shrink-0 ${item.badgeColor || 'bg-white/10 text-neutral-300'}`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sidebar Footer: Admin Profile & Actions */}
+        <div className="p-4 border-t border-white/10 bg-[#080808]">
+          <div className="flex items-center space-x-3 mb-3 p-2 bg-white/[0.02] border border-white/5">
+            <div className="w-9 h-9 rounded-full bg-neutral-800 border border-[#c5a880]/50 flex items-center justify-center text-xs font-serif text-[#c5a880] font-bold">
+              {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'AD'}
+            </div>
+            <div className="truncate flex-1">
+              <div className="text-xs font-semibold text-white truncate">{currentUser?.name || 'Sanctuary Admin'}</div>
+              <div className="text-[10px] text-neutral-500 font-mono tracking-wider truncate">
+                {currentUser?.role || 'Super Admin'}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onBackToSite}
+              className="px-2 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-white/10 hover:border-[#c5a880] text-neutral-300 hover:text-white transition flex items-center justify-center space-x-1"
+              title="Return to Public Website"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>LIVE SITE</span>
+            </button>
+            <button
+              onClick={onLogout}
+              className="px-2 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-rose-500/30 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 transition flex items-center justify-center space-x-1"
+              title="End Executive Session"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>LOGOUT</span>
+            </button>
           </div>
         </div>
+      </aside>
 
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onBackToSite}
-            className="hidden sm:inline-flex px-4 py-2 border border-white/10 hover:border-white/30 text-neutral-300 text-xs tracking-wider uppercase"
-          >
-            LIVE WEBSITE
-          </button>
-          <button
-            onClick={onLogout}
-            className="px-4 py-2 bg-rose-950/40 border border-rose-500/40 text-rose-300 hover:bg-rose-900/60 text-xs tracking-wider uppercase transition-colors flex items-center space-x-1.5"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>LOGOUT</span>
-          </button>
-        </div>
-      </header>
+      {/* Main Dashboard Canvas Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden bg-[#050505]">
+        {/* Sticky Dashboard Topbar */}
+        <header className="sticky top-0 z-30 bg-[#080808]/95 backdrop-blur-md border-b border-white/10 px-6 lg:px-10 py-3.5 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 text-neutral-400 hover:text-white border border-white/10"
+              title="Open Navigation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
-      {/* Navigation Sub-bar */}
-      <div className="bg-[#080808] border-b border-white/10 px-8 flex items-center space-x-2 overflow-x-auto scrollbar-none">
-        <button onClick={() => setActiveTab('overview')} className={`qnox-admin-nav-btn ${activeTab === 'overview' ? 'active' : ''}`}>
-          OVERVIEW & REVENUE
-        </button>
-        <button onClick={() => setActiveTab('members')} className={`qnox-admin-nav-btn ${activeTab === 'members' ? 'active' : ''}`}>
-          MEMBERS DOSSIER
-        </button>
-        <button onClick={() => setActiveTab('plans')} className={`qnox-admin-nav-btn ${activeTab === 'plans' ? 'active' : ''}`}>
-          MEMBERSHIP TIERS
-        </button>
-        <button onClick={() => setActiveTab('bookings')} className={`qnox-admin-nav-btn ${activeTab === 'bookings' ? 'active' : ''}`}>
-          CLASS SESSIONS
-        </button>
-        <button onClick={() => setActiveTab('trainers')} className={`qnox-admin-nav-btn ${activeTab === 'trainers' ? 'active' : ''}`}>
-          MASTER COACHES
-        </button>
-        <button onClick={() => setActiveTab('clubs')} className={`qnox-admin-nav-btn ${activeTab === 'clubs' ? 'active' : ''}`}>
-          CLUBS PORTFOLIO
-        </button>
-        <button onClick={() => setActiveTab('payments')} className={`qnox-admin-nav-btn ${activeTab === 'payments' ? 'active' : ''}`}>
-          FINANCIAL AUDIT
-        </button>
-        <button onClick={() => setActiveTab('newsletter')} className={`qnox-admin-nav-btn ${activeTab === 'newsletter' ? 'active' : ''}`}>
-          INNER CIRCLE NEWSLETTER
-        </button>
-        <button onClick={() => setActiveTab('inquiries')} className={`qnox-admin-nav-btn ${activeTab === 'inquiries' ? 'active' : ''}`}>
-          TOUR INQUIRIES
-        </button>
-      </div>
+            <div>
+              <div className="flex items-center space-x-2 text-xs text-neutral-400 font-mono">
+                <span className="hidden sm:inline">QNOX SANCTUARY</span>
+                <span className="hidden sm:inline text-neutral-600">/</span>
+                <span className="text-[#c5a880] uppercase tracking-wider font-semibold">
+                  {currentNav?.label || 'DASHBOARD'}
+                </span>
+              </div>
+            </div>
+          </div>
 
-      <div className="max-w-7xl mx-auto px-6 md:px-10 pt-10">
+          <div className="flex items-center space-x-3">
+            {/* Run Expiry Engine Fast Shortcut */}
+            <button
+              onClick={handleRunExpiryEngine}
+              disabled={runningExpiryEngine}
+              className="hidden md:inline-flex items-center space-x-1.5 px-3 py-1.5 border border-white/15 hover:border-[#c5a880] text-[10px] tracking-wider uppercase font-mono text-neutral-300 hover:text-white transition disabled:opacity-50"
+              title="Trigger background membership expiration audit"
+            >
+              <RefreshCw className={`w-3 h-3 text-[#c5a880] ${runningExpiryEngine ? 'animate-spin' : ''}`} />
+              <span>{runningExpiryEngine ? 'AUDITING...' : 'RUN EXPIRY ENGINE'}</span>
+            </button>
+
+            {/* Quick Notifications Button */}
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`relative p-2 border transition flex items-center ${
+                activeTab === 'notifications'
+                  ? 'border-[#c5a880] text-[#c5a880] bg-[#c5a880]/10'
+                  : 'border-white/10 text-neutral-300 hover:border-white/30'
+              }`}
+              title="View Expiry Alerts"
+            >
+              <Bell className="w-4 h-4 text-[#c5a880]" />
+              {adminUnreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 text-[8px] font-bold bg-rose-600 text-white rounded-full animate-pulse shadow-md">
+                  {adminUnreadCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={onBackToSite}
+              className="hidden sm:inline-flex px-3.5 py-1.5 border border-white/10 hover:border-white/30 text-neutral-300 text-xs tracking-wider uppercase"
+            >
+              WEBSITE
+            </button>
+
+            <button
+              onClick={onLogout}
+              className="px-3.5 py-1.5 bg-rose-950/40 border border-rose-500/40 text-rose-300 hover:bg-rose-900/60 text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">LOGOUT</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Dashboard Main Content Body */}
+        <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-8">
         
         {/* ================= TAB 1: OVERVIEW & ANALYTICS ================= */}
         {activeTab === 'overview' && (
@@ -810,6 +1192,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                               className={`qnox-status-badge ${
                                 isArchived
                                   ? 'neutral'
+                                  : m.membership?.status === 'Suspended'
+                                  ? 'active text-rose-400 border-rose-500/40 bg-rose-950/30'
+                                  : m.membership?.status === 'Expiring Soon'
+                                  ? 'active text-amber-400 border-amber-500/40 bg-amber-950/30'
                                   : isActive
                                   ? 'active'
                                   : isFrozen
@@ -827,18 +1213,53 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                                 : '—'}
                             </span>
                           </td>
-                          <td className="text-right space-x-2">
+                          <td className="text-right space-x-1.5 whitespace-nowrap">
                             <button
                               onClick={() => setSelectedDossierMemberId(m._id)}
-                              className="px-3 py-1 text-xs bg-[#c5a880] text-black font-bold uppercase tracking-wider hover:bg-white transition"
+                              className="px-2.5 py-1 text-xs bg-[#c5a880] text-black font-bold uppercase tracking-wider hover:bg-white transition"
                             >
-                              360° DOSSIER
+                              DOSSIER
+                            </button>
+                            <button
+                              onClick={() => {
+                                setExtendTargetUser(m);
+                                setExtendDays(30);
+                                setShowExtendModal(true);
+                              }}
+                              title="Extend Membership Validity"
+                              className="px-2 py-1 text-xs border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 font-mono"
+                            >
+                              +EXTEND
+                            </button>
+                            {m.membership?.status === 'Suspended' ? (
+                              <button
+                                onClick={() => handleReactivateMember(m._id, m.name)}
+                                title="Reactivate Suspended Residency"
+                                className="px-2 py-1 text-xs border border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/40 font-mono"
+                              >
+                                RESTORE
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleSuspendMember(m._id, m.name)}
+                                title="Suspend Residency Privileges"
+                                className="px-2 py-1 text-xs border border-rose-500/40 text-rose-400 hover:bg-rose-950/40 font-mono"
+                              >
+                                SUSPEND
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleSendReminder(m._id, m.name)}
+                              title="Dispatch Instant Renewal Reminder"
+                              className="px-2 py-1 text-xs border border-amber-500/40 text-amber-400 hover:bg-amber-950/40 font-mono"
+                            >
+                              REMIND
                             </button>
                             <button
                               onClick={() => setEditingPlanMember(m)}
-                              className="px-2.5 py-1 text-xs border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white transition"
+                              className="px-2 py-1 text-xs border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white transition"
                             >
-                              EDIT PLAN
+                              PLAN
                             </button>
                             <button
                               onClick={async () => {
@@ -847,9 +1268,9 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                                   loadMembers(memberPage);
                                 }
                               }}
-                              className="px-2 py-1 text-xs text-rose-400 hover:text-rose-200"
+                              className="px-1.5 py-1 text-xs text-rose-400 hover:text-rose-200"
                             >
-                              DELETE
+                              <Trash2 className="w-3.5 h-3.5 inline" />
                             </button>
                           </td>
                         </tr>
@@ -906,7 +1327,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                   setEditingPlan(null);
                   setPlanForm({
                     name: '', code: '', subtitle: '', description: '',
-                    pricing: { monthly: 25000, quarterly: 70000, halfYearly: 135000, yearly: 255000 },
+                    pricing: { monthly: 1200, quarterly: 4500, halfYearly: 7500, yearly: 12500 },
                     benefits: 'Unlimited access, Slate pool, Altitude suite',
                   });
                   setShowPlanModal(true);
@@ -936,10 +1357,8 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                     <h4 className="font-serif text-2xl text-white mb-1">{p.name}</h4>
                     <p className="text-xs text-neutral-400 font-light mb-4">{p.subtitle}</p>
 
-                    <div className="bg-[#121212] p-3 mb-4 space-y-1 text-xs font-mono">
-                      <div className="flex justify-between text-neutral-400"><span>1 Mo:</span> <span className="text-white">₹{p.pricing?.monthly?.toLocaleString('en-IN')}</span></div>
-                      <div className="flex justify-between text-neutral-400"><span>3 Mo:</span> <span className="text-white">₹{p.pricing?.quarterly?.toLocaleString('en-IN')}</span></div>
-                      <div className="flex justify-between text-neutral-400"><span>12 Mo:</span> <span className="text-[#c5a880] font-bold">₹{p.pricing?.yearly?.toLocaleString('en-IN')}</span></div>
+                    <div className="text-sm font-serif text-[#c5a880] mb-4">
+                      ₹{p.pricing?.monthly?.toLocaleString('en-IN')} <span className="text-xs text-neutral-400 font-mono uppercase font-light">/ month</span>
                     </div>
 
                     <div className="space-y-1.5 text-xs text-neutral-300">
@@ -1389,6 +1808,518 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
           </div>
         )}
 
+        {/* ================= TAB 10: EXPIRY NOTIFICATIONS ================= */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            {/* Header & Main Controls */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
+              <div>
+                <span className="text-[10px] tracking-[0.25em] text-[#c5a880] uppercase font-bold block mb-1">
+                  AUTOMATED SURVEILLANCE & RENEWAL SYSTEM
+                </span>
+                <h3 className="font-serif text-2xl text-white">Membership Expiry & Renewal Alerts</h3>
+                <p className="text-xs text-neutral-400 mt-1 max-w-xl">
+                  Monitoring customer memberships against live calendar dates. Advance alerts at 7d, 3d, 1d, expiry date, and +3d follow-ups.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+                <button
+                  onClick={handleRunExpiryEngine}
+                  disabled={runningExpiryEngine}
+                  className="px-4 py-2.5 bg-[#c5a880] text-black hover:bg-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center space-x-2 disabled:opacity-50"
+                  title="Run background expiry detection engine immediately"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${runningExpiryEngine ? 'animate-spin' : ''}`} />
+                  <span>{runningExpiryEngine ? 'RUNNING ENGINE...' : 'RUN EXPIRY ENGINE NOW'}</span>
+                </button>
+
+                <button
+                  onClick={handleMarkAllNotifsAsRead}
+                  className="px-4 py-2.5 border border-white/20 hover:border-white text-white text-xs tracking-wider uppercase transition-colors flex items-center space-x-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-[#c5a880]" />
+                  <span>MARK ALL AS READ</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setNotifTypeFilter('all');
+                  setNotifStatusFilter('all');
+                  loadNotifications('all', 'all', notifSearch);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono border transition ${
+                  notifTypeFilter === 'all' && notifStatusFilter === 'all'
+                    ? 'border-[#c5a880] text-white bg-[#c5a880]/10'
+                    : 'border-white/10 text-neutral-400 hover:text-white'
+                }`}
+              >
+                ALL ALERTS ({notifMetrics.total})
+              </button>
+              <button
+                onClick={() => {
+                  setNotifStatusFilter('unread');
+                  setNotifTypeFilter('all');
+                  loadNotifications('unread', 'all', notifSearch);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono border transition ${
+                  notifStatusFilter === 'unread'
+                    ? 'border-rose-500 text-rose-300 bg-rose-950/40'
+                    : 'border-white/10 text-neutral-400 hover:text-white'
+                }`}
+              >
+                UNREAD ALERTS ({notifMetrics.unread})
+              </button>
+              <button
+                onClick={() => {
+                  setNotifTypeFilter('expired');
+                  loadNotifications(notifStatusFilter, 'expired', notifSearch);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono border transition ${
+                  notifTypeFilter === 'expired'
+                    ? 'border-rose-500 text-rose-300 bg-rose-950/40'
+                    : 'border-white/10 text-neutral-400 hover:text-white'
+                }`}
+              >
+                EXPIRED ({notifMetrics.expired})
+              </button>
+              <button
+                onClick={() => {
+                  setNotifTypeFilter('expiringSoon');
+                  loadNotifications(notifStatusFilter, 'expiringSoon', notifSearch);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono border transition ${
+                  notifTypeFilter === 'expiringSoon'
+                    ? 'border-amber-500 text-amber-300 bg-amber-950/40'
+                    : 'border-white/10 text-neutral-400 hover:text-white'
+                }`}
+              >
+                EXPIRING SOON ({notifMetrics.expiringSoon})
+              </button>
+              <button
+                onClick={() => {
+                  setNotifTypeFilter('renewed');
+                  loadNotifications(notifStatusFilter, 'renewed', notifSearch);
+                }}
+                className={`px-3 py-1.5 text-xs font-mono border transition ${
+                  notifTypeFilter === 'renewed'
+                    ? 'border-emerald-500 text-emerald-300 bg-emerald-950/40'
+                    : 'border-white/10 text-neutral-400 hover:text-white'
+                }`}
+              >
+                RENEWED ({notifMetrics.renewed})
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="flex items-center space-x-3 bg-[#0a0a0a] border border-white/10 px-4 py-2.5">
+              <Search className="w-4 h-4 text-neutral-500" />
+              <input
+                type="text"
+                value={notifSearch}
+                onChange={(e) => {
+                  setNotifSearch(e.target.value);
+                  loadNotifications(notifStatusFilter, notifTypeFilter, e.target.value);
+                }}
+                placeholder="Search by customer name, email, phone number, tier, or keyword..."
+                className="bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none flex-1 font-mono"
+              />
+              {notifSearch && (
+                <button
+                  onClick={() => {
+                    setNotifSearch('');
+                    loadNotifications(notifStatusFilter, notifTypeFilter, '');
+                  }}
+                  className="text-neutral-500 hover:text-white text-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Notifications Feed */}
+            {notifLoading ? (
+              <div className="py-20 text-center text-neutral-500 font-mono text-xs">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#c5a880]" />
+                Scanning membership database...
+              </div>
+            ) : adminNotifications.length === 0 ? (
+              <div className="border border-white/10 bg-[#090909] p-12 text-center">
+                <Bell className="w-8 h-8 text-neutral-600 mx-auto mb-3" />
+                <h4 className="font-serif text-lg text-neutral-300 mb-1">No Notifications Located</h4>
+                <p className="text-xs text-neutral-500 max-w-md mx-auto">
+                  No membership expiry or renewal alerts match your current filter settings. Click &quot;Run Expiry Engine Now&quot; to scan for pending events.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {adminNotifications.map((notif) => {
+                  const isExpiredType = ['EXPIRY_TODAY', 'EXPIRY_EXPIRED', 'EXPIRY_FOLLOWUP_3D'].includes(notif.type);
+                  const isExpiringSoonType = ['EXPIRY_REMINDER_7D', 'EXPIRY_REMINDER_3D', 'EXPIRY_REMINDER_1D'].includes(notif.type);
+                  const isRenewedType = notif.type === 'MEMBERSHIP_RENEWED';
+
+                  let badgeColor = 'border-neutral-500 text-neutral-400';
+                  let stageLabel = 'NOTICE';
+                  if (isExpiredType) {
+                    badgeColor = 'border-rose-500/60 bg-rose-950/40 text-rose-300';
+                    stageLabel = notif.type === 'EXPIRY_FOLLOWUP_3D' ? 'EXPIRED (+3D FOLLOW-UP)' : 'EXPIRED';
+                  } else if (isExpiringSoonType) {
+                    badgeColor = 'border-amber-500/60 bg-amber-950/40 text-amber-300';
+                    stageLabel = notif.stage ? notif.stage.replace(/_/g, ' ') : 'EXPIRING SOON';
+                  } else if (isRenewedType) {
+                    badgeColor = 'border-emerald-500/60 bg-emerald-950/40 text-emerald-300';
+                    stageLabel = 'RENEWED';
+                  }
+
+                  return (
+                    <div
+                      key={notif._id}
+                      className={`border p-6 bg-[#0a0a0a] transition-all relative ${
+                        !notif.isRead
+                          ? 'border-white/30 shadow-[0_0_15px_rgba(197,168,128,0.05)]'
+                          : 'border-white/10 opacity-90'
+                      }`}
+                      style={{
+                        borderLeftWidth: '4px',
+                        borderLeftColor: isExpiredType ? '#f43f5e' : isExpiringSoonType ? '#f59e0b' : isRenewedType ? '#10b981' : '#c5a880',
+                      }}
+                    >
+                      {/* Top Header of Card */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center space-x-2.5">
+                          {!notif.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-[#c5a880] animate-pulse" title="Unread Alert" />
+                          )}
+                          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 border uppercase ${badgeColor}`}>
+                            {stageLabel}
+                          </span>
+                          <span className="text-xs text-neutral-400 font-mono">
+                            {new Date(notif.createdAt).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          {!notif.isRead && (
+                            <button
+                              onClick={() => handleMarkNotifAsRead(notif._id)}
+                              className="px-2.5 py-1 text-[10px] text-neutral-400 hover:text-white border border-white/10 hover:border-white/30 uppercase tracking-wider transition"
+                              title="Mark this alert as read"
+                            >
+                              MARK READ
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteNotif(notif._id)}
+                            className="p-1.5 text-neutral-500 hover:text-rose-400 border border-transparent hover:border-rose-900 transition"
+                            title="Dismiss notification"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Title & Message */}
+                      <div className="mb-4">
+                        <h4 className="font-serif text-lg text-white font-medium mb-1">
+                          {notif.title}
+                        </h4>
+                        <p className="text-xs text-neutral-300 font-light leading-relaxed">
+                          {notif.message}
+                        </p>
+                      </div>
+
+                      {/* Customer Dossier Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#111111] border border-white/5 text-xs font-mono mb-4">
+                        <div>
+                          <span className="text-[9px] text-neutral-500 uppercase block">CUSTOMER</span>
+                          <span className="text-white font-semibold truncate block">{notif.customerName || 'N/A'}</span>
+                          <span className="text-[10px] text-neutral-400 truncate block">{notif.customerEmail || ''}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-neutral-500 uppercase block">PHONE / CONTACT</span>
+                          <span className="text-neutral-300 block">{notif.customerPhone || 'Not provided'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-neutral-500 uppercase block">MEMBERSHIP PLAN</span>
+                          <span className="text-[#c5a880] font-semibold block">{notif.membershipPlan || 'None'}</span>
+                          <span className="text-[10px] text-neutral-400 block">Status: {notif.membershipStatus || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-neutral-500 uppercase block">EXPIRY DATE</span>
+                          <span className="text-white block">
+                            {notif.membershipEndDate
+                              ? new Date(notif.membershipEndDate).toLocaleDateString('en-GB', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'None'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Triggers */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+                        {notif.customerId && (
+                          <button
+                            onClick={() => setSelectedDossierMemberId(notif.customerId)}
+                            className="px-3.5 py-1.5 bg-[#181818] border border-white/20 hover:border-[#c5a880] text-neutral-200 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#c5a880]" />
+                            <span>VIEW CUSTOMER PROFILE</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setEditingPlanMember({
+                              _id: notif.customerId,
+                              name: notif.customerName,
+                              membership: {
+                                planName: notif.membershipPlan || 'THE METROPOLITAN',
+                                status: notif.membershipStatus || 'Active',
+                                endDate: notif.membershipEndDate,
+                              },
+                            });
+                          }}
+                          className="px-3.5 py-1.5 bg-[#c5a880] hover:bg-white text-black text-xs font-bold tracking-wider uppercase transition flex items-center space-x-1.5"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>RENEW MEMBERSHIP</span>
+                        </button>
+
+                        {notif.customerPhone && (
+                          <a
+                            href={`tel:${notif.customerPhone}`}
+                            className="px-3 py-1.5 border border-white/10 hover:border-white/30 text-neutral-400 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1"
+                          >
+                            <Phone className="w-3 h-3 text-[#c5a880]" />
+                            <span>CALL</span>
+                          </a>
+                        )}
+
+                        {notif.customerEmail && (
+                          <a
+                            href={`mailto:${notif.customerEmail}?subject=QNOX GYM Membership Renewal Notice`}
+                            className="px-3 py-1.5 border border-white/10 hover:border-white/30 text-neutral-400 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1"
+                          >
+                            <Mail className="w-3 h-3 text-[#c5a880]" />
+                            <span>EMAIL FOLLOW-UP</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= TAB 11: MEMBERSHIP REQUESTS (FREEZE & CANCELLATION) ================= */}
+        {activeTab === 'requests' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
+              <div>
+                <span className="text-[10px] tracking-[0.25em] text-sky-400 uppercase font-bold block mb-1">
+                  EXECUTIVE MEMBERSHIP SURVEILLANCE
+                </span>
+                <h3 className="font-serif text-2xl text-white">Membership Requests Console</h3>
+                <p className="text-xs text-neutral-400 mt-1 max-w-xl">
+                  Review and process customer freeze and cancellation requests with automatic date adjustments and notification dispatches.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => loadMembershipRequests()}
+                  className="px-4 py-2 border border-white/10 hover:border-white/30 text-neutral-300 text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingRequests ? 'animate-spin text-[#c5a880]' : ''}`} />
+                  <span>REFRESH</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[#0a0a0a] border border-white/10 text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="text-neutral-500 uppercase tracking-widest text-[10px] mr-2">TYPE:</span>
+                {['All', 'Freeze', 'Cancellation'].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      setRequestsFilter(t);
+                    }}
+                    className={`px-3 py-1 text-xs uppercase tracking-wider font-mono border transition ${
+                      requestsFilter === t
+                        ? 'border-[#c5a880] text-white bg-[#c5a880]/10 font-bold'
+                        : 'border-white/10 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-neutral-500 uppercase tracking-widest text-[10px] mr-2">STATUS:</span>
+                {['All', 'Pending', 'Approved', 'Rejected'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      setRequestsStatusFilter(s);
+                    }}
+                    className={`px-3 py-1 text-xs uppercase tracking-wider font-mono border transition ${
+                      requestsStatusFilter === s
+                        ? s === 'Pending'
+                          ? 'border-sky-500 text-sky-300 bg-sky-950/30 font-bold'
+                          : s === 'Approved'
+                          ? 'border-emerald-500 text-emerald-300 bg-emerald-950/30 font-bold'
+                          : s === 'Rejected'
+                          ? 'border-rose-500 text-rose-300 bg-rose-950/30 font-bold'
+                          : 'border-[#c5a880] text-white bg-[#c5a880]/10 font-bold'
+                        : 'border-white/10 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Requests Table */}
+            {loadingRequests ? (
+              <div className="py-20 text-center text-xs text-neutral-500 font-mono tracking-widest uppercase">
+                LOADING MEMBERSHIP REQUESTS...
+              </div>
+            ) : membershipRequests.length === 0 ? (
+              <div className="p-12 text-center border border-white/10 bg-[#0a0a0a]">
+                <Clock className="w-8 h-8 text-neutral-600 mx-auto mb-3" />
+                <h4 className="font-serif text-lg text-white mb-1">No Membership Requests Found</h4>
+                <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                  There are currently no customer freeze or cancellation requests matching the selected filters.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-white/10 bg-[#0a0a0a]">
+                <table className="w-full text-left text-xs text-neutral-300 font-mono">
+                  <thead className="bg-[#121212] text-[#c5a880] uppercase tracking-wider text-[10px] border-b border-white/10">
+                    <tr>
+                      <th className="p-4">Customer</th>
+                      <th className="p-4">Type</th>
+                      <th className="p-4">Duration / Specifics</th>
+                      <th className="p-4">Reason</th>
+                      <th className="p-4">Submitted</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {membershipRequests.map((req) => (
+                      <tr key={req._id} className="hover:bg-white/[0.02] transition">
+                        <td className="p-4">
+                          <div className="font-sans font-semibold text-white">{req.userName}</div>
+                          <div className="text-[11px] text-neutral-500 font-mono">{req.userEmail}</div>
+                          {req.memberId && (
+                            <span className="text-[9px] px-1 bg-white/5 text-[#c5a880] border border-white/10 inline-block mt-0.5">
+                              {req.memberId}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              req.type === 'Freeze'
+                                ? 'bg-sky-950/60 text-sky-400 border border-sky-500/40'
+                                : 'bg-rose-950/60 text-rose-400 border border-rose-500/40'
+                            }`}
+                          >
+                            {req.type}
+                          </span>
+                        </td>
+                        <td className="p-4 text-neutral-300">
+                          {req.type === 'Freeze' ? (
+                            <div>
+                              <span>{req.freezeDays || 30} Days Pause</span>
+                              {req.freezeStartDate && (
+                                <div className="text-[10px] text-neutral-500">
+                                  From {new Date(req.freezeStartDate).toLocaleDateString('en-GB')}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <span>Voluntary Departure</span>
+                              {req.refundAmount > 0 && (
+                                <div className="text-[10px] text-emerald-400">
+                                  Refund: ₹{req.refundAmount.toLocaleString('en-IN')}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 max-w-xs font-sans text-neutral-300 font-light truncate" title={req.reason}>
+                          {req.reason}
+                        </td>
+                        <td className="p-4 text-neutral-400">
+                          {new Date(req.createdAt).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="p-4">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              req.status === 'Pending'
+                                ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40'
+                                : req.status === 'Approved'
+                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-rose-950/60 text-rose-400 border border-rose-500/40'
+                            }`}
+                          >
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                          {req.status === 'Pending' ? (
+                            <>
+                              <button
+                                onClick={() => setSelectedRequestAction({ request: req, action: 'approve' })}
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-black text-xs font-bold uppercase tracking-wider transition"
+                              >
+                                APPROVE
+                              </button>
+                              <button
+                                onClick={() => setSelectedRequestAction({ request: req, action: 'reject' })}
+                                className="px-3 py-1 border border-rose-500/50 text-rose-400 hover:bg-rose-950/40 text-xs font-bold uppercase tracking-wider transition"
+                              >
+                                REJECT
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-neutral-500">
+                              Reviewed by {req.reviewedByName || 'Admin'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        </main>
       </div>
 
       {/* Modal: Add/Edit Plan */}
@@ -1545,9 +2476,215 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
           onSuccess={() => {
             loadMembers(memberPage);
             loadOverview();
-            if (onShowToast) onShowToast('Residency tier successfully commissioned', 'success');
+            if (onShowToast) onShowToast({ type: 'success', message: 'Residency tier successfully commissioned' });
           }}
         />
+      )}
+
+      {/* Membership Request Approval / Rejection Modal */}
+      {selectedRequestAction && (
+        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0e0e0e] border border-white/20 w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-[0.25em] text-[#c5a880] font-bold uppercase block">
+                  {selectedRequestAction.action === 'approve' ? 'APPROVE REQUEST' : 'REJECT REQUEST'}
+                </span>
+                <h4 className="font-serif text-lg text-white font-semibold">
+                  {selectedRequestAction.request.userName} &bull; {selectedRequestAction.request.type}
+                </h4>
+              </div>
+              <button
+                onClick={() => setSelectedRequestAction(null)}
+                className="text-neutral-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {selectedRequestAction.action === 'approve' ? (
+              <form onSubmit={handleApproveRequest} className="space-y-4">
+                <p className="text-xs text-neutral-300 font-light leading-relaxed">
+                  {selectedRequestAction.request.type === 'Freeze'
+                    ? `Approving will pause this member's residency for ${selectedRequestAction.request.freezeDays || 30} days. Their active remaining days will be safeguarded and restored upon unfreezing.`
+                    : 'Approving will terminate active residency privileges immediately.'}
+                </p>
+
+                {selectedRequestAction.request.type === 'Cancellation' && (
+                  <div>
+                    <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
+                      REFUND AMOUNT (₹, IF AUTHORIZED)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(Number(e.target.value))}
+                      min="0"
+                      className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
+                    ADMINISTRATIVE CONCIERGE NOTES
+                  </label>
+                  <textarea
+                    value={approvalNotes}
+                    onChange={(e) => setApprovalNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Internal reference notes..."
+                    className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRequestAction(null)}
+                    className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>CONFIRM APPROVAL</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleRejectRequest} className="space-y-4">
+                <p className="text-xs text-rose-300 font-light leading-relaxed">
+                  Provide an official reason for rejection. This reason will be dispatched to the member via personalized notification.
+                </p>
+
+                <div>
+                  <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
+                    REJECTION REASON
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    required
+                    rows={3}
+                    placeholder="e.g. Minimum commitment tenure not completed, freeze allowance exceeded..."
+                    className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-rose-400 outline-none resize-none font-light"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRequestAction(null)}
+                    className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>CONFIRM REJECTION</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Courtesy Validity Extension Modal */}
+      {showExtendModal && extendTargetUser && (
+        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0e0e0e] border border-white/20 w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-[0.25em] text-sky-400 font-bold uppercase block">MEMBERSHIP VALIDITY</span>
+                <h4 className="font-serif text-lg text-white font-semibold">Extend Residency Validity</h4>
+              </div>
+              <button
+                onClick={() => {
+                  setShowExtendModal(false);
+                  setExtendTargetUser(null);
+                }}
+                className="text-neutral-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-[#141414] border border-white/5 space-y-1 text-xs font-mono">
+              <div className="text-white font-bold">{extendTargetUser.name}</div>
+              <div className="text-neutral-400 text-[11px]">{extendTargetUser.email}</div>
+              <div className="text-[#c5a880] text-[11px]">
+                Current Expiry: {extendTargetUser.membership?.endDate ? new Date(extendTargetUser.membership.endDate).toLocaleDateString('en-GB') : 'No active end date'}
+              </div>
+            </div>
+
+            <form onSubmit={handleExtendSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
+                  DAYS TO EXTEND
+                </label>
+                <select
+                  value={extendDays}
+                  onChange={(e) => setExtendDays(Number(e.target.value))}
+                  className="w-full bg-[#141414] border border-white/10 px-3.5 py-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
+                >
+                  <option value={7}>+7 Days (1 Week Extension)</option>
+                  <option value={15}>+15 Days (Half-Month)</option>
+                  <option value={30}>+30 Days (Standard 1 Month)</option>
+                  <option value={60}>+60 Days (2 Months Courtesy)</option>
+                  <option value={90}>+90 Days (Quarterly Extension)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
+                  EXTENSION REASON / AUDIT NOTE
+                </label>
+                <textarea
+                  value={extendReason}
+                  onChange={(e) => setExtendReason(e.target.value)}
+                  required
+                  rows={3}
+                  className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExtendModal(false);
+                    setExtendTargetUser(null);
+                  }}
+                  className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingExtend}
+                  className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingExtend ? (
+                    <span>EXTENDING...</span>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>APPLY EXTENSION</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>

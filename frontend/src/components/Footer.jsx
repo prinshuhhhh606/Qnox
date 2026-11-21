@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Shield, Instagram, Linkedin, Youtube, Twitter } from 'lucide-react';
 import { subscribeNewsletter } from '../services/api';
 import './Footer.css';
@@ -95,12 +96,12 @@ export default function Footer({ onOpenTourModal }) {
               THE CLUBS
             </h4>
             <ul className="space-y-2.5 text-neutral-400 font-light">
-              <li><a href="#clubs" className="hover:text-white transition-colors">Mayfair Sanctuary</a></li>
-              <li><a href="#clubs" className="hover:text-white transition-colors">Soho Foundry</a></li>
-              <li><a href="#clubs" className="hover:text-white transition-colors">Canary Wharf Horizon</a></li>
-              <li><a href="#clubs" className="hover:text-white transition-colors">Marylebone Mews</a></li>
-              <li><a href="#clubs" className="hover:text-white transition-colors">Chelsea Waterfront</a></li>
-              <li><a href="#clubs" className="hover:text-white transition-colors text-[#c5a880]/80">Obsidian Tower (Private)</a></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Mayfair Sanctuary</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Soho Foundry</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Canary Wharf Horizon</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Marylebone Mews</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Chelsea Waterfront</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors text-[#c5a880]/80">Obsidian Tower (Private)</Link></li>
             </ul>
           </div>
 
@@ -110,12 +111,12 @@ export default function Footer({ onOpenTourModal }) {
               SANCTUARIES
             </h4>
             <ul className="space-y-2.5 text-neutral-400 font-light">
-              <li><a href="#disciplines" className="hover:text-white transition-colors">The Aquatics (25m Slate)</a></li>
-              <li><a href="#disciplines" className="hover:text-white transition-colors">Hypoxic 3000 Altitude</a></li>
-              <li><a href="#disciplines" className="hover:text-white transition-colors">The Combat Ring & Rig</a></li>
-              <li><a href="#disciplines" className="hover:text-white transition-colors">Allegro 2 Reformer</a></li>
-              <li><a href="#disciplines" className="hover:text-white transition-colors">-110°C Cryo Lab</a></li>
-              <li><a href="#disciplines" className="hover:text-white transition-colors">Contrast Plunge Pools</a></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">The Aquatics (25m Slate)</Link></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">Hypoxic 3000 Altitude</Link></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">The Combat Ring & Rig</Link></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">Allegro 2 Reformer</Link></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">-110°C Cryo Lab</Link></li>
+              <li><Link to="/sanctuaries" className="hover:text-white transition-colors">Contrast Plunge Pools</Link></li>
             </ul>
           </div>
 
@@ -125,10 +126,10 @@ export default function Footer({ onOpenTourModal }) {
               MEMBERSHIP
             </h4>
             <ul className="space-y-2.5 text-neutral-400 font-light">
-              <li><a href="#membership" className="hover:text-white transition-colors">The Resident Tier</a></li>
-              <li><a href="#membership" className="hover:text-white transition-colors">The Metropolitan Pass</a></li>
-              <li><a href="#membership" className="hover:text-white transition-colors">The Obsidian Black (150)</a></li>
-              <li><a href="#timetable" className="hover:text-white transition-colors">Masterclass Timetable</a></li>
+              <li><Link to="/membership" className="hover:text-white transition-colors">The Resident Tier</Link></li>
+              <li><Link to="/membership" className="hover:text-white transition-colors">The Metropolitan Pass</Link></li>
+              <li><Link to="/membership" className="hover:text-white transition-colors">The Obsidian Black (150)</Link></li>
+              <li><Link to="/timetable" className="hover:text-white transition-colors">Masterclass Timetable</Link></li>
               <li><button onClick={() => onOpenTourModal()} className="hover:text-[#c5a880] transition-colors text-left">Schedule Private Tour</button></li>
               <li><button onClick={() => onOpenTourModal('Corporate Concierge')} className="hover:text-white transition-colors text-left">Corporate Accounts</button></li>
             </ul>
@@ -140,11 +141,11 @@ export default function Footer({ onOpenTourModal }) {
               THE ARCHIVE
             </h4>
             <ul className="space-y-2.5 text-neutral-400 font-light">
-              <li><a href="#trainers" className="hover:text-white transition-colors">Master Practitioners</a></li>
-              <li><a href="#press" className="hover:text-white transition-colors">Press & Critical Reviews</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">The Longevity Journal</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Architectural Blueprints</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Careers at QNOX</a></li>
+              <li><Link to="/trainers" className="hover:text-white transition-colors">Master Practitioners</Link></li>
+              <li><Link to="/press" className="hover:text-white transition-colors">Press & Critical Reviews</Link></li>
+              <li><Link to="/press" className="hover:text-white transition-colors">The Longevity Journal</Link></li>
+              <li><Link to="/clubs" className="hover:text-white transition-colors">Architectural Blueprints</Link></li>
+              <li><Link to="/press" className="hover:text-white transition-colors">Careers at QNOX</Link></li>
             </ul>
           </div>
 

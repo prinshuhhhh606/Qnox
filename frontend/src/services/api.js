@@ -1,9 +1,17 @@
-// Smart API_BASE: targets direct backend port 5000 on localhost to avoid Vite proxy drops, with relative /api fallback
+// Smart API_BASE resolver for Production (Vercel -> Render) & Localhost
 const getApiBase = () => {
+  // 1. Explicit Vite Environment Variable (e.g. VITE_API_URL configured on Vercel)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
+  }
+
+  // 2. Development Mode on Localhost
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://127.0.0.1:5000/api';
   }
-  return '/api';
+
+  // 3. Production Deployment Fallback (Render live backend)
+  return 'https://qnox.onrender.com/api';
 };
 
 const API_BASE = getApiBase();
@@ -341,7 +349,7 @@ export const fetchMembershipPlans = async (all = false) => {
       name: 'THE RESIDENT',
       code: 'RESIDENT',
       subtitle: 'Dedicated Single Sanctuary Access',
-      pricing: { monthly: 24500, quarterly: 69000, halfYearly: 132000, yearly: 249000 },
+      pricing: { monthly: 1200, quarterly: 4000, halfYearly: 7000, yearly: 12000 },
       description: 'Designed for high performers seeking absolute proximity and dedicated sanctuary access.',
       benefits: [
         'Unlimited access to your chosen primary club',
@@ -356,7 +364,7 @@ export const fetchMembershipPlans = async (all = false) => {
       name: 'THE METROPOLITAN',
       code: 'METROPOLITAN',
       subtitle: 'London All-Sanctuary Access',
-      pricing: { monthly: 32500, quarterly: 92000, halfYearly: 175000, yearly: 329000 },
+      pricing: { monthly: 1800, quarterly: 4500, halfYearly: 7500, yearly: 12500 },
       description: 'Seamless athletic mobility. Unrestricted entry across Mayfair, Soho, Canary Wharf, Marylebone, and Chelsea clubs.',
       benefits: [
         'Universal access to all 5 London QNOX sanctuaries',
@@ -373,7 +381,7 @@ export const fetchMembershipPlans = async (all = false) => {
       name: 'THE OBSIDIAN BLACK',
       code: 'OBSIDIAN',
       subtitle: 'Global Private Founder Tier (Strictly 150)',
-      pricing: { monthly: 68000, quarterly: 195000, halfYearly: 375000, yearly: 699000 },
+      pricing: { monthly: 2500, quarterly: 5000, halfYearly: 8000, yearly: 13000 },
       description: 'Strictly capped at 150 members globally. Unrivalled biometric personalization, private elevator access, and 24/7 concierge.',
       benefits: [
         'Global all-access including upcoming NY & Dubai sanctuaries',
@@ -517,11 +525,31 @@ export const fetchSchedule = async (params = {}) => {
   return null;
 };
 
-export const reserveClassBooking = async (classId, classDate) => {
+export const reserveClassBooking = async (arg1, arg2) => {
+  let payload;
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    payload = {
+      classId: arg1.classId || arg1._id,
+      classDate: arg1.classDate || new Date().toISOString().split('T')[0],
+      classTitle: arg1.classTitle || arg1.title,
+      clubName: arg1.clubName,
+      trainerName: arg1.trainerName || arg1.trainer?.name,
+      day: arg1.day,
+      startTime: arg1.startTime,
+      durationMinutes: arg1.durationMinutes,
+      category: arg1.category,
+    };
+  } else {
+    payload = {
+      classId: arg1,
+      classDate: arg2 || new Date().toISOString().split('T')[0],
+    };
+  }
+
   const res = await fetch(`${API_BASE}/bookings`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ classId, classDate }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Reservation failed');
@@ -1007,3 +1035,222 @@ export const uploadImageFile = async (file) => {
   if (!res.ok) throw new Error(data.message || 'Image upload failed');
   return data.data;
 };
+
+/* ================= NOTIFICATIONS API ================= */
+export const fetchMyNotifications = async ({ page = 1, limit = 20, unreadOnly = false } = {}) => {
+  try {
+    const res = await fetch(`${API_BASE}/notifications/my-notifications?page=${page}&limit=${limit}&unreadOnly=${unreadOnly}`, {
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to fetch notifications');
+    return data;
+  } catch (err) {
+    console.warn('[Fetch Notifications]', err.message);
+    return { success: false, data: [], unreadCount: 0 };
+  }
+};
+
+export const fetchNotificationUnreadCount = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/notifications/unread-count`, {
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to fetch unread count');
+    return data.unreadCount || 0;
+  } catch (err) {
+    return 0;
+  }
+};
+
+export const markNotificationRead = async (id) => {
+  const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to mark notification read');
+  return data;
+};
+
+export const markAllNotificationsRead = async (scope = '') => {
+  const res = await fetch(`${API_BASE}/notifications/read-all?scope=${scope}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to mark all read');
+  return data;
+};
+
+export const deleteNotificationRecord = async (id) => {
+  const res = await fetch(`${API_BASE}/notifications/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to delete notification');
+  return data;
+};
+
+export const fetchAdminNotifications = async ({ status = 'all', filterType = 'all', search = '', page = 1, limit = 20 } = {}) => {
+  try {
+    const params = new URLSearchParams();
+    if (status && status !== 'all') params.append('status', status);
+    if (filterType && filterType !== 'all') params.append('filterType', filterType);
+    if (search) params.append('search', search);
+    params.append('page', page);
+    params.append('limit', limit);
+
+    const res = await fetch(`${API_BASE}/notifications/admin-notifications?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to fetch admin notifications');
+    return data;
+  } catch (err) {
+    console.warn('[Admin Notifications]', err.message);
+    return { success: false, data: [], metrics: { total: 0, unread: 0, expired: 0, expiringSoon: 0, renewed: 0 } };
+  }
+};
+
+export const triggerAdminExpiryCheck = async () => {
+  const res = await fetch(`${API_BASE}/admin/cron/run-expiry-check`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to execute expiry check');
+  return data;
+};
+
+// ==========================================
+// MEMBERSHIP MANAGEMENT & LIFECYCLE
+// ==========================================
+
+export const fetchMyMembership = async () => {
+  const res = await fetch(`${API_BASE}/memberships/my-membership`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch membership details');
+  return data.data;
+};
+
+export const submitFreezeRequest = async (payload) => {
+  const res = await fetch(`${API_BASE}/memberships/freeze-request`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit freeze request');
+  return data;
+};
+
+export const submitCancellationRequest = async (payload) => {
+  const res = await fetch(`${API_BASE}/memberships/cancellation-request`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit cancellation request');
+  return data;
+};
+
+export const toggleAutoRenew = async () => {
+  const res = await fetch(`${API_BASE}/memberships/auto-renew`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to toggle auto-renewal');
+  return data;
+};
+
+export const fetchMembershipStats = async () => {
+  const res = await fetch(`${API_BASE}/memberships/admin/stats`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch membership stats');
+  return data.data;
+};
+
+export const fetchMembershipRequests = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/memberships/admin/requests?${query}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch membership requests');
+  return data.data;
+};
+
+export const approveMembershipRequest = async (id, payload = {}) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/requests/${id}/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to approve request');
+  return data;
+};
+
+export const rejectMembershipRequest = async (id, payload = {}) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/requests/${id}/reject`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reject request');
+  return data;
+};
+
+export const extendMembershipAdmin = async (userId, payload) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/${userId}/extend`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to extend membership');
+  return data;
+};
+
+export const suspendMembershipAdmin = async (userId, payload) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/${userId}/suspend`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to suspend membership');
+  return data;
+};
+
+export const reactivateMembershipAdmin = async (userId) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/${userId}/reactivate`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reactivate membership');
+  return data;
+};
+
+export const sendRenewalReminderAdmin = async (userId) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/${userId}/send-reminder`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to dispatch renewal reminder');
+  return data;
+};
+
+

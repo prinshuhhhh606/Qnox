@@ -268,10 +268,10 @@ const sampleMembershipPlans = [
     subtitle: "Dedicated Single Sanctuary Access",
     description: "Designed for high performers seeking absolute proximity and dedicated sanctuary access to their primary London neighbourhood.",
     pricing: {
-      monthly: 24500,
-      quarterly: 69000,
-      halfYearly: 132000,
-      yearly: 249000
+      monthly: 1200,
+      quarterly: 4000,
+      halfYearly: 7000,
+      yearly: 12000
     },
     benefits: [
       "Unlimited access to your chosen primary club sanctuary",
@@ -300,10 +300,10 @@ const sampleMembershipPlans = [
     subtitle: "London Multi-Sanctuary Pass",
     description: "Seamless athletic mobility. Unrestricted entry across Mayfair, Soho, Canary Wharf, Marylebone, and Chelsea clubs.",
     pricing: {
-      monthly: 32500,
-      quarterly: 92000,
-      halfYearly: 175000,
-      yearly: 329000
+      monthly: 1800,
+      quarterly: 4500,
+      halfYearly: 7500,
+      yearly: 12500
     },
     benefits: [
       "Universal access to all 5 London QNOX sanctuaries",
@@ -333,10 +333,10 @@ const sampleMembershipPlans = [
     subtitle: "Global Private Founder Tier (Strictly 150 Members)",
     description: "Strictly capped at 150 members globally. Unrivalled biometric personalization, private biometric elevator access, and 24/7 dedicated concierge.",
     pricing: {
-      monthly: 68000,
-      quarterly: 195000,
-      halfYearly: 375000,
-      yearly: 699000
+      monthly: 2500,
+      quarterly: 5000,
+      halfYearly: 8000,
+      yearly: 13000
     },
     benefits: [
       "Global all-access including upcoming New York & Dubai sanctuaries",
@@ -487,12 +487,27 @@ const seedDatabase = async () => {
       console.log('[QNOX Seed] Super Admin initialized: admin@qnoxgym.com / Admin@QNOX2026!');
     }
 
-    // 2. Seed Membership Plans
-    const planCount = await MembershipPlan.countDocuments();
-    if (planCount === 0) {
-      await MembershipPlan.insertMany(sampleMembershipPlans);
-      console.log('[QNOX Seed] Preloaded 3 Luxury Residency Plans.');
+    // 2. Seed & Synchronize Membership Plans with current pricing
+    for (const plan of sampleMembershipPlans) {
+      await MembershipPlan.findOneAndUpdate(
+        { code: plan.code },
+        {
+          $set: {
+            name: plan.name,
+            subtitle: plan.subtitle,
+            pricing: plan.pricing,
+            description: plan.description,
+            benefits: plan.benefits,
+            features: plan.features,
+            isActive: plan.isActive,
+            isPopular: plan.isPopular,
+            tag: plan.tag,
+          },
+        },
+        { upsert: true, new: true }
+      );
     }
+    console.log('[QNOX Seed] Preloaded & Synchronized 3 Luxury Residency Plans with updated pricing.');
 
     // 3. Seed Master Trainers
     const trainerCount = await Trainer.countDocuments();

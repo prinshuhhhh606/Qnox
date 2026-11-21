@@ -43,6 +43,37 @@ const MembershipPlanSchema = new mongoose.Schema(
       guestPassesPerQuarter: { type: Number, default: 2 },
       priorityBookingDays: { type: Number, default: 7 },
     },
+    freezeAllowanceDays: {
+      type: Number,
+      default: 30,
+    },
+    taxRate: {
+      type: Number,
+      default: 18,
+    },
+    discountPricing: {
+      monthly: { type: Number, default: 0 },
+      quarterly: { type: Number, default: 0 },
+      halfYearly: { type: Number, default: 0 },
+      yearly: { type: Number, default: 0 },
+    },
+    renewalEligibility: {
+      type: Boolean,
+      default: true,
+    },
+    autoRenewEligibility: {
+      type: Boolean,
+      default: true,
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'hidden', 'invite-only'],
+      default: 'public',
+    },
+    terms: {
+      type: String,
+      default: 'Residency privileges are personal and subject to sanctuary rules.',
+    },
     isActive: {
       type: Boolean,
       default: true,

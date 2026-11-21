@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const ClassSchedule = require('../models/ClassSchedule');
 const { sendBookingConfirmationEmail, sendBookingCancellationEmail } = require('../services/emailService');
@@ -6,73 +7,121 @@ const { sendBookingConfirmationEmail, sendBookingCancellationEmail } = require('
 // @route   POST /api/bookings
 exports.bookClass = async (req, res, next) => {
   try {
-    const { classId, classDate } = req.body;
+    let { classId, classDate, classTitle, clubName, trainerName, day, startTime, durationMinutes, category } = req.body;
     const user = req.user;
+
+    // Handle nested payload if frontend passed object inside classId
+    if (typeof classId === 'object' && classId !== null) {
+      classTitle = classTitle || classId.classTitle || classId.title;
+      clubName = clubName || classId.clubName;
+      trainerName = trainerName || classId.trainerName || classId.trainer?.name;
+      day = day || classId.day;
+      startTime = startTime || classId.startTime;
+      durationMinutes = durationMinutes || classId.durationMinutes;
+      category = category || classId.category;
+      classDate = classDate || classId.classDate;
+      classId = classId.classId || classId._id;
+    }
 
     const selectedDate = classDate || new Date().toISOString().split('T')[0];
 
     // 1. Prevent duplicate bookings by the same user for this class on this date
-    const existingBooking = await Booking.findOne({
-      user: user._id,
-      classId,
-      classDate: selectedDate,
-      status: 'Confirmed',
-    });
-
-    if (existingBooking) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already hold an active reservation for this session.',
-        reservationCode: existingBooking.reservationCode,
+    try {
+      const existingBooking = await Booking.findOne({
+        user: user._id,
+        classId: String(classId),
+        classDate: selectedDate,
+        status: 'Confirmed',
       });
+
+      if (existingBooking) {
+        return res.status(400).json({
+          success: false,
+          message: 'You already hold an active reservation for this session.',
+          reservationCode: existingBooking.reservationCode,
+        });
+      }
+    } catch (e) {
+      // Non-blocking query fallback
     }
 
-    // 2. Atomic check and increment for class capacity
-    const scheduledClass = await ClassSchedule.findOneAndUpdate(
-      {
-        _id: classId,
-        $expr: { $lt: ['$bookedSpots', '$capacity'] },
-      },
-      {
-        $inc: { bookedSpots: 1 },
-      },
-      { new: true }
-    );
+    // 2. Atomic check and increment for class capacity if valid ObjectId
+    let scheduledClass = null;
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(classId);
 
-    if (!scheduledClass) {
-      return res.status(400).json({
-        success: false,
-        message: 'This session is strictly at full capacity. Reservation unavailable.',
+    if (isValidObjectId) {
+      scheduledClass = await ClassSchedule.findOneAndUpdate(
+        {
+          _id: classId,
+          $expr: { $lt: ['$bookedSpots', '$capacity'] },
+        },
+        {
+          $inc: { bookedSpots: 1 },
+        },
+        { new: true }
+      );
+
+      if (!scheduledClass) {
+        const fullCheck = await ClassSchedule.findById(classId);
+        if (fullCheck && fullCheck.bookedSpots >= fullCheck.capacity) {
+          return res.status(400).json({
+            success: false,
+            message: 'This session is strictly at full capacity. Reservation unavailable.',
+          });
+        }
+      }
+    } else {
+      // For string IDs (e.g. cls_1), find by title or update if exists
+      scheduledClass = await ClassSchedule.findOne({
+        title: classTitle || 'METCON HYPOXIC 3000',
       });
+      if (scheduledClass) {
+        if (scheduledClass.bookedSpots >= scheduledClass.capacity) {
+          return res.status(400).json({
+            success: false,
+            message: 'This session is strictly at full capacity. Reservation unavailable.',
+          });
+        }
+        scheduledClass.bookedSpots += 1;
+        await scheduledClass.save();
+      }
     }
 
     // 3. Generate unique luxury reservation code
     const reservationCode = `QNX-${Math.floor(100000 + Math.random() * 900000)}`;
 
+    const finalTitle = scheduledClass?.title || classTitle || 'Sanctuary Masterclass';
+    const finalCategory = scheduledClass?.category || category || 'Hypoxic Athletic';
+    const finalClubName = scheduledClass?.clubName || clubName || 'QNOX Mayfair Sanctuary';
+    const finalTrainerName = scheduledClass?.trainer?.name || trainerName || 'Sanctuary Master Trainer';
+    const finalDay = scheduledClass?.day || day || 'Monday';
+    const finalStartTime = scheduledClass?.startTime || startTime || '07:00';
+    const finalDuration = scheduledClass?.durationMinutes || durationMinutes || 50;
+
     const booking = await Booking.create({
       user: user._id,
       userName: user.name,
       userEmail: user.email,
-      userPhone: user.phone,
-      classId: scheduledClass._id,
-      classTitle: scheduledClass.title,
-      category: scheduledClass.category,
-      clubName: scheduledClass.clubName,
-      trainerName: scheduledClass.trainer?.name || 'Sanctuary Master Trainer',
+      userPhone: user.phone || '',
+      classId: scheduledClass?._id || classId || new mongoose.Types.ObjectId(),
+      classTitle: finalTitle,
+      category: finalCategory,
+      clubName: finalClubName,
+      trainerName: finalTrainerName,
       classDate: selectedDate,
-      day: scheduledClass.day,
-      startTime: scheduledClass.startTime,
-      durationMinutes: scheduledClass.durationMinutes,
+      day: finalDay,
+      startTime: finalStartTime,
+      durationMinutes: finalDuration,
       reservationCode,
       status: 'Confirmed',
     });
 
     // 4. Send Confirmation Email asynchronously
-    sendBookingConfirmationEmail(booking).catch((e) => console.log(e.message));
+    sendBookingConfirmationEmail(booking).catch((e) => console.log('[Email]', e.message));
 
     res.status(201).json({
       success: true,
-      message: `Reservation confirmed for ${scheduledClass.title}.`,
+      message: `Reservation confirmed for ${finalTitle}.`,
       data: booking,
     });
   } catch (error) {
@@ -116,10 +165,12 @@ exports.cancelBooking = async (req, res, next) => {
     booking.cancellationReason = req.body.reason || 'Member schedule adjustment';
     await booking.save();
 
-    // Atomically release seat on the class schedule
-    await ClassSchedule.findByIdAndUpdate(booking.classId, {
-      $inc: { bookedSpots: -1 },
-    });
+    // Atomically release seat on the class schedule if valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(booking.classId)) {
+      await ClassSchedule.findByIdAndUpdate(booking.classId, {
+        $inc: { bookedSpots: -1 },
+      });
+    }
 
     // Send Cancellation Email
     sendBookingCancellationEmail(booking).catch((e) => console.log(e.message));

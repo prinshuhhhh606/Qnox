@@ -90,7 +90,7 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ['Active', 'Expired', 'Frozen', 'Upcoming', 'Cancelled', 'None'],
+        enum: ['Active', 'Expiring Soon', 'Expired', 'Renewed', 'Frozen', 'Upcoming', 'Cancelled', 'Suspended', 'Pending', 'None'],
         default: 'None',
       },
       startDate: { type: Date },
@@ -103,6 +103,25 @@ const UserSchema = new mongoose.Schema(
         reason: { type: String, default: '' },
         remainingDaysAtFreeze: { type: Number, default: 0 },
         frozenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      },
+      suspensionDetails: {
+        isSuspended: { type: Boolean, default: false },
+        suspendedAt: { type: Date },
+        reason: { type: String, default: '' },
+        suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      },
+      cancellationDetails: {
+        isCancelled: { type: Boolean, default: false },
+        cancelledAt: { type: Date },
+        reason: { type: String, default: '' },
+        refundAmount: { type: Number, default: 0 },
+        cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      },
+      complimentary: { type: Boolean, default: false },
+      discount: {
+        type: { type: String, default: 'none' },
+        value: { type: Number, default: 0 },
+        code: { type: String, default: '' },
       },
     },
     membershipHistory: [

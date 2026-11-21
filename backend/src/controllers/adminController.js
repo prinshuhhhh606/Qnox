@@ -593,6 +593,15 @@ exports.renewMemberMembership = async (req, res, next) => {
       newValue: member.membership,
     });
 
+    const { createRenewalNotifications } = require('../services/cronService');
+    createRenewalNotifications({
+      user: member,
+      payment: { amount: 0, invoiceNumber: `ADM-REN-${Date.now()}` },
+      planName: member.membership.planName,
+      newEndDate: endDate,
+      previousMembership,
+    }).catch((e) => console.log('[Admin Renewal Notification Warning]:', e.message));
+
     res.status(200).json({
       success: true,
       message: `Membership successfully renewed until ${endDate.toLocaleDateString('en-GB')}.`,
@@ -1154,3 +1163,21 @@ exports.deleteMember = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Trigger Background Expiry Check on Demand (Admin / Testing)
+// @route   POST /api/admin/cron/run-expiry-check
+// @access  Private (Admin, Super Admin)
+exports.triggerManualExpiryCheck = async (req, res, next) => {
+  try {
+    const { checkAndProcessMembershipExpiries } = require('../services/cronService');
+    const summary = await checkAndProcessMembershipExpiries(true);
+    res.status(200).json({
+      success: true,
+      message: 'Membership expiry engine execution completed.',
+      data: summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

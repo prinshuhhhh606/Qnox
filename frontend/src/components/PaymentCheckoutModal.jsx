@@ -4,9 +4,17 @@ import { createPaymentOrder, verifyPaymentSignature } from '../services/api';
 import './PaymentCheckoutModal.css';
 
 export default function PaymentCheckoutModal({ isOpen, onClose, plan, currentUser, onSuccess, onOpenAuth, onShowToast }) {
-  const [duration, setDuration] = useState('yearly');
+  const [duration, setDuration] = useState(plan?.defaultDuration || 'monthly');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (plan?.defaultDuration) {
+      setDuration(plan.defaultDuration);
+    } else {
+      setDuration('monthly');
+    }
+  }, [plan]);
 
   if (!isOpen || !plan) return null;
 
@@ -38,16 +46,16 @@ export default function PaymentCheckoutModal({ isOpen, onClose, plan, currentUse
 
   const durationOptions = [
     { key: 'monthly', label: '1 MONTH', desc: 'Standard Monthly' },
-    { key: 'quarterly', label: '3 MONTHS', desc: 'Save 8%' },
-    { key: 'halfYearly', label: '6 MONTHS', desc: 'Save 14%' },
-    { key: 'yearly', label: '12 MONTHS', desc: 'Best Value' },
+    { key: 'quarterly', label: '3 MONTHS', desc: 'Save ₹500' },
+    { key: 'halfYearly', label: '6 MONTHS', desc: 'Save ₹2,000' },
+    { key: 'yearly', label: '12 MONTHS', desc: 'Best Value (Save ₹6,000)' },
   ];
 
-  const pricing = plan.pricing || {
-    monthly: 24500,
-    quarterly: 69000,
-    halfYearly: 132000,
-    yearly: 249000,
+  const pricing = {
+    monthly: plan.pricing?.monthly || 1200,
+    quarterly: plan.pricing?.quarterly || 4500,
+    halfYearly: plan.pricing?.halfYearly || 7500,
+    yearly: plan.pricing?.yearly || 12500,
   };
 
   const selectedAmount = pricing[duration] || pricing.monthly;
@@ -85,7 +93,12 @@ export default function PaymentCheckoutModal({ isOpen, onClose, plan, currentUse
               orderId: response.razorpay_order_id || orderData.orderId,
               paymentId: response.razorpay_payment_id || `pay_${Date.now()}`,
               signature: response.razorpay_signature || 'sig_demo',
-              isSimulated: orderData.isSimulated,
+              razorpay_order_id: response.razorpay_order_id || orderData.orderId,
+              razorpay_payment_id: response.razorpay_payment_id || `pay_${Date.now()}`,
+              razorpay_signature: response.razorpay_signature || 'sig_demo',
+              amount: orderData.amount,
+              currency: orderData.currency,
+              isSimulated: Boolean(orderData.isSimulated),
             });
 
             if (onShowToast) onShowToast({ type: 'success', message: `Residency activated for ${plan.name}!` });
@@ -107,6 +120,9 @@ export default function PaymentCheckoutModal({ isOpen, onClose, plan, currentUse
 
       if (window.Razorpay) {
         const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (failResp) {
+          setErrorMsg(failResp.error?.description || 'Payment was declined by payment gateway.');
+        });
         rzp.open();
       } else {
         // Direct simulation completion if Razorpay script is not present
@@ -114,6 +130,11 @@ export default function PaymentCheckoutModal({ isOpen, onClose, plan, currentUse
           orderId: orderData.orderId,
           paymentId: `pay_sim_${Date.now()}`,
           signature: 'verified_simulated_sig',
+          razorpay_order_id: orderData.orderId,
+          razorpay_payment_id: `pay_sim_${Date.now()}`,
+          razorpay_signature: 'verified_simulated_sig',
+          amount: orderData.amount,
+          currency: orderData.currency,
           isSimulated: true,
         });
         if (onShowToast) onShowToast({ type: 'success', message: `Residency activated for ${plan.name}!` });

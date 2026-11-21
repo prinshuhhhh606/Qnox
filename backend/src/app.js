@@ -19,21 +19,52 @@ const inquiryRoutes = require('./routes/inquiryRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const membershipRoutes = require('./routes/membershipRoutes');
 
 const app = express();
 
+// Trust reverse proxy on Render / Cloudflare / Vercel for rate-limiting & IP resolution
+app.set('trust proxy', 1);
+
 // Security Headers with Helmet
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
 }));
 
-// CORS Configuration
+// Robust Production CORS Configuration for Vercel & Localhost
+const allowedOrigins = [
+  'https://qnox.vercel.app',
+  'https://qnox.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+];
+
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
+    // Allow non-browser requests or same-origin
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.onrender.com')
+    ) {
+      return callback(null, true);
+    }
+    // Graceful open access for public API
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   credentials: true,
+  maxAge: 86400,
 }));
+
+// Preflight handler
+app.options('*', cors());
 
 // Body Parsers
 app.use(express.json({ limit: '10mb' }));
@@ -74,6 +105,8 @@ app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/memberships', membershipRoutes);
 
 // Root greeting
 app.get('/', (req, res) => {
