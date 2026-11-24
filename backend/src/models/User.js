@@ -159,6 +159,45 @@ const UserSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    // Trainer & Member Fitness Profile Fields
+    currentWeight: { type: Number, default: 70 }, // in kg
+    targetWeight: { type: Number, default: 68 }, // in kg
+    heightCm: { type: Number, default: 175 }, // in cm
+    fitnessGoal: {
+      type: String,
+      enum: ['Muscle Gain', 'Fat Loss', 'Strength Training', 'Endurance', 'Flexibility & Mobility', 'General Fitness'],
+      default: 'General Fitness',
+    },
+    experienceLevel: {
+      type: String,
+      enum: ['Beginner', 'Intermediate', 'Advanced'],
+      default: 'Beginner',
+    },
+    memberCategory: {
+      type: String,
+      enum: ['Beginner', 'Intermediate', 'Advanced', 'Personal Training', 'General Gym Member'],
+      default: 'General Gym Member',
+    },
+    medicalConditions: [{ type: String }],
+    injuries: [{ type: String }],
+    workoutPreferences: {
+      preferredDaysPerWeek: { type: Number, default: 4 },
+      preferredTime: { type: String, default: 'Morning' },
+      workoutStyle: { type: String, default: 'Strength + Cardio' },
+      dietaryPreference: {
+        type: String,
+        enum: ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'Keto', 'Flexible'],
+        default: 'Flexible',
+      },
+    },
+    trainerNotes: [
+      {
+        content: { type: String, required: true },
+        trainerName: { type: String, default: 'Gym Coach' },
+        category: { type: String, enum: ['Form & Technique', 'Diet & Nutrition', 'Injury Concern', 'Milestone', 'General'], default: 'General' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },

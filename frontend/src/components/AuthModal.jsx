@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Dumbbell, Sparkles } from 'lucide-react';
 import { loginUser, registerUser, requestPasswordReset } from '../services/api';
 import './AuthModal.css';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
+export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast, initialMode = 'login', initialRole = 'member' }) {
+  const [authRole, setAuthRole] = useState(initialRole); // 'member' | 'trainer'
+  const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,7 +36,24 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
           email: formData.email,
           password: formData.password,
         });
-        if (onShowToast) onShowToast({ type: 'success', message: `Welcome, ${res.user.name}. Authenticated.` });
+
+        // Enforce role separation if logging in as Trainer
+        if (authRole === 'trainer' && !['Trainer', 'Admin', 'Super Admin'].includes(res.user.role)) {
+          throw new Error('This account is registered as a Gym Customer. Please use Customer Login.');
+        }
+
+        if (authRole === 'member' && res.user.role === 'Trainer') {
+          // Gently inform them and auto-switch
+          if (onShowToast) {
+            onShowToast({
+              type: 'info',
+              message: 'Trainer account recognized. Opening Coach Command Portal.',
+            });
+          }
+        } else if (onShowToast) {
+          onShowToast({ type: 'success', message: `Welcome, ${res.user.name}. Authenticated.` });
+        }
+
         onAuthSuccess(res.user);
         onClose();
       } else if (mode === 'register') {
@@ -52,6 +71,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFillDemoTrainer = () => {
+    setFormData({
+      ...formData,
+      email: 'trainer@qnoxgym.com',
+      password: 'Trainer@QNOX2026!',
+    });
+    setAuthRole('trainer');
+    setMode('login');
   };
 
   const handleFillDemoAdmin = () => {
@@ -76,33 +105,91 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
         </button>
 
         {/* Modal Brand Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center space-x-2 text-[10px] tracking-[0.3em] uppercase text-[#c5a880] font-semibold mb-2">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>SANCTUARY VERIFICATION</span>
           </div>
-          <h2 className="font-serif text-3xl text-white">QNOX Membership Access</h2>
+          <h2 className="font-serif text-3xl text-white">
+            {authRole === 'trainer' ? 'Coach Command Login' : 'QNOX Membership Access'}
+          </h2>
           <p className="text-xs text-neutral-400 font-light mt-1">
-            Access your private dossier, active bookings & member privileges.
+            {authRole === 'trainer'
+              ? 'Authorized access for approved master practitioners & trainers.'
+              : 'Access your private dossier, active bookings & member privileges.'}
           </p>
         </div>
 
-        {/* Tabs */}
+        {/* Portal Role Selector (Customer / Member vs Trainer) */}
+        <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-lg mb-6">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthRole('member');
+              setErrorMsg('');
+            }}
+            className={`py-2 px-3 rounded text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
+              authRole === 'member'
+                ? 'bg-[#c5a880] text-black shadow-md'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Customer Login</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthRole('trainer');
+              setMode('login'); // Trainers cannot register through member modal
+              setErrorMsg('');
+            }}
+            className={`py-2 px-3 rounded text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
+              authRole === 'trainer'
+                ? 'bg-[#c5a880] text-black shadow-md'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Dumbbell className="w-3.5 h-3.5" />
+            <span>Trainer Login</span>
+          </button>
+        </div>
+
+        {/* Informative notice for Trainers wanting to register */}
+        {authRole === 'trainer' && (
+          <div className="mb-6 p-3 bg-[#c5a880]/10 border border-[#c5a880]/30 rounded text-xs text-neutral-300 flex items-center justify-between">
+            <div>
+              <span className="text-[#c5a880] font-semibold block">Not registered yet?</span>
+              <span className="text-[11px] text-neutral-400">Trainers must apply via the dedicated portal first.</span>
+            </div>
+            <Link
+              to="/join-as-trainer"
+              onClick={onClose}
+              className="px-3 py-1.5 bg-[#c5a880] hover:bg-[#d8bf9b] text-black font-semibold text-[10px] uppercase tracking-wider rounded"
+            >
+              Join as Trainer
+            </Link>
+          </div>
+        )}
+
+        {/* Tabs (Only show New Member tab if role is Member) */}
         <div className="flex border-b border-white/10 mb-8">
           <button
             type="button"
             className={`qnox-auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
             onClick={() => { setMode('login'); setErrorMsg(''); setInfoMsg(''); }}
           >
-            SIGN IN
+            {authRole === 'trainer' ? 'TRAINER SIGN IN' : 'SIGN IN'}
           </button>
-          <button
-            type="button"
-            className={`qnox-auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
-            onClick={() => { setMode('register'); setErrorMsg(''); setInfoMsg(''); }}
-          >
-            NEW MEMBER
-          </button>
+          {authRole === 'member' && (
+            <button
+              type="button"
+              className={`qnox-auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
+              onClick={() => { setMode('register'); setErrorMsg(''); setInfoMsg(''); }}
+            >
+              NEW MEMBER
+            </button>
+          )}
           <button
             type="button"
             className={`qnox-auth-tab-btn ${mode === 'forgot' ? 'active' : ''}`}
@@ -216,14 +303,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
         </form>
 
         {/* Quick Reviewer Demo Fill Pill */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-between">
-          <span className="text-[10px] text-neutral-500 uppercase tracking-widest">DEMO ADMIN ACCESS</span>
+        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={handleFillDemoTrainer}
+            className="text-[10px] tracking-widest uppercase text-[#c5a880] hover:text-white underline underline-offset-4 transition-colors"
+          >
+            FILL DEMO TRAINER
+          </button>
           <button
             type="button"
             onClick={handleFillDemoAdmin}
-            className="text-[10px] tracking-widest uppercase text-[#c5a880] hover:text-white underline underline-offset-4 transition-colors"
+            className="text-[10px] tracking-widest uppercase text-neutral-400 hover:text-white underline underline-offset-4 transition-colors"
           >
-            FILL SUPER ADMIN LOGIN
+            FILL SUPER ADMIN
           </button>
         </div>
 

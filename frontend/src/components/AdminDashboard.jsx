@@ -16,7 +16,8 @@ import {
   fetchAllInquiries,
   fetchAdminNotifications, markNotificationRead, markAllNotificationsRead, deleteNotificationRecord, triggerAdminExpiryCheck, fetchNotificationUnreadCount,
   fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest, fetchMembershipStats,
-  extendMembershipAdmin, suspendMembershipAdmin, reactivateMembershipAdmin, sendRenewalReminderAdmin
+  extendMembershipAdmin, suspendMembershipAdmin, reactivateMembershipAdmin, sendRenewalReminderAdmin,
+  fetchAdminTrainerApplications, approveAdminTrainerApplication, rejectAdminTrainerApplication
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
 import ImageUploadField from './ImageUploadField';
@@ -40,6 +41,13 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [payments, setPayments] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
   const [inquiries, setInquiries] = useState([]);
+
+  // Trainer Applications state
+  const [trainerApplications, setTrainerApplications] = useState([]);
+  const [pendingTrainerAppsCount, setPendingTrainerAppsCount] = useState(0);
+  const [trainerAppFilter, setTrainerAppFilter] = useState('All');
+  const [selectedTrainerApp, setSelectedTrainerApp] = useState(null);
+  const [trainerAppRemarks, setTrainerAppRemarks] = useState('');
 
   // Notification Feed states
   const [adminNotifications, setAdminNotifications] = useState([]);
@@ -112,7 +120,12 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   useEffect(() => {
     loadOverview();
     loadAdminUnreadBadge();
-    const interval = setInterval(loadAdminUnreadBadge, 30000);
+    loadTrainerApplications();
+    // Fast 10-second polling so newly submitted trainer applications pop up in real-time
+    const interval = setInterval(() => {
+      loadAdminUnreadBadge();
+      loadTrainerApplications();
+    }, 10000);
     return () => clearInterval(interval);
   }, [analyticsPeriod]);
 
@@ -127,7 +140,8 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     if (activeTab === 'inquiries') loadInquiries();
     if (activeTab === 'notifications') loadNotifications();
     if (activeTab === 'requests') loadMembershipRequests();
-  }, [activeTab]);
+    if (activeTab === 'trainer-applications') loadTrainerApplications();
+  }, [activeTab, trainerAppFilter]);
 
   const loadAdminUnreadBadge = async () => {
     try {
@@ -135,6 +149,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       setAdminUnreadCount(count);
       const reqs = await fetchMembershipRequests({ status: 'Pending' });
       if (reqs) setPendingRequestsCount(reqs.length);
+      const pendingAppsRes = await fetchAdminTrainerApplications({ status: 'Pending' });
+      if (pendingAppsRes && pendingAppsRes.data) {
+        setPendingTrainerAppsCount(pendingAppsRes.data.length);
+      }
     } catch (err) {
       console.warn(err);
     }
@@ -484,6 +502,64 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
+  // Trainer Application Handlers
+  const [approvingAppId, setApprovingAppId] = useState(null);
+
+  const loadTrainerApplications = async () => {
+    try {
+      const res = await fetchAdminTrainerApplications({ status: trainerAppFilter !== 'All' ? trainerAppFilter : undefined });
+      if (res.success && res.data) {
+        // Sort so that 'Pending' applications are always pinned right at the very top
+        const sorted = [...res.data].sort((a, b) => {
+          if (a.status === 'Pending' && b.status !== 'Pending') return -1;
+          if (a.status !== 'Pending' && b.status === 'Pending') return 1;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+        setTrainerApplications(sorted);
+        setPendingTrainerAppsCount(sorted.filter((a) => a.status === 'Pending').length);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleApproveTrainerApp = async (id, customRemarks) => {
+    setApprovingAppId(id);
+    const remarks = customRemarks !== undefined ? customRemarks : trainerAppRemarks;
+
+    // Optimistic UI update: instantly mark approved in UI without waiting for network
+    setTrainerApplications((prev) =>
+      prev.map((app) => (app._id === id ? { ...app, status: 'Approved' } : app))
+    );
+
+    try {
+      const res = await approveAdminTrainerApplication(id, remarks);
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Trainer application approved instantly!' });
+      setSelectedTrainerApp(null);
+      setTrainerAppRemarks('');
+      loadTrainerApplications();
+      loadTrainers();
+    } catch (err) {
+      // Revert if failed
+      loadTrainerApplications();
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setApprovingAppId(null);
+    }
+  };
+
+  const handleRejectTrainerApp = async (id) => {
+    try {
+      const res = await rejectAdminTrainerApplication(id, trainerAppRemarks || 'Application did not meet compliance standards.');
+      if (onShowToast) onShowToast({ type: 'info', message: res.message || 'Application rejected.' });
+      setSelectedTrainerApp(null);
+      setTrainerAppRemarks('');
+      loadTrainerApplications();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
   // Club Handlers
   const handleSaveClub = async (e) => {
     e.preventDefault();
@@ -563,12 +639,26 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       ],
     },
     {
+      title: 'TRAINER MANAGEMENT',
+      items: [
+        {
+          id: 'trainer-applications',
+          label: 'Trainer Applications',
+          icon: Shield,
+          badge: pendingTrainerAppsCount > 0
+            ? pendingTrainerAppsCount
+            : null,
+          badgeColor: 'bg-[#c5a880] text-black font-bold animate-pulse',
+        },
+        { id: 'trainers', label: 'Master Coaches Roster', icon: Sparkles },
+      ],
+    },
+    {
       title: 'SANCTUARY RESIDENCY',
       items: [
         { id: 'members', label: 'Members Dossier', icon: Users, badge: memberMetrics.total ? String(memberMetrics.total) : null, badgeColor: 'bg-white/10 text-neutral-300 font-mono' },
         { id: 'plans', label: 'Membership Tiers', icon: Crown },
         { id: 'bookings', label: 'Class Sessions', icon: Calendar },
-        { id: 'trainers', label: 'Master Coaches', icon: Sparkles },
         { id: 'clubs', label: 'Clubs Portfolio', icon: MapPin },
       ],
     },
@@ -774,6 +864,33 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
 
         {/* Dashboard Main Content Body */}
         <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-8">
+
+        {/* Global Live Alert Banner when Pending Trainer Applications are waiting for approval */}
+        {pendingTrainerAppsCount > 0 && (
+          <div className="p-4 bg-gradient-to-r from-[#c5a880]/20 via-[#c5a880]/10 to-transparent border-l-4 border-[#c5a880] border border-[#c5a880]/30 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-[#c5a880]/20 flex items-center justify-center flex-shrink-0">
+                <Shield className="w-5 h-5 text-[#c5a880]" />
+              </div>
+              <div>
+                <h4 className="font-serif text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>ACTION REQUIRED: {pendingTrainerAppsCount} Trainer Application(s) Awaiting Review</span>
+                  <span className="w-2 h-2 rounded-full bg-[#c5a880] animate-ping" />
+                </h4>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Trainers cannot log in or appear on customer pages until approved by the administration.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveTab('trainer-applications')}
+              className="px-5 py-2 bg-[#c5a880] hover:bg-[#d8bf9b] text-black font-semibold text-xs uppercase tracking-wider rounded transition flex-shrink-0 shadow-lg"
+            >
+              Open Approvals Queue &rarr;
+            </button>
+          </div>
+        )}
         
         {/* ================= TAB 1: OVERVIEW & ANALYTICS ================= */}
         {activeTab === 'overview' && (
@@ -1537,6 +1654,258 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 5B: TRAINER APPLICATIONS REVIEW ================= */}
+        {activeTab === 'trainer-applications' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-serif text-2xl text-white">Trainer Accreditation & Applications</h3>
+                <p className="text-xs text-neutral-400 font-light">
+                  Review professional certifications, credentials, and approve trainers before they can access the Coach Dashboard or appear on customer pages.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <select
+                  value={trainerAppFilter}
+                  onChange={(e) => setTrainerAppFilter(e.target.value)}
+                  className="bg-[#0e0e0e] border border-white/20 text-xs px-3 py-2 text-neutral-200"
+                >
+                  <option value="All">All Applications</option>
+                  <option value="Pending">Pending Review</option>
+                  <option value="Under Review">Under Review</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+                <button
+                  onClick={loadTrainerApplications}
+                  className="p-2 border border-white/20 hover:border-[#c5a880] text-neutral-400 hover:text-white"
+                  title="Refresh"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {trainerApplications.length === 0 ? (
+              <div className="p-12 text-center border border-white/10 bg-[#090909]">
+                <Shield className="w-10 h-10 text-neutral-600 mx-auto mb-3" />
+                <h4 className="font-serif text-base text-neutral-300">No Applications Found</h4>
+                <p className="text-xs text-neutral-500 mt-1">There are no trainer applications matching the current filter.</p>
+              </div>
+            ) : (
+              <div className="border border-white/10 bg-[#090909] overflow-x-auto">
+                <table className="qnox-admin-table">
+                  <thead>
+                    <tr>
+                      <th>APPLICANT</th>
+                      <th>APP ID</th>
+                      <th>EXPERIENCE</th>
+                      <th>SPECIALIZATIONS</th>
+                      <th>GYM BASE</th>
+                      <th>STATUS</th>
+                      <th>SUBMITTED</th>
+                      <th className="text-right">COMMAND</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trainerApplications.map((app) => (
+                      <tr key={app._id}>
+                        <td>
+                          <div className="flex items-center space-x-3">
+                            <img
+                              src={app.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
+                              alt=""
+                              className="w-8 h-8 rounded-full object-cover border border-white/10"
+                            />
+                            <div>
+                              <div className="text-white font-medium">{app.fullName}</div>
+                              <div className="text-neutral-500 text-[11px]">{app.email} &bull; {app.phone}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="font-mono text-[#c5a880] text-xs font-bold">{app.applicationId}</td>
+                        <td className="text-neutral-300 text-xs">{app.experienceYears} Years</td>
+                        <td className="text-neutral-300 text-xs">
+                          {app.specializations?.slice(0, 2).join(', ') || 'Personal Training'}
+                          {app.specializations?.length > 2 && '...'}
+                        </td>
+                        <td className="text-neutral-400 text-xs">{app.gymName || 'Independent'} ({app.city || 'London'})</td>
+                        <td>
+                          <span
+                            className={`text-[9px] px-2 py-0.5 uppercase font-bold tracking-wider ${
+                              app.status === 'Approved'
+                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
+                                : app.status === 'Rejected'
+                                ? 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
+                                : 'bg-amber-950/60 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {app.status}
+                          </span>
+                        </td>
+                        <td className="font-mono text-xs text-neutral-400">
+                          {new Date(app.createdAt).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="text-right space-x-2 whitespace-nowrap">
+                          {app.status === 'Pending' && (
+                            <button
+                              onClick={() => handleApproveTrainerApp(app._id, 'Approved via Instant Admin Command')}
+                              disabled={approvingAppId === app._id}
+                              className="px-3 py-1 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-black uppercase transition inline-flex items-center space-x-1"
+                              title="Instant 1-Click Approve"
+                            >
+                              <CheckCircle className={`w-3.5 h-3.5 ${approvingAppId === app._id ? 'animate-spin' : ''}`} />
+                              <span>{approvingAppId === app._id ? 'APPROVING...' : 'FAST APPROVE'}</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedTrainerApp(app);
+                              setTrainerAppRemarks(app.adminRemarks || '');
+                            }}
+                            className="px-3 py-1 text-xs border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black uppercase"
+                          >
+                            REVIEW
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modal: Trainer Application Detailed Review & Approval */}
+        {selectedTrainerApp && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#0b0b0b] border border-[#c5a880]/30 max-w-2xl w-full p-6 md:p-8 space-y-5 rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto qnox-sidebar-scroll">
+              <div className="flex justify-between items-start border-b border-white/10 pb-4">
+                <div>
+                  <span className="text-[10px] text-[#c5a880] uppercase tracking-widest font-mono">TRAINER VERIFICATION DOSSIER</span>
+                  <h3 className="font-serif text-2xl text-white mt-1">{selectedTrainerApp.fullName}</h3>
+                  <p className="text-xs text-neutral-400">{selectedTrainerApp.email} &bull; {selectedTrainerApp.phone}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedTrainerApp(null)}
+                  className="p-1 text-neutral-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-[#121212] border border-white/5">
+                  <span className="text-[10px] uppercase text-neutral-500 block">Experience</span>
+                  <span className="text-white font-medium">{selectedTrainerApp.experienceYears} Years</span>
+                </div>
+                <div className="p-3 bg-[#121212] border border-white/5">
+                  <span className="text-[10px] uppercase text-neutral-500 block">Qualifications</span>
+                  <span className="text-white font-medium">{selectedTrainerApp.qualifications}</span>
+                </div>
+                <div className="p-3 bg-[#121212] border border-white/5">
+                  <span className="text-[10px] uppercase text-neutral-500 block">Gym Base / City</span>
+                  <span className="text-white font-medium">{selectedTrainerApp.gymName || 'Independent'} ({selectedTrainerApp.city})</span>
+                </div>
+                <div className="p-3 bg-[#121212] border border-white/5">
+                  <span className="text-[10px] uppercase text-neutral-500 block">Current Status</span>
+                  <span className="text-[#c5a880] font-bold uppercase">{selectedTrainerApp.status}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1">Professional Bio</span>
+                <p className="text-xs text-neutral-300 bg-[#121212] p-3 border border-white/5 leading-relaxed">
+                  "{selectedTrainerApp.bio}"
+                </p>
+              </div>
+
+              {selectedTrainerApp.specializations?.length > 0 && (
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1.5">Specializations</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTrainerApp.specializations.map((s, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-[#181818] border border-white/10 text-[#c5a880] text-[10px]">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Uploaded Documents */}
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1.5">Submitted Credentials</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 bg-[#121212] border border-white/5 flex items-center justify-between">
+                    <span className="text-neutral-300">Fitness Certification</span>
+                    {selectedTrainerApp.certificationDocument ? (
+                      <span className="text-emerald-400 font-semibold text-[11px]">✓ Uploaded</span>
+                    ) : (
+                      <span className="text-neutral-500 text-[11px]">Pending</span>
+                    )}
+                  </div>
+                  <div className="p-2.5 bg-[#121212] border border-white/5 flex items-center justify-between">
+                    <span className="text-neutral-300">Government ID Proof</span>
+                    {selectedTrainerApp.identityProofDocument ? (
+                      <span className="text-emerald-400 font-semibold text-[11px]">✓ Verified</span>
+                    ) : (
+                      <span className="text-neutral-500 text-[11px]">Pending</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Administrative Remarks */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1">
+                  Administrative Remarks / Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={trainerAppRemarks}
+                  onChange={(e) => setTrainerAppRemarks(e.target.value)}
+                  placeholder="e.g. Credentials verified against UKSCA registry. Approved for Master Coach roster."
+                  className="w-full bg-[#121212] border border-white/10 text-xs text-white p-2.5 focus:outline-none focus:border-[#c5a880]"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTrainerApp(null)}
+                  className="px-4 py-2 text-xs text-neutral-400 hover:text-white uppercase"
+                >
+                  Close
+                </button>
+
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => handleRejectTrainerApp(selectedTrainerApp._id)}
+                    className="px-4 py-2 border border-rose-500/40 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 text-xs uppercase font-semibold transition"
+                  >
+                    Reject Application
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={approvingAppId === selectedTrainerApp._id}
+                    onClick={() => handleApproveTrainerApp(selectedTrainerApp._id)}
+                    className="px-6 py-2 bg-gradient-to-r from-[#c5a880] to-[#9b7e52] hover:opacity-95 text-black text-xs uppercase font-bold tracking-wider shadow-lg shadow-[#c5a880]/20 transition flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    <CheckCircle className={`w-4 h-4 ${approvingAppId === selectedTrainerApp._id ? 'animate-spin' : ''}`} />
+                    <span>{approvingAppId === selectedTrainerApp._id ? 'Activating Trainer...' : 'Approve & Activate Trainer'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

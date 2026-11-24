@@ -63,6 +63,25 @@ const TrainerSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    workingHours: {
+      type: String,
+      default: '06:00 AM - 02:00 PM',
+    },
+    availableDays: [
+      {
+        type: String,
+        default: 'Mon, Tue, Wed, Thu, Fri, Sat',
+      },
+    ],
+    qualifications: [
+      {
+        type: String,
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -487,6 +487,43 @@ const seedDatabase = async () => {
       console.log('[QNOX Seed] Super Admin initialized: admin@qnoxgym.com / Admin@QNOX2026!');
     }
 
+    // 1b. Seed Master Trainer User
+    let trainerUser = await User.findOne({ email: 'trainer@qnoxgym.com' });
+    if (!trainerUser) {
+      trainerUser = await User.create({
+        name: 'Marcus Vance',
+        email: 'trainer@qnoxgym.com',
+        password: 'Trainer@QNOX2026!',
+        phone: '+44 20 7946 0880',
+        role: 'Trainer',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800',
+      });
+      console.log('[QNOX Seed] Master Trainer initialized: trainer@qnoxgym.com / Trainer@QNOX2026!');
+    }
+
+    const Exercise = require('../models/Exercise');
+    const exerciseCount = await Exercise.countDocuments();
+    if (exerciseCount === 0) {
+      const defaultExercises = [
+        { name: 'Barbell Incline Bench Press', category: 'Chest Workout', targetMuscle: 'Upper Chest', equipment: 'Barbells', difficulty: 'Intermediate', defaultSets: 4, defaultReps: '8-10 reps', restTimeSec: 90, instructions: 'Retract scapulae and press upwards focusing on clavicular head.' },
+        { name: 'Dumbbell Flat Bench Press', category: 'Chest Workout', targetMuscle: 'Pectoralis Major', equipment: 'Dumbbells', difficulty: 'Beginner', defaultSets: 3, defaultReps: '10-12 reps', restTimeSec: 60, instructions: 'Lower dumbbells with elbows at a 45-degree angle.' },
+        { name: 'Cable Standing Flyes', category: 'Chest Workout', targetMuscle: 'Inner & Mid Pecs', equipment: 'Cable Machines', difficulty: 'Intermediate', defaultSets: 3, defaultReps: '12-15 reps', restTimeSec: 45, instructions: 'Squeeze pecs at peak contraction for 1 second.' },
+        { name: 'Weighted Pull-Ups', category: 'Back Workout', targetMuscle: 'Latissimus Dorsi', equipment: 'Bodyweight Exercises', difficulty: 'Advanced', defaultSets: 4, defaultReps: '6-8 reps', restTimeSec: 90, instructions: 'Full dead-hang stretch to chin over bar.' },
+        { name: 'Barbell Bent-Over Row', category: 'Back Workout', targetMuscle: 'Rhomboids & Mid Back', equipment: 'Barbells', difficulty: 'Intermediate', defaultSets: 4, defaultReps: '8-10 reps', restTimeSec: 75, instructions: 'Keep spine neutral with a 45 degree hip hinge.' },
+        { name: 'Seated Cable Row', category: 'Back Workout', targetMuscle: 'Mid Lats & Lower Traps', equipment: 'Cable Machines', difficulty: 'Beginner', defaultSets: 3, defaultReps: '10-12 reps', restTimeSec: 60, instructions: 'Pull towards belly button without torso swinging.' },
+        { name: 'Barbell Overhead Press', category: 'Shoulder Workout', targetMuscle: 'Anterior & Lateral Delts', equipment: 'Barbells', difficulty: 'Intermediate', defaultSets: 4, defaultReps: '6-8 reps', restTimeSec: 90, instructions: 'Brace core and glutes firmly before initiating drive.' },
+        { name: 'Dumbbell Lateral Raise', category: 'Shoulder Workout', targetMuscle: 'Lateral Deltoid', equipment: 'Dumbbells', difficulty: 'Beginner', defaultSets: 4, defaultReps: '12-15 reps', restTimeSec: 45, instructions: 'Slight forward lean, raise arms in the scapular plane.' },
+        { name: 'Barbell Back Squats', category: 'Leg Workout', targetMuscle: 'Quadriceps & Glutes', equipment: 'Barbells', difficulty: 'Advanced', defaultSets: 5, defaultReps: '5-8 reps', restTimeSec: 120, instructions: 'Descend to parallel or below with heels firmly planted.' },
+        { name: 'Romanian Deadlifts (RDL)', category: 'Leg Workout', targetMuscle: 'Hamstrings & Posterior Chain', equipment: 'Barbells', difficulty: 'Intermediate', defaultSets: 4, defaultReps: '8-10 reps', restTimeSec: 90, instructions: 'Hinge back pushing hips to wall behind you.' },
+        { name: 'Incline Dumbbell Bicep Curls', category: 'Biceps Workout', targetMuscle: 'Biceps Brachii', equipment: 'Dumbbells', difficulty: 'Beginner', defaultSets: 3, defaultReps: '10-12 reps', restTimeSec: 60, instructions: 'Supinate wrists at top for maximal peak contraction.' },
+        { name: 'Triceps Rope Pushdown', category: 'Triceps Workout', targetMuscle: 'Triceps Lateral Head', equipment: 'Cable Machines', difficulty: 'Beginner', defaultSets: 4, defaultReps: '12-15 reps', restTimeSec: 45, instructions: 'Flourish rope apart at bottom lockout.' },
+        { name: 'Hanging Leg Raises', category: 'Abs Workout', targetMuscle: 'Rectus Abdominis', equipment: 'Bodyweight Exercises', difficulty: 'Intermediate', defaultSets: 3, defaultReps: '15 reps', restTimeSec: 45, instructions: 'Curl pelvis up towards ribs avoiding momentum swing.' },
+        { name: 'Sled Push & Battle Ropes', category: 'Cardio Workout', targetMuscle: 'Cardiovascular & Full Body', equipment: 'Other', difficulty: 'Intermediate', defaultSets: 5, defaultReps: '45 sec intervals', restTimeSec: 60, instructions: 'Maximum metabolic output during active intervals.' }
+      ];
+      await Exercise.insertMany(defaultExercises);
+      console.log('[QNOX Seed] Preloaded 14 standard exercise library items.');
+    }
+
     // 2. Seed & Synchronize Membership Plans with current pricing
     for (const plan of sampleMembershipPlans) {
       await MembershipPlan.findOneAndUpdate(

@@ -1254,3 +1254,370 @@ export const sendRenewalReminderAdmin = async (userId) => {
 };
 
 
+
+/* ================= TRAINER PORTAL APIS ================= */
+
+export const getTrainerDashboardStats = async () => {
+  const res = await fetch(`${API_BASE}/trainer-portal/dashboard/stats`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trainer stats');
+  return data;
+};
+
+export const getTrainerMembers = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/members${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch members');
+  return data;
+};
+
+export const getTrainerMemberDetail = async (id) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/members/${id}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch member details');
+  return data;
+};
+
+export const updateMemberFitnessProfile = async (id, profile) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/members/${id}/fitness-profile`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(profile),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update fitness profile');
+  return data;
+};
+
+export const addTrainerMemberNote = async (id, note) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/members/${id}/notes`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(note),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to add note');
+  return data;
+};
+
+export const getTrainerAttendance = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/attendance${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch attendance');
+  return data;
+};
+
+export const markMemberCheckIn = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/attendance/check-in`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to check in member');
+  return data;
+};
+
+export const markMemberCheckOut = async (attendanceId) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/attendance/${attendanceId}/check-out`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to check out member');
+  return data;
+};
+
+export const getTrainerWorkoutPlans = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/workouts${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch workout plans');
+  return data;
+};
+
+export const createWorkoutPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/workouts`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to create workout plan');
+  return data;
+};
+
+export const updateWorkoutPlan = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/workouts/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update workout plan');
+  return data;
+};
+
+export const assignWorkoutPlan = async (id, memberId) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/workouts/${id}/assign`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ memberId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to assign workout plan');
+  return data;
+};
+
+export const generateAiWorkoutPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/workouts/ai-generate`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to generate AI workout plan');
+  return data;
+};
+
+export const getTrainerDietPlans = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/diets${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch diet plans');
+  return data;
+};
+
+export const createDietPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/diets`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to create diet plan');
+  return data;
+};
+
+export const generateAiDietPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/diets/ai-generate`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to generate AI diet plan');
+  return data;
+};
+
+export const getTrainerAssessments = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/assessments${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch assessments');
+  return data;
+};
+
+export const createFitnessAssessment = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/assessments`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to create assessment');
+  return data;
+};
+
+export const getTrainerPTSessions = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/pt-sessions${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch PT sessions');
+  return data;
+};
+
+export const schedulePTSession = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/pt-sessions`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to schedule PT session');
+  return data;
+};
+
+export const updatePTSession = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/pt-sessions/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update PT session');
+  return data;
+};
+
+export const getTrainerExerciseLibrary = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer-portal/exercises${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch exercises');
+  return data;
+};
+
+export const createCustomExercise = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/exercises`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to create custom exercise');
+  return data;
+};
+
+export const getTrainerChatMessages = async (memberId) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/messages/${memberId}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch chat messages');
+  return data;
+};
+
+export const sendTrainerChatMessage = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/messages`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to send message');
+  return data;
+};
+
+export const getTrainerReports = async () => {
+  const res = await fetch(`${API_BASE}/trainer-portal/reports`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trainer reports');
+  return data;
+};
+
+export const getTrainerNotifications = async () => {
+  const res = await fetch(`${API_BASE}/trainer-portal/notifications`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch notifications');
+  return data;
+};
+
+export const markTrainerNotificationRead = async (id) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/notifications/${id}/read`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to mark notification read');
+  return data;
+};
+
+export const getTrainerProfileData = async () => {
+  const res = await fetch(`${API_BASE}/trainer-portal/profile`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trainer profile');
+  return data;
+};
+
+export const updateTrainerProfileData = async (payload) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/profile`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update trainer profile');
+  return data;
+};
+
+/* ================= TRAINER APPLICATION & ONBOARDING APIS ================= */
+
+export const submitTrainerApplication = async (applicationData) => {
+  const res = await fetch(`${API_BASE}/trainer/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(applicationData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit trainer application');
+  return data;
+};
+
+export const fetchTrainerApplicationStatus = async ({ email, applicationId }) => {
+  const params = new URLSearchParams();
+  if (email) params.append('email', email);
+  if (applicationId) params.append('applicationId', applicationId);
+
+  const res = await fetch(`${API_BASE}/trainer/application-status?${params.toString()}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Application not found');
+  return data;
+};
+
+export const fetchAdminTrainerApplications = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trainer/admin/applications${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trainer applications');
+  return data;
+};
+
+export const approveAdminTrainerApplication = async (id, adminRemarks = '') => {
+  const res = await fetch(`${API_BASE}/trainer/admin/applications/${id}/approve`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ adminRemarks }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to approve trainer application');
+  return data;
+};
+
+export const rejectAdminTrainerApplication = async (id, adminRemarks = '') => {
+  const res = await fetch(`${API_BASE}/trainer/admin/applications/${id}/reject`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ adminRemarks }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reject trainer application');
+  return data;
+};

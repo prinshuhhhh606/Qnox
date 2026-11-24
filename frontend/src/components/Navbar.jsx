@@ -42,10 +42,12 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
     { label: 'MEMBERSHIP', path: '/membership' },
     { label: 'TIMETABLE', path: '/timetable' },
     { label: 'TRAINERS', path: '/trainers' },
+    { label: 'JOIN AS TRAINER', path: '/join-as-trainer' },
     { label: 'PRESS', path: '/press' },
   ];
 
   const isAdmin = currentUser && ['Admin', 'Super Admin'].includes(currentUser.role);
+  const isTrainer = currentUser?.role === 'Trainer';
 
   return (
     <>
@@ -109,6 +111,19 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
               </button>
             )}
 
+            {isTrainer && (
+              <button
+                onClick={() => {
+                  window.location.hash = '#trainer';
+                  window.location.reload();
+                }}
+                className="px-3.5 py-2 bg-[#121212] border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black transition-all text-[11px] font-semibold tracking-wider uppercase flex items-center space-x-1.5 whitespace-nowrap flex-shrink-0 shadow-[0_0_15px_rgba(197,168,128,0.2)]"
+              >
+                <Shield className="w-3.5 h-3.5 text-[#c5a880] flex-shrink-0" />
+                <span>COACH PORTAL</span>
+              </button>
+            )}
+
             {currentUser ? (
               <div className="flex items-center space-x-1.5 flex-shrink-0">
                 <button
@@ -140,7 +155,7 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
               </div>
             ) : (
               <button
-                onClick={onOpenAuth}
+                onClick={() => onOpenAuth('member')}
                 className="px-3.5 py-2 border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white text-[11px] font-medium tracking-wider uppercase transition-colors whitespace-nowrap flex-shrink-0"
               >
                 SIGN IN

@@ -12,6 +12,8 @@ import MembershipPage from './pages/MembershipPage';
 import TimetablePage from './pages/TimetablePage';
 import TrainersPage from './pages/TrainersPage';
 import PressPage from './pages/PressPage';
+import JoinAsTrainerPage from './pages/JoinAsTrainerPage';
+import ApplicationStatusPage from './pages/ApplicationStatusPage';
 
 // Modals & Dashboard
 import TourModal from './components/TourModal';
@@ -19,6 +21,7 @@ import AuthModal from './components/AuthModal';
 import MemberPortalModal from './components/MemberPortalModal';
 import PaymentCheckoutModal from './components/PaymentCheckoutModal';
 import AdminDashboard from './components/AdminDashboard';
+import TrainerDashboard from './components/TrainerDashboard/TrainerDashboard';
 import Toast from './components/Toast';
 
 import {
@@ -43,8 +46,10 @@ export default function App() {
   const [selectedTierForTour, setSelectedTierForTour] = useState('');
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalRole, setAuthModalRole] = useState('member'); // 'member' | 'trainer'
   const [isMemberPortalOpen, setIsMemberPortalOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [isTrainerDashboardOpen, setIsTrainerDashboardOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState(null);
 
   useEffect(() => {
@@ -58,6 +63,12 @@ export default function App() {
           (window.location.hash === '#admin' || sessionStorage.getItem('qnox_view_mode') === 'admin')
         ) {
           setIsAdminDashboardOpen(true);
+        } else if (
+          user.role === 'Trainer' ||
+          (user.role && window.location.hash === '#trainer') ||
+          sessionStorage.getItem('qnox_view_mode') === 'trainer'
+        ) {
+          setIsTrainerDashboardOpen(true);
         }
       }
 
@@ -112,6 +123,7 @@ export default function App() {
     logoutUser();
     setCurrentUser(null);
     setIsAdminDashboardOpen(false);
+    setIsTrainerDashboardOpen(false);
     setIsMemberPortalOpen(false);
     sessionStorage.removeItem('qnox_view_mode');
     window.location.hash = '';
@@ -120,12 +132,21 @@ export default function App() {
 
   const handleOpenAdminDashboard = () => {
     setIsAdminDashboardOpen(true);
+    setIsTrainerDashboardOpen(false);
     sessionStorage.setItem('qnox_view_mode', 'admin');
     window.location.hash = '#admin';
   };
 
+  const handleOpenTrainerDashboard = () => {
+    setIsTrainerDashboardOpen(true);
+    setIsAdminDashboardOpen(false);
+    sessionStorage.setItem('qnox_view_mode', 'trainer');
+    window.location.hash = '#trainer';
+  };
+
   const handleBackToPublicSite = () => {
     setIsAdminDashboardOpen(false);
+    setIsTrainerDashboardOpen(false);
     sessionStorage.setItem('qnox_view_mode', 'public');
     window.location.hash = '';
   };
@@ -140,7 +161,8 @@ export default function App() {
   // If Admin Dashboard is open, render full-screen Admin Command Center
   if (isAdminDashboardOpen && currentUser && ['Admin', 'Super Admin'].includes(currentUser.role)) {
     return (
-      <>
+      <BrowserRouter>
+        <ScrollToTop />
         <AdminDashboard
           currentUser={currentUser}
           onBackToSite={handleBackToPublicSite}
@@ -148,7 +170,26 @@ export default function App() {
           onShowToast={showToast}
         />
         <Toast toasts={toasts} onDismiss={dismissToast} />
-      </>
+      </BrowserRouter>
+    );
+  }
+
+  // If Trainer Dashboard is open or user is Trainer, render Coach Command Center
+  if (
+    isTrainerDashboardOpen ||
+    (currentUser?.role === 'Trainer' && sessionStorage.getItem('qnox_view_mode') !== 'public')
+  ) {
+    return (
+      <BrowserRouter>
+        <ScrollToTop />
+        <TrainerDashboard
+          currentUser={currentUser}
+          onBackToSite={handleBackToPublicSite}
+          onLogout={handleLogout}
+          onShowToast={showToast}
+        />
+        <Toast toasts={toasts} onDismiss={dismissToast} />
+      </BrowserRouter>
     );
   }
 
@@ -160,7 +201,10 @@ export default function App() {
         <Navbar
           onOpenTourModal={handleOpenTourModal}
           currentUser={currentUser}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenAuth={(role = 'member') => {
+            setAuthModalRole(role);
+            setIsAuthModalOpen(true);
+          }}
           onOpenMemberPortal={() => setIsMemberPortalOpen(true)}
           onOpenAdmin={handleOpenAdminDashboard}
           onLogout={handleLogout}
@@ -219,6 +263,22 @@ export default function App() {
               path="/press"
               element={<PressPage onOpenTourModal={handleOpenTourModal} />}
             />
+            <Route
+              path="/join-as-trainer"
+              element={
+                <JoinAsTrainerPage
+                  onShowToast={showToast}
+                  onOpenTrainerLogin={() => {
+                    setAuthModalRole('trainer');
+                    setIsAuthModalOpen(true);
+                  }}
+                />
+              }
+            />
+            <Route
+              path="/trainer/application-status"
+              element={<ApplicationStatusPage />}
+            />
             {/* Catch-all redirect to Home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -237,6 +297,7 @@ export default function App() {
 
         <AuthModal
           isOpen={isAuthModalOpen}
+          initialRole={authModalRole}
           onClose={() => setIsAuthModalOpen(false)}
           onAuthSuccess={(user) => {
             setCurrentUser(user);
@@ -247,6 +308,14 @@ export default function App() {
               showToast({
                 type: 'success',
                 message: `Welcome to Executive Command Center, ${user.name}.`,
+              });
+            } else if (user.role === 'Trainer') {
+              setIsTrainerDashboardOpen(true);
+              sessionStorage.setItem('qnox_view_mode', 'trainer');
+              window.location.hash = '#trainer';
+              showToast({
+                type: 'success',
+                message: `Welcome to Coach Command Center, ${user.name}.`,
               });
             } else {
               showToast({ type: 'success', message: `Welcome to QNOX, ${user.name}.` });

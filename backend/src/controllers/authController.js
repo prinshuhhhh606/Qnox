@@ -81,10 +81,42 @@ exports.login = async (req, res, next) => {
 
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
+      // Check if this email has a pending or rejected trainer application
+      const TrainerApplication = require('../models/TrainerApplication');
+      const pendingApp = await TrainerApplication.findOne({ email: email.toLowerCase() });
+      if (pendingApp) {
+        if (pendingApp.status === 'Pending' || pendingApp.status === 'Under Review') {
+          return res.status(403).json({
+            success: false,
+            message: `Your trainer application (${pendingApp.applicationId}) is currently pending admin review. You can only log in after approval.`,
+          });
+        } else if (pendingApp.status === 'Rejected') {
+          return res.status(403).json({
+            success: false,
+            message: `Your trainer application was rejected: "${pendingApp.adminRemarks || 'Did not meet compliance standards'}".`,
+          });
+        }
+      }
+
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials. Access rejected.',
       });
+    }
+
+    // If user has role Trainer, verify that their profile is approved and active
+    if (user.role === 'Trainer') {
+      const Trainer = require('../models/Trainer');
+      const trainerRecord = await Trainer.findOne({
+        $or: [{ user: user._id }, { email: user.email }]
+      });
+
+      if (trainerRecord && trainerRecord.isActive === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your trainer profile is currently inactive or pending administrative reactivation.',
+        });
+      }
     }
 
     const isMatch = await user.matchPassword(password);

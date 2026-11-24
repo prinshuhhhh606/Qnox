@@ -21,6 +21,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const membershipRoutes = require('./routes/membershipRoutes');
+const trainerDashboardRoutes = require('./routes/trainerDashboardRoutes');
+const trainerApplicationRoutes = require('./routes/trainerApplicationRoutes');
 
 const app = express();
 
@@ -107,6 +109,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/memberships', membershipRoutes);
+app.use('/api/trainer-portal', trainerDashboardRoutes);
+app.use('/api/trainer', trainerApplicationRoutes);
 
 // Root greeting
 app.get('/', (req, res) => {
