@@ -1,34 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Users, Crown, DollarSign, Calendar, MessageSquare, ArrowLeft, LogOut, Search,
-  Plus, Edit, Trash2, CheckCircle, XCircle, X, Download, Send, RefreshCw, Eye, Shield, MapPin,
-  Bell, Clock, AlertTriangle, Phone, Mail, ExternalLink, Check, Sparkles, Pause, Play, Power, ShieldAlert,
-  LayoutDashboard, Menu, ChevronRight, Activity, TrendingUp, Layers, CreditCard
+  Users, Crown, Calendar, MessageSquare, LogOut,
+  MapPin, Bell, Clock, Shield, Sparkles, LayoutDashboard,
+  Menu, CreditCard, Mail
 } from 'lucide-react';
 import {
-  fetchAdminOverview, fetchRevenueAnalytics, fetchAdminMembers, exportMembersCsv, updateMemberResidency, deleteMemberRecord,
+  fetchAdminOverview, fetchRevenueAnalytics, fetchAdminMembers, exportMembersCsv, deleteMemberRecord,
   fetchMembershipPlans, createMembershipPlan, updateMembershipPlan, deleteMembershipPlan, togglePlanStatus,
-  fetchAllBookings, updateBookingAttendance, cancelClassBooking,
+  fetchAllBookings, updateBookingAttendance,
   fetchTrainers, createTrainerRecord, updateTrainerRecord, deleteTrainerRecord,
   fetchClubs, createClubRecord, updateClubRecord, deleteClubRecord,
-  fetchAllPayments, refundPaymentRecord,
-  fetchAllSubscribers, exportSubscribersCsv, dispatchNewsletterCampaign,
+  fetchAllPayments,
+  fetchAllSubscribers, dispatchNewsletterCampaign,
   fetchAllInquiries,
   fetchAdminNotifications, markNotificationRead, markAllNotificationsRead, deleteNotificationRecord, triggerAdminExpiryCheck, fetchNotificationUnreadCount,
-  fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest, fetchMembershipStats,
+  fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest,
   extendMembershipAdmin, suspendMembershipAdmin, reactivateMembershipAdmin, sendRenewalReminderAdmin,
   fetchAdminTrainerApplications, approveAdminTrainerApplication, rejectAdminTrainerApplication
 } from '../services/api';
+
+// Tabs
+import {
+  OverviewTab,
+  MembersTab,
+  PlansTab,
+  BookingsTab,
+  TrainersTab,
+  TrainerApplicationsTab,
+  ClubsTab,
+  PaymentsTab,
+  NewsletterTab,
+  InquiriesTab,
+  NotificationsTab,
+  RequestsTab,
+} from '../modules/admin/tabs';
+
+// Modals
+import {
+  PlanModal,
+  TrainerModal,
+  ClubModal,
+  TrainerAppDetailDrawer,
+  RequestActionModal,
+  ExtendMembershipModal,
+} from '../modules/admin/modals';
+
 import ReceiptModal from './ReceiptModal';
-import ImageUploadField from './ImageUploadField';
 import MemberDossierDrawer from './MemberDossierDrawer';
 import AssignResidencyModal from './AssignResidencyModal';
 import './AdminDashboard.css';
 
 export default function AdminDashboard({ currentUser, onBackToSite, onLogout, onShowToast }) {
-  const [activeTab, setActiveTab] = useState('overview'); // overview, members, plans, bookings, trainers, clubs, payments, newsletter, inquiries
-  const [analyticsPeriod, setAnalyticsPeriod] = useState('monthly'); // 'monthly' | 'weekly'
-  
+  const [activeTab, setActiveTab] = useState('overview');
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('monthly');
+
   // State for data
   const [stats, setStats] = useState({ totalMembers: 0, activeMemberships: 0, totalRevenue: 0, totalBookings: 0, pendingInquiries: 0 });
   const [recentActivities, setRecentActivities] = useState({});
@@ -46,8 +71,13 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [trainerApplications, setTrainerApplications] = useState([]);
   const [pendingTrainerAppsCount, setPendingTrainerAppsCount] = useState(0);
   const [trainerAppFilter, setTrainerAppFilter] = useState('All');
+  const trainerAppFilterRef = useRef(trainerAppFilter);
+  useEffect(() => {
+    trainerAppFilterRef.current = trainerAppFilter;
+  }, [trainerAppFilter]);
   const [selectedTrainerApp, setSelectedTrainerApp] = useState(null);
   const [trainerAppRemarks, setTrainerAppRemarks] = useState('');
+  const [approvingAppId, setApprovingAppId] = useState(null);
 
   // Notification Feed states
   const [adminNotifications, setAdminNotifications] = useState([]);
@@ -101,10 +131,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   // Membership Requests state
   const [membershipRequests, setMembershipRequests] = useState([]);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-  const [requestsFilter, setRequestsFilter] = useState('All'); // All, Freeze, Cancellation
-  const [requestsStatusFilter, setRequestsStatusFilter] = useState('All'); // All, Pending, Approved, Rejected
+  const [requestsFilter, setRequestsFilter] = useState('All');
+  const [requestsStatusFilter, setRequestsStatusFilter] = useState('All');
   const [loadingRequests, setLoadingRequests] = useState(false);
-  const [selectedRequestAction, setSelectedRequestAction] = useState(null); // { request, action: 'approve' | 'reject' }
+  const [selectedRequestAction, setSelectedRequestAction] = useState(null);
   const [approvalNotes, setApprovalNotes] = useState('');
   const [refundAmount, setRefundAmount] = useState(0);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -121,10 +151,11 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     loadOverview();
     loadAdminUnreadBadge();
     loadTrainerApplications();
+
     // Fast 10-second polling so newly submitted trainer applications pop up in real-time
     const interval = setInterval(() => {
       loadAdminUnreadBadge();
-      loadTrainerApplications();
+      loadTrainerApplications(trainerAppFilterRef.current);
     }, 10000);
     return () => clearInterval(interval);
   }, [analyticsPeriod]);
@@ -141,12 +172,14 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     if (activeTab === 'notifications') loadNotifications();
     if (activeTab === 'requests') loadMembershipRequests();
     if (activeTab === 'trainer-applications') loadTrainerApplications();
-  }, [activeTab, trainerAppFilter]);
+  }, [activeTab]);
 
   const loadAdminUnreadBadge = async () => {
     try {
-      const count = await fetchNotificationUnreadCount();
-      setAdminUnreadCount(count);
+      const data = await fetchNotificationUnreadCount();
+      if (data && data.unreadCount !== undefined) {
+        setAdminUnreadCount(data.unreadCount);
+      }
       const reqs = await fetchMembershipRequests({ status: 'Pending' });
       if (reqs) setPendingRequestsCount(reqs.length);
       const pendingAppsRes = await fetchAdminTrainerApplications({ status: 'Pending' });
@@ -161,13 +194,15 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const loadNotifications = async (status = notifStatusFilter, filterType = notifTypeFilter, search = notifSearch) => {
     setNotifLoading(true);
     try {
-      const res = await fetchAdminNotifications({ status, filterType, search });
+      const res = await fetchAdminNotifications({
+        status: status === 'all' ? undefined : status,
+        type: filterType === 'all' ? undefined : filterType,
+        search: search || undefined,
+      });
       if (res && res.data) {
         setAdminNotifications(res.data);
-        if (res.metrics) {
-          setNotifMetrics(res.metrics);
-          setAdminUnreadCount(res.metrics.unread || 0);
-        }
+        if (res.metrics) setNotifMetrics(res.metrics);
+        if (res.unreadCount !== undefined) setAdminUnreadCount(res.unreadCount);
       }
     } catch (err) {
       console.warn(err.message);
@@ -183,12 +218,11 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       if (onShowToast) {
         onShowToast({
           type: 'success',
-          message: `Engine Complete: ${res.data?.processedMembers || 0} members evaluated, ${res.data?.markedExpired || 0} marked expired, ${res.data?.notificationsCreated || 0} alerts dispatched.`,
+          message: `Expiry engine finished. ${res.data?.processedCount || 0} alerts processed across membership rosters.`,
         });
       }
-      await loadNotifications();
-      await loadAdminUnreadBadge();
-      loadMembers(memberPage);
+      loadNotifications();
+      loadAdminUnreadBadge();
       loadOverview();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
@@ -201,6 +235,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     try {
       await markNotificationRead(id);
       loadNotifications();
+      loadAdminUnreadBadge();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -208,9 +243,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
 
   const handleMarkAllNotifsAsRead = async () => {
     try {
-      await markAllNotificationsRead('admin');
-      if (onShowToast) onShowToast({ type: 'success', message: 'All expiry alerts marked as read.' });
+      await markAllNotificationsRead();
+      if (onShowToast) onShowToast({ type: 'success', message: 'All surveillance notifications marked as acknowledged.' });
       loadNotifications();
+      loadAdminUnreadBadge();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -220,6 +256,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     try {
       await deleteNotificationRecord(id);
       loadNotifications();
+      loadAdminUnreadBadge();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -231,10 +268,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       const params = {};
       if (requestsFilter !== 'All') params.type = requestsFilter;
       if (requestsStatusFilter !== 'All') params.status = requestsStatusFilter;
-      const data = await fetchMembershipRequests(params);
-      if (data) {
-        setMembershipRequests(data);
-        const pendingCount = data.filter((r) => r.status === 'Pending').length;
+      const res = await fetchMembershipRequests(params);
+      if (res) {
+        setMembershipRequests(res);
+        const pendingCount = res.filter((r) => r.status === 'Pending').length;
         setPendingRequestsCount(pendingCount);
       }
     } catch (err) {
@@ -252,12 +289,12 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
         adminNotes: approvalNotes,
         refundAmount: Number(refundAmount) || 0,
       });
-      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request successfully approved.' });
+      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request approved.' });
       setSelectedRequestAction(null);
       setApprovalNotes('');
       setRefundAmount(0);
       loadMembershipRequests();
-      loadMembers();
+      loadAdminUnreadBadge();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -270,10 +307,11 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       await rejectMembershipRequest(selectedRequestAction.request._id, {
         rejectionReason: rejectionReason || 'Policy non-compliance',
       });
-      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request has been rejected.' });
+      if (onShowToast) onShowToast({ type: 'info', message: 'Membership request rejected.' });
       setSelectedRequestAction(null);
       setRejectionReason('');
       loadMembershipRequests();
+      loadAdminUnreadBadge();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -285,13 +323,14 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     setProcessingExtend(true);
     try {
       const res = await extendMembershipAdmin(extendTargetUser._id, {
-        days: extendDays,
+        extensionDays: Number(extendDays),
         reason: extendReason,
       });
-      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Residency extended.' });
       setShowExtendModal(false);
       setExtendTargetUser(null);
       loadMembers();
+      loadOverview();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     } finally {
@@ -301,8 +340,8 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
 
   const handleSendReminder = async (userId, memberName) => {
     try {
-      const res = await sendRenewalReminderAdmin(userId);
-      if (onShowToast) onShowToast({ type: 'success', message: `Personalized renewal reminder sent to ${memberName}.` });
+      await sendRenewalReminderAdmin(userId);
+      if (onShowToast) onShowToast({ type: 'success', message: `Renewal reminder sent to ${memberName}.` });
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
@@ -431,14 +470,13 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
-  // Plan Handlers
   const handleSavePlan = async (e) => {
     e.preventDefault();
     try {
       const payload = {
         ...planForm,
         benefits: typeof planForm.benefits === 'string'
-          ? planForm.benefits.split(',').map(s => s.trim())
+          ? planForm.benefits.split(',').map((s) => s.trim())
           : planForm.benefits,
       };
 
@@ -466,14 +504,23 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
-  // Trainer Handlers
+  const handleDeletePlan = async (id, name) => {
+    if (!window.confirm(`Delete plan ${name}?`)) return;
+    try {
+      await deleteMembershipPlan(id);
+      loadPlans();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    }
+  };
+
   const handleSaveTrainer = async (e) => {
     e.preventDefault();
     try {
       const payload = {
         ...trainerForm,
         specialties: typeof trainerForm.specialties === 'string'
-          ? trainerForm.specialties.split(',').map(s => s.trim())
+          ? trainerForm.specialties.split(',').map((s) => s.trim())
           : trainerForm.specialties,
       };
 
@@ -502,34 +549,36 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
-  // Trainer Application Handlers
-  const [approvingAppId, setApprovingAppId] = useState(null);
-
-  const loadTrainerApplications = async () => {
+  const loadTrainerApplications = async (overrideFilter) => {
+    const currentFilter = overrideFilter !== undefined ? overrideFilter : trainerAppFilterRef.current;
     try {
-      const res = await fetchAdminTrainerApplications({ status: trainerAppFilter !== 'All' ? trainerAppFilter : undefined });
+      const res = await fetchAdminTrainerApplications({ status: currentFilter !== 'All' ? currentFilter : undefined });
       if (res.success && res.data) {
-        // Sort so that 'Pending' applications are always pinned right at the very top
-        const sorted = [...res.data].sort((a, b) => {
-          if (a.status === 'Pending' && b.status !== 'Pending') return -1;
-          if (a.status !== 'Pending' && b.status === 'Pending') return 1;
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        });
-        setTrainerApplications(sorted);
-        setPendingTrainerAppsCount(sorted.filter((a) => a.status === 'Pending').length);
+        setTrainerApplications(res.data);
+      }
+      const pendingRes = await fetchAdminTrainerApplications({ status: 'Pending' });
+      if (pendingRes && pendingRes.data) {
+        setPendingTrainerAppsCount(pendingRes.data.length);
+      } else if (res.success && res.data) {
+        setPendingTrainerAppsCount(res.data.filter((a) => a.status === 'Pending').length);
       }
     } catch (err) {
-      console.error(err);
+      console.error('[Admin] loadTrainerApplications error:', err);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'trainer-applications') {
+      loadTrainerApplications(trainerAppFilter);
+    }
+  }, [trainerAppFilter]);
 
   const handleApproveTrainerApp = async (id, customRemarks) => {
     setApprovingAppId(id);
     const remarks = customRemarks !== undefined ? customRemarks : trainerAppRemarks;
 
-    // Optimistic UI update: instantly mark approved in UI without waiting for network
     setTrainerApplications((prev) =>
-      prev.map((app) => (app._id === id ? { ...app, status: 'Approved' } : app))
+      prev.map((app) => (app._id === id || app.applicationId === id ? { ...app, status: 'Approved' } : app))
     );
 
     try {
@@ -540,7 +589,6 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       loadTrainerApplications();
       loadTrainers();
     } catch (err) {
-      // Revert if failed
       loadTrainerApplications();
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     } finally {
@@ -549,6 +597,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   };
 
   const handleRejectTrainerApp = async (id) => {
+    setTrainerApplications((prev) =>
+      prev.map((app) => (app._id === id || app.applicationId === id ? { ...app, status: 'Rejected' } : app))
+    );
+
     try {
       const res = await rejectAdminTrainerApplication(id, trainerAppRemarks || 'Application did not meet compliance standards.');
       if (onShowToast) onShowToast({ type: 'info', message: res.message || 'Application rejected.' });
@@ -556,11 +608,11 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       setTrainerAppRemarks('');
       loadTrainerApplications();
     } catch (err) {
+      loadTrainerApplications();
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
   };
 
-  // Club Handlers
   const handleSaveClub = async (e) => {
     e.preventDefault();
     try {
@@ -589,7 +641,6 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
-  // Booking Attendance
   const handleSetAttendance = async (id, status) => {
     try {
       await updateBookingAttendance(id, status);
@@ -600,7 +651,6 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     }
   };
 
-  // Newsletter Campaign
   const handleSendCampaign = async (e) => {
     e.preventDefault();
     setSendingCampaign(true);
@@ -614,8 +664,6 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
       setSendingCampaign(false);
     }
   };
-
-  const maxChartVal = chartData.reduce((acc, cur) => Math.max(acc, cur.revenue || 0), 1);
 
   const navSections = [
     {
@@ -645,9 +693,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
           id: 'trainer-applications',
           label: 'Trainer Applications',
           icon: Shield,
-          badge: pendingTrainerAppsCount > 0
-            ? pendingTrainerAppsCount
-            : null,
+          badge: pendingTrainerAppsCount > 0 ? pendingTrainerAppsCount : null,
           badgeColor: 'bg-[#c5a880] text-black font-bold animate-pulse',
         },
         { id: 'trainers', label: 'Master Coaches Roster', icon: Sparkles },
@@ -678,7 +724,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     },
   ];
 
-  const currentNav = navSections.flatMap(s => s.items).find(i => i.id === activeTab);
+  const currentNav = navSections.flatMap((s) => s.items).find((i) => i.id === activeTab);
 
   return (
     <div className="min-h-screen bg-[#070707] text-[#f5f5f5] flex font-sans antialiased selection:bg-[#c5a880] selection:text-black">
@@ -716,7 +762,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
             onClick={() => setMobileSidebarOpen(false)}
             className="lg:hidden p-1.5 text-neutral-400 hover:text-white border border-white/10"
           >
-            <X className="w-4 h-4" />
+            ✕
           </button>
         </div>
 
@@ -740,12 +786,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
                       }}
                       className={`qnox-sidebar-item ${isActive ? 'active' : ''}`}
                     >
-                      <div className="flex items-center space-x-3 truncate">
-                        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#c5a880]' : 'text-neutral-400'}`} />
-                        <span className="truncate">{item.label}</span>
-                      </div>
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-[#c5a880]' : 'text-neutral-500'}`} />
+                      <span className="font-medium">{item.label}</span>
                       {item.badge && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 ml-2 flex-shrink-0 ${item.badgeColor || 'bg-white/10 text-neutral-300'}`}>
+                        <span className={`qnox-sidebar-badge ${item.badgeColor || 'bg-white/10 text-white'}`}>
                           {item.badge}
                         </span>
                       )}
@@ -757,32 +801,34 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
           ))}
         </div>
 
-        {/* Sidebar Footer: Admin Profile & Actions */}
+        {/* Sidebar Executive Profile Card */}
         <div className="p-4 border-t border-white/10 bg-[#080808]">
-          <div className="flex items-center space-x-3 mb-3 p-2 bg-white/[0.02] border border-white/5">
-            <div className="w-9 h-9 rounded-full bg-neutral-800 border border-[#c5a880]/50 flex items-center justify-center text-xs font-serif text-[#c5a880] font-bold">
-              {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'AD'}
-            </div>
-            <div className="truncate flex-1">
-              <div className="text-xs font-semibold text-white truncate">{currentUser?.name || 'Sanctuary Admin'}</div>
-              <div className="text-[10px] text-neutral-500 font-mono tracking-wider truncate">
-                {currentUser?.role || 'Super Admin'}
+          <div className="flex items-center justify-between mb-3 px-2">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-full bg-[#181818] border border-white/20 flex items-center justify-center font-serif text-xs text-[#c5a880]">
+                {currentUser?.name?.substring(0, 2).toUpperCase() || 'EX'}
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-white truncate max-w-[120px]">
+                  {currentUser?.name || 'Executive Admin'}
+                </div>
+                <div className="text-[10px] text-neutral-400 font-mono uppercase">
+                  {currentUser?.role || 'Super Admin'}
+                </div>
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
             <button
               onClick={onBackToSite}
-              className="px-2 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-white/10 hover:border-[#c5a880] text-neutral-300 hover:text-white transition flex items-center justify-center space-x-1"
-              title="Return to Public Website"
+              className="py-1.5 px-2 bg-white/5 hover:bg-white/10 text-[10px] uppercase font-bold tracking-wider text-neutral-300 hover:text-white flex items-center justify-center space-x-1"
             >
-              <ExternalLink className="w-3 h-3" />
               <span>LIVE SITE</span>
             </button>
             <button
               onClick={onLogout}
-              className="px-2 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-rose-500/30 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 transition flex items-center justify-center space-x-1"
-              title="End Executive Session"
+              className="py-1.5 px-2 border border-rose-900/40 text-[10px] uppercase font-bold tracking-wider text-rose-400 hover:bg-rose-950/30 flex items-center justify-center space-x-1"
             >
               <LogOut className="w-3 h-3" />
               <span>LOGOUT</span>
@@ -791,2038 +837,252 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
         </div>
       </aside>
 
-      {/* Main Dashboard Canvas Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden bg-[#050505]">
-        {/* Sticky Dashboard Topbar */}
-        <header className="sticky top-0 z-30 bg-[#080808]/95 backdrop-blur-md border-b border-white/10 px-6 lg:px-10 py-3.5 flex items-center justify-between">
+      {/* Main Command Workspace */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#070707]">
+        {/* Top Control Header */}
+        <header className="h-16 border-b border-white/10 px-6 sm:px-10 flex items-center justify-between bg-[#080808] sticky top-0 z-30">
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="lg:hidden p-2 text-neutral-400 hover:text-white border border-white/10"
-              title="Open Navigation"
             >
               <Menu className="w-5 h-5" />
             </button>
-
             <div>
-              <div className="flex items-center space-x-2 text-xs text-neutral-400 font-mono">
-                <span className="hidden sm:inline">QNOX SANCTUARY</span>
-                <span className="hidden sm:inline text-neutral-600">/</span>
-                <span className="text-[#c5a880] uppercase tracking-wider font-semibold">
-                  {currentNav?.label || 'DASHBOARD'}
-                </span>
+              <div className="text-xs text-neutral-400 font-mono tracking-widest uppercase flex items-center space-x-2">
+                <span>COMMAND CENTER</span>
+                <span>&bull;</span>
+                <span className="text-[#c5a880]">{currentNav?.label || 'DASHBOARD'}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {/* Run Expiry Engine Fast Shortcut */}
-            <button
-              onClick={handleRunExpiryEngine}
-              disabled={runningExpiryEngine}
-              className="hidden md:inline-flex items-center space-x-1.5 px-3 py-1.5 border border-white/15 hover:border-[#c5a880] text-[10px] tracking-wider uppercase font-mono text-neutral-300 hover:text-white transition disabled:opacity-50"
-              title="Trigger background membership expiration audit"
-            >
-              <RefreshCw className={`w-3 h-3 text-[#c5a880] ${runningExpiryEngine ? 'animate-spin' : ''}`} />
-              <span>{runningExpiryEngine ? 'AUDITING...' : 'RUN EXPIRY ENGINE'}</span>
-            </button>
+          <div className="flex items-center space-x-4">
+            {pendingTrainerAppsCount > 0 && (
+              <button
+                onClick={() => setActiveTab('trainer-applications')}
+                className="px-3 py-1 bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-semibold rounded flex items-center space-x-2 animate-pulse"
+                title="View Pending Trainer Applications"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span>{pendingTrainerAppsCount} Trainer Application{pendingTrainerAppsCount > 1 ? 's' : ''} Pending</span>
+              </button>
+            )}
 
-            {/* Quick Notifications Button */}
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`relative p-2 border transition flex items-center ${
+              className={`p-2 border relative transition ${
                 activeTab === 'notifications'
-                  ? 'border-[#c5a880] text-[#c5a880] bg-[#c5a880]/10'
-                  : 'border-white/10 text-neutral-300 hover:border-white/30'
+                  ? 'border-[#c5a880] text-[#c5a880]'
+                  : 'border-white/10 text-neutral-400 hover:text-white hover:border-white/20'
               }`}
-              title="View Expiry Alerts"
+              title="System Alerts"
             >
-              <Bell className="w-4 h-4 text-[#c5a880]" />
+              <Bell className="w-4 h-4" />
               {adminUnreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 text-[8px] font-bold bg-rose-600 text-white rounded-full animate-pulse shadow-md">
-                  {adminUnreadCount}
-                </span>
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               )}
-            </button>
-
-            <button
-              onClick={onBackToSite}
-              className="hidden sm:inline-flex px-3.5 py-1.5 border border-white/10 hover:border-white/30 text-neutral-300 text-xs tracking-wider uppercase"
-            >
-              WEBSITE
-            </button>
-
-            <button
-              onClick={onLogout}
-              className="px-3.5 py-1.5 bg-rose-950/40 border border-rose-500/40 text-rose-300 hover:bg-rose-900/60 text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">LOGOUT</span>
             </button>
           </div>
         </header>
 
-        {/* Dashboard Main Content Body */}
-        <main className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-8">
-
-        {/* Global Live Alert Banner when Pending Trainer Applications are waiting for approval */}
-        {pendingTrainerAppsCount > 0 && (
-          <div className="p-4 bg-gradient-to-r from-[#c5a880]/20 via-[#c5a880]/10 to-transparent border-l-4 border-[#c5a880] border border-[#c5a880]/30 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-[#c5a880]/20 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-5 h-5 text-[#c5a880]" />
-              </div>
-              <div>
-                <h4 className="font-serif text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <span>ACTION REQUIRED: {pendingTrainerAppsCount} Trainer Application(s) Awaiting Review</span>
-                  <span className="w-2 h-2 rounded-full bg-[#c5a880] animate-ping" />
-                </h4>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  Trainers cannot log in or appear on customer pages until approved by the administration.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setActiveTab('trainer-applications')}
-              className="px-5 py-2 bg-[#c5a880] hover:bg-[#d8bf9b] text-black font-semibold text-xs uppercase tracking-wider rounded transition flex-shrink-0 shadow-lg"
-            >
-              Open Approvals Queue &rarr;
-            </button>
-          </div>
-        )}
-        
-        {/* ================= TAB 1: OVERVIEW & ANALYTICS ================= */}
-        {activeTab === 'overview' && (
-          <div className="space-y-10">
-            {/* Top Stat Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="qnox-stat-card">
-                <div className="flex items-center justify-between text-neutral-500 mb-2">
-                  <span className="text-[10px] tracking-widest uppercase font-semibold">TOTAL MEMBERS</span>
-                  <Users className="w-4 h-4 text-[#c5a880]" />
-                </div>
-                <div className="font-serif text-3xl text-white font-bold">{stats.totalMembers}</div>
-                <p className="text-[10px] text-emerald-400 mt-1">&uarr; +18% this month</p>
-              </div>
-
-              <div className="qnox-stat-card">
-                <div className="flex items-center justify-between text-neutral-500 mb-2">
-                  <span className="text-[10px] tracking-widest uppercase font-semibold">ACTIVE PLANS</span>
-                  <Crown className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="font-serif text-3xl text-white font-bold">{stats.activeMemberships}</div>
-                <p className="text-[10px] text-neutral-500 mt-1">High retention rate (92%)</p>
-              </div>
-
-              <div className="qnox-stat-card">
-                <div className="flex items-center justify-between text-neutral-500 mb-2">
-                  <span className="text-[10px] tracking-widest uppercase font-semibold">TOTAL REVENUE</span>
-                  <DollarSign className="w-4 h-4 text-[#c5a880]" />
-                </div>
-                <div className="font-serif text-3xl text-white font-bold">
-                  ₹{stats.totalRevenue >= 100000 ? `${(stats.totalRevenue / 100000).toFixed(1)}L` : stats.totalRevenue}
-                </div>
-                <p className="text-[10px] text-emerald-400 mt-1">Via Razorpay Gateway</p>
-              </div>
-
-              <div className="qnox-stat-card">
-                <div className="flex items-center justify-between text-neutral-500 mb-2">
-                  <span className="text-[10px] tracking-widest uppercase font-semibold">CLASS BOOKINGS</span>
-                  <Calendar className="w-4 h-4 text-sky-400" />
-                </div>
-                <div className="font-serif text-3xl text-white font-bold">{stats.totalBookings}</div>
-                <p className="text-[10px] text-neutral-500 mt-1">Across 6 Sanctuaries</p>
-              </div>
-
-              <div className="qnox-stat-card col-span-2 md:col-span-1">
-                <div className="flex items-center justify-between text-neutral-500 mb-2">
-                  <span className="text-[10px] tracking-widest uppercase font-semibold">TOUR REQUESTS</span>
-                  <MessageSquare className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="font-serif text-3xl text-white font-bold">{stats.pendingInquiries}</div>
-                <p className="text-[10px] text-amber-400 mt-1">Awaiting concierge call</p>
-              </div>
-            </div>
-
-            {/* Revenue Analytics Interactive Chart */}
-            <div className="bg-[#0a0a0a] border border-white/10 p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-white/10 pb-6">
-                <div>
-                  <span className="text-[10px] tracking-[0.25em] uppercase text-[#c5a880] font-semibold block mb-1">
-                    EXECUTIVE FINANCIAL PERFORMANCE
-                  </span>
-                  <h3 className="font-serif text-2xl text-white">Revenue & Membership Trajectory</h3>
-                </div>
-
-                <div className="flex items-center space-x-2 bg-[#121212] p-1 border border-white/10">
-                  <button
-                    onClick={() => setAnalyticsPeriod('monthly')}
-                    className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${
-                      analyticsPeriod === 'monthly' ? 'bg-[#c5a880] text-black' : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    MONTHLY
-                  </button>
-                  <button
-                    onClick={() => setAnalyticsPeriod('weekly')}
-                    className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${
-                      analyticsPeriod === 'weekly' ? 'bg-[#c5a880] text-black' : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    THIS WEEK
-                  </button>
-                </div>
-              </div>
-
-              {/* Bar Graph Visual */}
-              <div className="h-64 flex items-end justify-between gap-4 pt-10 px-4 border-b border-white/10">
-                {chartData.map((item, idx) => {
-                  const label = item.month || item.day;
-                  const rev = item.revenue || 0;
-                  const heightPercent = Math.max(12, Math.round((rev / maxChartVal) * 100));
-
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
-                      <span className="text-[10px] text-[#c5a880] font-mono opacity-0 group-hover:opacity-100 transition-opacity mb-2">
-                        ₹{(rev / 1000).toFixed(0)}k
-                      </span>
-                      <div
-                        className="w-full max-w-[42px] bg-[#c5a880] rounded-none qnox-chart-bar"
-                        style={{ height: `${heightPercent}%`, backgroundColor: '#c5a880' }}
-                      />
-                      <span className="text-xs text-neutral-400 font-mono mt-3 uppercase">{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Recent Activities Feed */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-[#0a0a0a] border border-white/10 p-6">
-                <h4 className="font-serif text-lg text-white mb-4">Latest Razorpay Payments</h4>
-                <div className="space-y-3">
-                  {recentActivities.payments?.map(p => (
-                    <div key={p._id} className="flex items-center justify-between text-xs border-b border-white/5 pb-2.5">
-                      <div>
-                        <div className="text-white font-medium">{p.userName}</div>
-                        <div className="text-neutral-500 font-mono text-[11px]">{p.planName} &bull; {p.duration}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[#c5a880] font-mono font-bold">₹{p.amount?.toLocaleString('en-IN')}</div>
-                        <div className="text-emerald-400 text-[10px] uppercase font-bold">{p.status}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-[#0a0a0a] border border-white/10 p-6">
-                <h4 className="font-serif text-lg text-white mb-4">Recent Tour Inquiries</h4>
-                <div className="space-y-3">
-                  {recentActivities.inquiries?.map(inq => (
-                    <div key={inq._id} className="flex items-center justify-between text-xs border-b border-white/5 pb-2.5">
-                      <div>
-                        <div className="text-white font-medium">{inq.fullName}</div>
-                        <div className="text-neutral-500 text-[11px]">{inq.preferredClub} &bull; {inq.phone}</div>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 bg-amber-950/60 text-amber-400 uppercase font-bold">
-                        {inq.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 2: MEMBERS DOSSIER 360° ================= */}
-        {activeTab === 'members' && (
-          <div className="space-y-6">
-            {/* Metric Counter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  setMemberStatusFilter('All');
-                  setMemberExpiringFilter('All');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberStatusFilter === 'All' && memberExpiringFilter === 'All'
-                    ? 'border-[#c5a880] text-white bg-[#c5a880]/10'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                ALL ({memberMetrics.total || members.length})
-              </button>
-              <button
-                onClick={() => {
-                  setMemberStatusFilter('Active');
-                  setMemberExpiringFilter('All');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberStatusFilter === 'Active' && memberExpiringFilter === 'All'
-                    ? 'border-emerald-500 text-emerald-300 bg-emerald-950/30'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                ACTIVE ({memberMetrics.active || 0})
-              </button>
-              <button
-                onClick={() => {
-                  setMemberExpiringFilter('30');
-                  setMemberStatusFilter('Active');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberExpiringFilter === '30'
-                    ? 'border-amber-500 text-amber-300 bg-amber-950/30'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                EXPIRING SOON ({memberMetrics.expiringSoon || 0})
-              </button>
-              <button
-                onClick={() => {
-                  setMemberStatusFilter('Expired');
-                  setMemberExpiringFilter('All');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberStatusFilter === 'Expired'
-                    ? 'border-rose-500 text-rose-300 bg-rose-950/30'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                EXPIRED ({memberMetrics.expired || 0})
-              </button>
-              <button
-                onClick={() => {
-                  setMemberStatusFilter('Frozen');
-                  setMemberExpiringFilter('All');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberStatusFilter === 'Frozen'
-                    ? 'border-sky-500 text-sky-300 bg-sky-950/30'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                FROZEN ({memberMetrics.frozen || 0})
-              </button>
-              <button
-                onClick={() => {
-                  setMemberStatusFilter('Archived');
-                  setMemberExpiringFilter('All');
-                  loadMembers(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  memberStatusFilter === 'Archived'
-                    ? 'border-neutral-500 text-neutral-300 bg-neutral-900'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                ARCHIVED ({memberMetrics.archived || 0})
-              </button>
-            </div>
-
-            {/* Advanced Search & Filter Controls */}
-            <div className="p-4 bg-[#0a0a0a] border border-white/10 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                {/* Search Input */}
-                <div className="relative lg:col-span-2">
-                  <input
-                    type="text"
-                    placeholder="Search name, email, phone, or Member ID..."
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && loadMembers(1)}
-                    className="qnox-modal-form-input pl-10 pr-8 w-full text-xs"
-                  />
-                  <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  {memberSearch && (
-                    <button
-                      onClick={() => {
-                        setMemberSearch('');
-                        loadMembers(1);
-                      }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Status Filter */}
-                <div>
-                  <select
-                    value={memberStatusFilter}
-                    onChange={(e) => setMemberStatusFilter(e.target.value)}
-                    className="qnox-modal-form-input w-full text-xs"
-                  >
-                    <option value="All">All Statuses</option>
-                    <option value="Active">Active Only</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Frozen">Frozen / Paused</option>
-                    <option value="None">No Plan (Prospect)</option>
-                    <option value="Archived">Archived Records</option>
-                  </select>
-                </div>
-
-                {/* Expiring Soon Filter */}
-                <div>
-                  <select
-                    value={memberExpiringFilter}
-                    onChange={(e) => setMemberExpiringFilter(e.target.value)}
-                    className="qnox-modal-form-input w-full text-xs"
-                  >
-                    <option value="All">Expiry Window: Any</option>
-                    <option value="7">Expiring within 7 Days</option>
-                    <option value="15">Expiring within 15 Days</option>
-                    <option value="30">Expiring within 30 Days</option>
-                  </select>
-                </div>
-
-                {/* Sort Order */}
-                <div>
-                  <select
-                    value={memberSortBy}
-                    onChange={(e) => setMemberSortBy(e.target.value)}
-                    className="qnox-modal-form-input w-full text-xs"
-                  >
-                    <option value="newest">Sort: Newest Joined</option>
-                    <option value="oldest">Sort: Oldest Joined</option>
-                    <option value="name">Sort: Name (A-Z)</option>
-                    <option value="expiry">Sort: Expiry Date</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Action Buttons Row */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => loadMembers(1)}
-                    className="px-4 py-2 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                    <span>APPLY FILTERS</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setMemberSearch('');
-                      setMemberStatusFilter('All');
-                      setMemberExpiringFilter('All');
-                      setMemberPlanFilter('All');
-                      setMemberSortBy('newest');
-                      loadMembers(1);
-                    }}
-                    className="px-3 py-2 border border-white/10 hover:border-white/30 text-neutral-400 hover:text-white text-xs uppercase"
-                  >
-                    Reset
-                  </button>
-                </div>
-
-                <button
-                  onClick={() =>
-                    exportMembersCsv({
-                      search: memberSearch,
-                      status: memberStatusFilter,
-                      expiringDays: memberExpiringFilter !== 'All' ? memberExpiringFilter : '',
-                    })
-                  }
-                  className="px-4 py-2 border border-[#c5a880]/40 text-[#c5a880] hover:bg-[#c5a880]/10 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>EXPORT CSV</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Table */}
-            <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-              <table className="qnox-admin-table">
-                <thead>
-                  <tr>
-                    <th>MEMBER IDENTITY & ID</th>
-                    <th>EMAIL & CONTACT</th>
-                    <th>RESIDENCY TIER</th>
-                    <th>STATUS</th>
-                    <th>VALIDITY UNTIL</th>
-                    <th className="text-right">COMMANDS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.length > 0 ? (
-                    members.map((m) => {
-                      const isExpired = m.membership?.status === 'Expired';
-                      const isFrozen = m.membership?.status === 'Frozen';
-                      const isActive = m.membership?.status === 'Active';
-                      const isArchived = m.isArchived;
-
-                      return (
-                        <tr key={m._id} className={isArchived ? 'opacity-60 bg-white/[0.01]' : ''}>
-                          <td>
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-neutral-900 border border-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                {m.avatar ? (
-                                  <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="font-serif text-xs text-[#c5a880]">
-                                    {m.name.charAt(0)}
-                                  </span>
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-semibold text-white flex items-center gap-2">
-                                  <span>{m.name}</span>
-                                  {m.memberId && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-white/5 border border-white/10 text-neutral-400">
-                                      {m.memberId}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[11px] text-neutral-500">
-                                  Joined {new Date(m.createdAt).toLocaleDateString('en-GB')}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div>{m.email}</div>
-                            <div className="text-[11px] text-neutral-500">{m.phone || 'No phone on record'}</div>
-                          </td>
-                          <td className="text-[#c5a880] font-medium">
-                            <div>{m.membership?.planName || 'None'}</div>
-                            {m.membership?.billingCycle && m.membership.billingCycle !== 'none' && (
-                              <div className="text-[10px] text-neutral-500 capitalize">
-                                {m.membership.billingCycle}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <span
-                              className={`qnox-status-badge ${
-                                isArchived
-                                  ? 'neutral'
-                                  : m.membership?.status === 'Suspended'
-                                  ? 'active text-rose-400 border-rose-500/40 bg-rose-950/30'
-                                  : m.membership?.status === 'Expiring Soon'
-                                  ? 'active text-amber-400 border-amber-500/40 bg-amber-950/30'
-                                  : isActive
-                                  ? 'active'
-                                  : isFrozen
-                                  ? 'active text-sky-400 border-sky-400/30 bg-sky-950/20'
-                                  : 'neutral'
-                              }`}
-                            >
-                              {isArchived ? 'ARCHIVED' : m.membership?.status || 'NONE'}
-                            </span>
-                          </td>
-                          <td className="font-mono text-xs">
-                            <span className={isExpired ? 'text-rose-400' : isFrozen ? 'text-sky-300' : ''}>
-                              {m.membership?.endDate
-                                ? new Date(m.membership.endDate).toLocaleDateString('en-GB')
-                                : '—'}
-                            </span>
-                          </td>
-                          <td className="text-right space-x-1.5 whitespace-nowrap">
-                            <button
-                              onClick={() => setSelectedDossierMemberId(m._id)}
-                              className="px-2.5 py-1 text-xs bg-[#c5a880] text-black font-bold uppercase tracking-wider hover:bg-white transition"
-                            >
-                              DOSSIER
-                            </button>
-                            <button
-                              onClick={() => {
-                                setExtendTargetUser(m);
-                                setExtendDays(30);
-                                setShowExtendModal(true);
-                              }}
-                              title="Extend Membership Validity"
-                              className="px-2 py-1 text-xs border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 font-mono"
-                            >
-                              +EXTEND
-                            </button>
-                            {m.membership?.status === 'Suspended' ? (
-                              <button
-                                onClick={() => handleReactivateMember(m._id, m.name)}
-                                title="Reactivate Suspended Residency"
-                                className="px-2 py-1 text-xs border border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/40 font-mono"
-                              >
-                                RESTORE
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleSuspendMember(m._id, m.name)}
-                                title="Suspend Residency Privileges"
-                                className="px-2 py-1 text-xs border border-rose-500/40 text-rose-400 hover:bg-rose-950/40 font-mono"
-                              >
-                                SUSPEND
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleSendReminder(m._id, m.name)}
-                              title="Dispatch Instant Renewal Reminder"
-                              className="px-2 py-1 text-xs border border-amber-500/40 text-amber-400 hover:bg-amber-950/40 font-mono"
-                            >
-                              REMIND
-                            </button>
-                            <button
-                              onClick={() => setEditingPlanMember(m)}
-                              className="px-2 py-1 text-xs border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white transition"
-                            >
-                              PLAN
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (window.confirm(`Permanently remove dossier for ${m.name}?`)) {
-                                  await deleteMemberRecord(m._id);
-                                  loadMembers(memberPage);
-                                }
-                              }}
-                              className="px-1.5 py-1 text-xs text-rose-400 hover:text-rose-200"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 inline" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="6" className="text-center py-10 text-neutral-500 text-xs">
-                        No members found matching the selected search or filter criteria.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            {memberTotalPages > 1 && (
-              <div className="flex items-center justify-between pt-2 text-xs text-neutral-400">
-                <div>
-                  Page {memberPage} of {memberTotalPages}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={memberPage <= 1}
-                    onClick={() => loadMembers(memberPage - 1)}
-                    className="px-3 py-1 border border-white/10 disabled:opacity-30 hover:border-white/30 text-white"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    disabled={memberPage >= memberTotalPages}
-                    onClick={() => loadMembers(memberPage + 1)}
-                    className="px-3 py-1 border border-white/10 disabled:opacity-30 hover:border-white/30 text-white"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ================= TAB 3: MEMBERSHIP PLANS ================= */}
-        {activeTab === 'plans' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Membership Residency Tiers</h3>
-                <p className="text-xs text-neutral-400 font-light">Configure multi-month pricing, benefits and visibility.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingPlan(null);
-                  setPlanForm({
-                    name: '', code: '', subtitle: '', description: '',
-                    pricing: { monthly: 1200, quarterly: 4500, halfYearly: 7500, yearly: 12500 },
-                    benefits: 'Unlimited access, Slate pool, Altitude suite',
-                  });
-                  setShowPlanModal(true);
-                }}
-                className="px-5 py-2.5 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>NEW TIER</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {plans.map((p) => (
-                <div key={p._id} className="bg-[#090909] border border-white/10 p-6 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-xs text-[#c5a880] font-bold">{p.code}</span>
-                      <button
-                        onClick={() => handleTogglePlan(p._id)}
-                        className={`text-[9px] px-2 py-0.5 uppercase font-bold tracking-widest ${
-                          p.isActive ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40' : 'bg-neutral-900 text-neutral-500'
-                        }`}
-                      >
-                        {p.isActive ? 'ACTIVE' : 'INACTIVE'}
-                      </button>
-                    </div>
-                    <h4 className="font-serif text-2xl text-white mb-1">{p.name}</h4>
-                    <p className="text-xs text-neutral-400 font-light mb-4">{p.subtitle}</p>
-
-                    <div className="text-sm font-serif text-[#c5a880] mb-4">
-                      ₹{p.pricing?.monthly?.toLocaleString('en-IN')} <span className="text-xs text-neutral-400 font-mono uppercase font-light">/ month</span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-neutral-300">
-                      {p.benefits?.slice(0, 3).map((b, i) => (
-                        <div key={i} className="flex items-center space-x-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#c5a880]" />
-                          <span className="truncate">{b}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 border-t border-white/10 pt-4 mt-6">
-                    <button
-                      onClick={() => {
-                        setEditingPlan(p);
-                        setPlanForm({
-                          name: p.name,
-                          code: p.code,
-                          subtitle: p.subtitle,
-                          description: p.description,
-                          pricing: p.pricing,
-                          benefits: Array.isArray(p.benefits) ? p.benefits.join(', ') : p.benefits,
-                        });
-                        setShowPlanModal(true);
-                      }}
-                      className="flex-1 py-2 border border-white/20 text-neutral-300 hover:text-white text-xs uppercase"
-                    >
-                      EDIT
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (window.confirm(`Delete plan ${p.name}?`)) {
-                          await deleteMembershipPlan(p._id);
-                          loadPlans();
-                        }
-                      }}
-                      className="px-3 py-2 text-rose-400 hover:text-rose-200 text-xs"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 4: CLASS BOOKINGS ================= */}
-        {activeTab === 'bookings' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Daily Masterclass Reservations</h3>
-                <p className="text-xs text-neutral-400 font-light">Audit bookings, mark attendance and manage waitlist slots.</p>
-              </div>
-              <button onClick={loadBookings} className="px-4 py-2 border border-white/10 text-xs uppercase text-neutral-300 flex items-center space-x-1.5">
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>REFRESH</span>
-              </button>
-            </div>
-
-            <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-              <table className="qnox-admin-table">
-                <thead>
-                  <tr>
-                    <th>PASS CODE</th>
-                    <th>SESSION</th>
-                    <th>SANCTUARY</th>
-                    <th>MEMBER GUEST</th>
-                    <th>SCHEDULE</th>
-                    <th>STATUS</th>
-                    <th className="text-right">ATTENDANCE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((b) => (
-                    <tr key={b._id}>
-                      <td className="font-mono text-[#c5a880] font-bold">{b.reservationCode}</td>
-                      <td>
-                        <div className="font-medium text-white">{b.classTitle}</div>
-                        <div className="text-[11px] text-neutral-500">{b.category} &bull; {b.trainerName}</div>
-                      </td>
-                      <td>{b.clubName}</td>
-                      <td>
-                        <div className="text-white">{b.userName}</div>
-                        <div className="text-[11px] text-neutral-500">{b.userEmail}</div>
-                      </td>
-                      <td className="font-mono text-xs">{b.day} ({b.startTime})</td>
-                      <td>
-                        <span className={`text-[9px] px-2 py-0.5 uppercase font-bold ${
-                          b.status === 'Confirmed' ? 'bg-emerald-950/60 text-emerald-400' :
-                          b.status === 'Attended' ? 'bg-sky-950/60 text-sky-400' : 'bg-neutral-900 text-neutral-500'
-                        }`}>
-                          {b.status}
-                        </span>
-                      </td>
-                      <td className="text-right space-x-1.5">
-                        <button
-                          onClick={() => handleSetAttendance(b._id, 'Attended')}
-                          className="px-2 py-1 text-[11px] bg-emerald-950/60 text-emerald-300 border border-emerald-500/30"
-                        >
-                          ATTENDED
-                        </button>
-                        <button
-                          onClick={() => handleSetAttendance(b._id, 'No-Show')}
-                          className="px-2 py-1 text-[11px] bg-neutral-900 text-neutral-400"
-                        >
-                          NO-SHOW
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 5: MASTER COACHES ================= */}
-        {activeTab === 'trainers' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Master Practitioners Roster</h3>
-                <p className="text-xs text-neutral-400 font-light">Olympic strength coaches, biomechanists and striking specialists.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingTrainer(null);
-                  setTrainerForm({
-                    name: '', role: '', title: '', badge: 'MASTER COACH', email: '', phone: '',
-                    bio: '', photo: '', specialties: 'Olympic Lifting, VO2 Max',
-                  });
-                  setShowTrainerModal(true);
-                }}
-                className="px-5 py-2.5 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>NEW COACH</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {trainers.map((t) => (
-                <div key={t._id} className="bg-[#090909] border border-white/10 p-5 flex flex-col justify-between">
-                  <div>
-                    <img src={t.photo} alt={t.name} className="w-full aspect-[4/5] object-cover mb-4" />
-                    <span className="text-[9px] text-[#c5a880] tracking-widest uppercase font-bold block mb-1">{t.badge}</span>
-                    <h4 className="font-serif text-xl text-white">{t.name}</h4>
-                    <p className="text-xs text-neutral-400 font-light mt-1 mb-3">{t.role}</p>
-                    <p className="text-xs text-neutral-500 line-clamp-2">{t.bio}</p>
-                  </div>
-
-                  <div className="flex items-center space-x-2 border-t border-white/10 pt-4 mt-4">
-                    <button
-                      onClick={() => {
-                        setEditingTrainer(t);
-                        setTrainerForm({
-                          name: t.name, role: t.role, title: t.title, badge: t.badge,
-                          email: t.email, phone: t.phone, bio: t.bio, photo: t.photo,
-                          specialties: Array.isArray(t.specialties) ? t.specialties.join(', ') : t.specialties,
-                        });
-                        setShowTrainerModal(true);
-                      }}
-                      className="flex-1 py-1.5 border border-white/20 text-xs uppercase"
-                    >
-                      EDIT
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTrainer(t._id)}
-                      className="px-3 py-1.5 text-rose-400 text-xs"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 5B: TRAINER APPLICATIONS REVIEW ================= */}
-        {activeTab === 'trainer-applications' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Trainer Accreditation & Applications</h3>
-                <p className="text-xs text-neutral-400 font-light">
-                  Review professional certifications, credentials, and approve trainers before they can access the Coach Dashboard or appear on customer pages.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <select
-                  value={trainerAppFilter}
-                  onChange={(e) => setTrainerAppFilter(e.target.value)}
-                  className="bg-[#0e0e0e] border border-white/20 text-xs px-3 py-2 text-neutral-200"
-                >
-                  <option value="All">All Applications</option>
-                  <option value="Pending">Pending Review</option>
-                  <option value="Under Review">Under Review</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-                <button
-                  onClick={loadTrainerApplications}
-                  className="p-2 border border-white/20 hover:border-[#c5a880] text-neutral-400 hover:text-white"
-                  title="Refresh"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {trainerApplications.length === 0 ? (
-              <div className="p-12 text-center border border-white/10 bg-[#090909]">
-                <Shield className="w-10 h-10 text-neutral-600 mx-auto mb-3" />
-                <h4 className="font-serif text-base text-neutral-300">No Applications Found</h4>
-                <p className="text-xs text-neutral-500 mt-1">There are no trainer applications matching the current filter.</p>
-              </div>
-            ) : (
-              <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-                <table className="qnox-admin-table">
-                  <thead>
-                    <tr>
-                      <th>APPLICANT</th>
-                      <th>APP ID</th>
-                      <th>EXPERIENCE</th>
-                      <th>SPECIALIZATIONS</th>
-                      <th>GYM BASE</th>
-                      <th>STATUS</th>
-                      <th>SUBMITTED</th>
-                      <th className="text-right">COMMAND</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trainerApplications.map((app) => (
-                      <tr key={app._id}>
-                        <td>
-                          <div className="flex items-center space-x-3">
-                            <img
-                              src={app.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover border border-white/10"
-                            />
-                            <div>
-                              <div className="text-white font-medium">{app.fullName}</div>
-                              <div className="text-neutral-500 text-[11px]">{app.email} &bull; {app.phone}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="font-mono text-[#c5a880] text-xs font-bold">{app.applicationId}</td>
-                        <td className="text-neutral-300 text-xs">{app.experienceYears} Years</td>
-                        <td className="text-neutral-300 text-xs">
-                          {app.specializations?.slice(0, 2).join(', ') || 'Personal Training'}
-                          {app.specializations?.length > 2 && '...'}
-                        </td>
-                        <td className="text-neutral-400 text-xs">{app.gymName || 'Independent'} ({app.city || 'London'})</td>
-                        <td>
-                          <span
-                            className={`text-[9px] px-2 py-0.5 uppercase font-bold tracking-wider ${
-                              app.status === 'Approved'
-                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                                : app.status === 'Rejected'
-                                ? 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
-                                : 'bg-amber-950/60 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {app.status}
-                          </span>
-                        </td>
-                        <td className="font-mono text-xs text-neutral-400">
-                          {new Date(app.createdAt).toLocaleDateString('en-GB')}
-                        </td>
-                        <td className="text-right space-x-2 whitespace-nowrap">
-                          {app.status === 'Pending' && (
-                            <button
-                              onClick={() => handleApproveTrainerApp(app._id, 'Approved via Instant Admin Command')}
-                              disabled={approvingAppId === app._id}
-                              className="px-3 py-1 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-black uppercase transition inline-flex items-center space-x-1"
-                              title="Instant 1-Click Approve"
-                            >
-                              <CheckCircle className={`w-3.5 h-3.5 ${approvingAppId === app._id ? 'animate-spin' : ''}`} />
-                              <span>{approvingAppId === app._id ? 'APPROVING...' : 'FAST APPROVE'}</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setSelectedTrainerApp(app);
-                              setTrainerAppRemarks(app.adminRemarks || '');
-                            }}
-                            className="px-3 py-1 text-xs border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black uppercase"
-                          >
-                            REVIEW
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Modal: Trainer Application Detailed Review & Approval */}
-        {selectedTrainerApp && (
-          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0b0b0b] border border-[#c5a880]/30 max-w-2xl w-full p-6 md:p-8 space-y-5 rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto qnox-sidebar-scroll">
-              <div className="flex justify-between items-start border-b border-white/10 pb-4">
-                <div>
-                  <span className="text-[10px] text-[#c5a880] uppercase tracking-widest font-mono">TRAINER VERIFICATION DOSSIER</span>
-                  <h3 className="font-serif text-2xl text-white mt-1">{selectedTrainerApp.fullName}</h3>
-                  <p className="text-xs text-neutral-400">{selectedTrainerApp.email} &bull; {selectedTrainerApp.phone}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedTrainerApp(null)}
-                  className="p-1 text-neutral-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-[#121212] border border-white/5">
-                  <span className="text-[10px] uppercase text-neutral-500 block">Experience</span>
-                  <span className="text-white font-medium">{selectedTrainerApp.experienceYears} Years</span>
-                </div>
-                <div className="p-3 bg-[#121212] border border-white/5">
-                  <span className="text-[10px] uppercase text-neutral-500 block">Qualifications</span>
-                  <span className="text-white font-medium">{selectedTrainerApp.qualifications}</span>
-                </div>
-                <div className="p-3 bg-[#121212] border border-white/5">
-                  <span className="text-[10px] uppercase text-neutral-500 block">Gym Base / City</span>
-                  <span className="text-white font-medium">{selectedTrainerApp.gymName || 'Independent'} ({selectedTrainerApp.city})</span>
-                </div>
-                <div className="p-3 bg-[#121212] border border-white/5">
-                  <span className="text-[10px] uppercase text-neutral-500 block">Current Status</span>
-                  <span className="text-[#c5a880] font-bold uppercase">{selectedTrainerApp.status}</span>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1">Professional Bio</span>
-                <p className="text-xs text-neutral-300 bg-[#121212] p-3 border border-white/5 leading-relaxed">
-                  "{selectedTrainerApp.bio}"
-                </p>
-              </div>
-
-              {selectedTrainerApp.specializations?.length > 0 && (
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1.5">Specializations</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedTrainerApp.specializations.map((s, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-[#181818] border border-white/10 text-[#c5a880] text-[10px]">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Uploaded Documents */}
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1.5">Submitted Credentials</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 bg-[#121212] border border-white/5 flex items-center justify-between">
-                    <span className="text-neutral-300">Fitness Certification</span>
-                    {selectedTrainerApp.certificationDocument ? (
-                      <span className="text-emerald-400 font-semibold text-[11px]">✓ Uploaded</span>
-                    ) : (
-                      <span className="text-neutral-500 text-[11px]">Pending</span>
-                    )}
-                  </div>
-                  <div className="p-2.5 bg-[#121212] border border-white/5 flex items-center justify-between">
-                    <span className="text-neutral-300">Government ID Proof</span>
-                    {selectedTrainerApp.identityProofDocument ? (
-                      <span className="text-emerald-400 font-semibold text-[11px]">✓ Verified</span>
-                    ) : (
-                      <span className="text-neutral-500 text-[11px]">Pending</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Administrative Remarks */}
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-neutral-400 block mb-1">
-                  Administrative Remarks / Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={trainerAppRemarks}
-                  onChange={(e) => setTrainerAppRemarks(e.target.value)}
-                  placeholder="e.g. Credentials verified against UKSCA registry. Approved for Master Coach roster."
-                  className="w-full bg-[#121212] border border-white/10 text-xs text-white p-2.5 focus:outline-none focus:border-[#c5a880]"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTrainerApp(null)}
-                  className="px-4 py-2 text-xs text-neutral-400 hover:text-white uppercase"
-                >
-                  Close
-                </button>
-
-                <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => handleRejectTrainerApp(selectedTrainerApp._id)}
-                    className="px-4 py-2 border border-rose-500/40 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 text-xs uppercase font-semibold transition"
-                  >
-                    Reject Application
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={approvingAppId === selectedTrainerApp._id}
-                    onClick={() => handleApproveTrainerApp(selectedTrainerApp._id)}
-                    className="px-6 py-2 bg-gradient-to-r from-[#c5a880] to-[#9b7e52] hover:opacity-95 text-black text-xs uppercase font-bold tracking-wider shadow-lg shadow-[#c5a880]/20 transition flex items-center space-x-1.5 disabled:opacity-50"
-                  >
-                    <CheckCircle className={`w-4 h-4 ${approvingAppId === selectedTrainerApp._id ? 'animate-spin' : ''}`} />
-                    <span>{approvingAppId === selectedTrainerApp._id ? 'Activating Trainer...' : 'Approve & Activate Trainer'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 6: CLUBS & SANCTUARIES ================= */}
-        {activeTab === 'clubs' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Sanctuary Portfolio Locations</h3>
-                <p className="text-xs text-neutral-400 font-light">Mayfair, Soho, Canary Wharf, Marylebone & Obsidian Tower Flagship.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingClub(null);
-                  setClubForm({
-                    name: '', slug: '', location: '', address: '', tagline: '', description: '',
-                    heroImage: '', status: 'OPEN',
-                  });
-                  setShowClubModal(true);
-                }}
-                className="px-5 py-2.5 bg-[#c5a880] text-black text-xs font-bold uppercase tracking-wider flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>NEW SANCTUARY</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {clubs.map((c) => (
-                <div key={c._id || c.slug} className="bg-[#090909] border border-white/10 p-5 flex flex-col justify-between">
-                  <div>
-                    <img src={c.heroImage} alt={c.name} className="w-full aspect-[16/10] object-cover mb-4" />
-                    <span className="text-[9px] px-2 py-0.5 bg-black border border-[#c5a880]/40 text-[#c5a880] uppercase font-bold mb-2 inline-block">
-                      {c.status}
-                    </span>
-                    <h4 className="font-serif text-xl text-white mb-1">{c.name}</h4>
-                    <p className="text-xs text-neutral-400 font-light mb-3">{c.location}</p>
-                    <p className="text-xs text-neutral-500 line-clamp-3">{c.description}</p>
-                  </div>
-
-                  <div className="flex items-center space-x-2 border-t border-white/10 pt-4 mt-6">
-                    <button
-                      onClick={() => {
-                        setEditingClub(c);
-                        setClubForm(c);
-                        setShowClubModal(true);
-                      }}
-                      className="flex-1 py-1.5 border border-white/20 text-xs uppercase"
-                    >
-                      EDIT
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClub(c._id)}
-                      className="px-3 py-1.5 text-rose-400 text-xs"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 7: FINANCIAL AUDIT ================= */}
-        {activeTab === 'payments' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-serif text-2xl text-white">Financial Audit & Tax Invoices</h3>
-                <p className="text-xs text-neutral-400 font-light">All verified Razorpay transactions with instant receipt print & refund dispatch.</p>
-              </div>
-            </div>
-
-            <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-              <table className="qnox-admin-table">
-                <thead>
-                  <tr>
-                    <th>INVOICE #</th>
-                    <th>MEMBER</th>
-                    <th>PLAN & TERM</th>
-                    <th>AMOUNT (INR)</th>
-                    <th>STATUS</th>
-                    <th>DATE</th>
-                    <th className="text-right">COMMAND</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p) => (
-                    <tr key={p._id}>
-                      <td className="font-mono text-[#c5a880] font-bold">{p.invoiceNumber}</td>
-                      <td>
-                        <div className="text-white font-medium">{p.userName}</div>
-                        <div className="text-neutral-500 text-[11px]">{p.userEmail}</div>
-                      </td>
-                      <td>{p.planName} ({p.duration})</td>
-                      <td className="font-mono text-white font-semibold">₹{p.amount?.toLocaleString('en-IN')}</td>
-                      <td>
-                        <span className={`text-[9px] px-2 py-0.5 uppercase font-bold ${
-                          p.status === 'Completed' ? 'bg-emerald-950/60 text-emerald-400' : 'bg-rose-950/60 text-rose-400'
-                        }`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="font-mono text-xs">{p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-GB') : '—'}</td>
-                      <td className="text-right space-x-2">
-                        <button
-                          onClick={() => setSelectedReceipt(p)}
-                          className="px-3 py-1 text-xs border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black uppercase"
-                        >
-                          INVOICE
-                        </button>
-                        {p.status === 'Completed' && (
-                          <button
-                            onClick={async () => {
-                              if (window.confirm(`Initiate full refund of ₹${p.amount} for ${p.userName}?`)) {
-                                await refundPaymentRecord(p._id, { reason: 'Admin approved refund' });
-                                loadPayments();
-                              }
-                            }}
-                            className="px-2 py-1 text-xs text-rose-400 hover:text-rose-200"
-                          >
-                            REFUND
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 8: NEWSLETTER & CAMPAIGNS ================= */}
-        {activeTab === 'newsletter' && (
-          <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h3 className="font-serif text-2xl text-white">The Inner Circle Subscribers ({subscribers.length})</h3>
-                <p className="text-xs text-neutral-400 font-light">Discreet luxury editorial subscribers.</p>
-              </div>
-              <a
-                href="/api/newsletter/export-csv"
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black text-xs font-bold uppercase tracking-wider flex items-center space-x-2"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>EXPORT SUBSCRIBERS CSV</span>
-              </a>
-            </div>
-
-            {/* Campaign Sender */}
-            <div className="bg-[#090909] border border-white/10 p-6 sm:p-8">
-              <h4 className="font-serif text-xl text-white mb-2">Dispatch New Editorial Campaign</h4>
-              <p className="text-xs text-neutral-400 mb-6">Transmits branded luxury email to all verified Inner Circle subscribers.</p>
-
-              <form onSubmit={handleSendCampaign} className="space-y-4">
-                <div>
-                  <label className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-1">
-                    SUBJECT LINE
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={campaignForm.subject}
-                    onChange={(e) => setCampaignForm({ ...campaignForm, subject: e.target.value })}
-                    placeholder="e.g. The Longevity Protocol: Oxygen & Sub-Zero Therapy"
-                    className="qnox-modal-form-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-1">
-                    CONTENT HTML BODY
-                  </label>
-                  <textarea
-                    rows={4}
-                    required
-                    value={campaignForm.contentHtml}
-                    onChange={(e) => setCampaignForm({ ...campaignForm, contentHtml: e.target.value })}
-                    placeholder="<p>Dear Member, we are pleased to announce...</p>"
-                    className="qnox-modal-form-input font-mono text-xs"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={sendingCampaign}
-                  className="px-6 py-3 bg-[#c5a880] text-black text-xs font-bold tracking-widest uppercase hover:bg-white transition-colors flex items-center space-x-2"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{sendingCampaign ? 'TRANSMITTING CAMPAIGN...' : 'SEND EDITORIAL DISPATCH'}</span>
-                </button>
-              </form>
-            </div>
-
-            {/* Subscriber List Table */}
-            <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-              <table className="qnox-admin-table">
-                <thead>
-                  <tr>
-                    <th>SUBSCRIBER EMAIL</th>
-                    <th>TIER INTEREST</th>
-                    <th>STATUS</th>
-                    <th>JOINED DATE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subscribers.map((s) => (
-                    <tr key={s._id}>
-                      <td className="font-mono text-white">{s.email}</td>
-                      <td>{s.tierInterest}</td>
-                      <td>
-                        <span className={`text-[9px] px-2 py-0.5 uppercase font-bold ${
-                          s.isActive ? 'bg-emerald-950/60 text-emerald-400' : 'bg-neutral-900 text-neutral-500'
-                        }`}>
-                          {s.isActive ? 'ACTIVE' : 'UNSUBSCRIBED'}
-                        </span>
-                      </td>
-                      <td className="font-mono text-xs">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-GB') : 'Recent'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 9: INQUIRIES ================= */}
-        {activeTab === 'inquiries' && (
-          <div className="space-y-6">
-            <h3 className="font-serif text-2xl text-white">Private Sanctuary Tour Walkthrough Requests</h3>
-            <div className="border border-white/10 bg-[#090909] overflow-x-auto">
-              <table className="qnox-admin-table">
-                <thead>
-                  <tr>
-                    <th>GUEST NAME</th>
-                    <th>EMAIL & CONTACT</th>
-                    <th>SANCTUARY</th>
-                    <th>TIER INTEREST</th>
-                    <th>PRIMARY GOAL</th>
-                    <th>STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inquiries.map((inq) => (
-                    <tr key={inq._id}>
-                      <td className="font-semibold text-white">{inq.fullName}</td>
-                      <td>
-                        <div>{inq.email}</div>
-                        <div className="text-[11px] text-neutral-500">{inq.phone}</div>
-                      </td>
-                      <td className="text-[#c5a880]">{inq.preferredClub}</td>
-                      <td>{inq.membershipTier}</td>
-                      <td className="text-neutral-400 text-xs">{inq.primaryGoal || 'Performance'}</td>
-                      <td>
-                        <span className="text-[9px] px-2 py-0.5 bg-amber-950/60 text-amber-400 uppercase font-bold">
-                          {inq.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 10: EXPIRY NOTIFICATIONS ================= */}
-        {activeTab === 'notifications' && (
-          <div className="space-y-6">
-            {/* Header & Main Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
-              <div>
-                <span className="text-[10px] tracking-[0.25em] text-[#c5a880] uppercase font-bold block mb-1">
-                  AUTOMATED SURVEILLANCE & RENEWAL SYSTEM
-                </span>
-                <h3 className="font-serif text-2xl text-white">Membership Expiry & Renewal Alerts</h3>
-                <p className="text-xs text-neutral-400 mt-1 max-w-xl">
-                  Monitoring customer memberships against live calendar dates. Advance alerts at 7d, 3d, 1d, expiry date, and +3d follow-ups.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-                <button
-                  onClick={handleRunExpiryEngine}
-                  disabled={runningExpiryEngine}
-                  className="px-4 py-2.5 bg-[#c5a880] text-black hover:bg-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center space-x-2 disabled:opacity-50"
-                  title="Run background expiry detection engine immediately"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${runningExpiryEngine ? 'animate-spin' : ''}`} />
-                  <span>{runningExpiryEngine ? 'RUNNING ENGINE...' : 'RUN EXPIRY ENGINE NOW'}</span>
-                </button>
-
-                <button
-                  onClick={handleMarkAllNotifsAsRead}
-                  className="px-4 py-2.5 border border-white/20 hover:border-white text-white text-xs tracking-wider uppercase transition-colors flex items-center space-x-1.5"
-                >
-                  <Check className="w-3.5 h-3.5 text-[#c5a880]" />
-                  <span>MARK ALL AS READ</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  setNotifTypeFilter('all');
-                  setNotifStatusFilter('all');
-                  loadNotifications('all', 'all', notifSearch);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  notifTypeFilter === 'all' && notifStatusFilter === 'all'
-                    ? 'border-[#c5a880] text-white bg-[#c5a880]/10'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                ALL ALERTS ({notifMetrics.total})
-              </button>
-              <button
-                onClick={() => {
-                  setNotifStatusFilter('unread');
-                  setNotifTypeFilter('all');
-                  loadNotifications('unread', 'all', notifSearch);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  notifStatusFilter === 'unread'
-                    ? 'border-rose-500 text-rose-300 bg-rose-950/40'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                UNREAD ALERTS ({notifMetrics.unread})
-              </button>
-              <button
-                onClick={() => {
-                  setNotifTypeFilter('expired');
-                  loadNotifications(notifStatusFilter, 'expired', notifSearch);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  notifTypeFilter === 'expired'
-                    ? 'border-rose-500 text-rose-300 bg-rose-950/40'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                EXPIRED ({notifMetrics.expired})
-              </button>
-              <button
-                onClick={() => {
-                  setNotifTypeFilter('expiringSoon');
-                  loadNotifications(notifStatusFilter, 'expiringSoon', notifSearch);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  notifTypeFilter === 'expiringSoon'
-                    ? 'border-amber-500 text-amber-300 bg-amber-950/40'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                EXPIRING SOON ({notifMetrics.expiringSoon})
-              </button>
-              <button
-                onClick={() => {
-                  setNotifTypeFilter('renewed');
-                  loadNotifications(notifStatusFilter, 'renewed', notifSearch);
-                }}
-                className={`px-3 py-1.5 text-xs font-mono border transition ${
-                  notifTypeFilter === 'renewed'
-                    ? 'border-emerald-500 text-emerald-300 bg-emerald-950/40'
-                    : 'border-white/10 text-neutral-400 hover:text-white'
-                }`}
-              >
-                RENEWED ({notifMetrics.renewed})
-              </button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="flex items-center space-x-3 bg-[#0a0a0a] border border-white/10 px-4 py-2.5">
-              <Search className="w-4 h-4 text-neutral-500" />
-              <input
-                type="text"
-                value={notifSearch}
-                onChange={(e) => {
-                  setNotifSearch(e.target.value);
-                  loadNotifications(notifStatusFilter, notifTypeFilter, e.target.value);
-                }}
-                placeholder="Search by customer name, email, phone number, tier, or keyword..."
-                className="bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none flex-1 font-mono"
-              />
-              {notifSearch && (
-                <button
-                  onClick={() => {
-                    setNotifSearch('');
-                    loadNotifications(notifStatusFilter, notifTypeFilter, '');
-                  }}
-                  className="text-neutral-500 hover:text-white text-xs"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Notifications Feed */}
-            {notifLoading ? (
-              <div className="py-20 text-center text-neutral-500 font-mono text-xs">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#c5a880]" />
-                Scanning membership database...
-              </div>
-            ) : adminNotifications.length === 0 ? (
-              <div className="border border-white/10 bg-[#090909] p-12 text-center">
-                <Bell className="w-8 h-8 text-neutral-600 mx-auto mb-3" />
-                <h4 className="font-serif text-lg text-neutral-300 mb-1">No Notifications Located</h4>
-                <p className="text-xs text-neutral-500 max-w-md mx-auto">
-                  No membership expiry or renewal alerts match your current filter settings. Click &quot;Run Expiry Engine Now&quot; to scan for pending events.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {adminNotifications.map((notif) => {
-                  const isExpiredType = ['EXPIRY_TODAY', 'EXPIRY_EXPIRED', 'EXPIRY_FOLLOWUP_3D'].includes(notif.type);
-                  const isExpiringSoonType = ['EXPIRY_REMINDER_7D', 'EXPIRY_REMINDER_3D', 'EXPIRY_REMINDER_1D'].includes(notif.type);
-                  const isRenewedType = notif.type === 'MEMBERSHIP_RENEWED';
-
-                  let badgeColor = 'border-neutral-500 text-neutral-400';
-                  let stageLabel = 'NOTICE';
-                  if (isExpiredType) {
-                    badgeColor = 'border-rose-500/60 bg-rose-950/40 text-rose-300';
-                    stageLabel = notif.type === 'EXPIRY_FOLLOWUP_3D' ? 'EXPIRED (+3D FOLLOW-UP)' : 'EXPIRED';
-                  } else if (isExpiringSoonType) {
-                    badgeColor = 'border-amber-500/60 bg-amber-950/40 text-amber-300';
-                    stageLabel = notif.stage ? notif.stage.replace(/_/g, ' ') : 'EXPIRING SOON';
-                  } else if (isRenewedType) {
-                    badgeColor = 'border-emerald-500/60 bg-emerald-950/40 text-emerald-300';
-                    stageLabel = 'RENEWED';
-                  }
-
-                  return (
-                    <div
-                      key={notif._id}
-                      className={`border p-6 bg-[#0a0a0a] transition-all relative ${
-                        !notif.isRead
-                          ? 'border-white/30 shadow-[0_0_15px_rgba(197,168,128,0.05)]'
-                          : 'border-white/10 opacity-90'
-                      }`}
-                      style={{
-                        borderLeftWidth: '4px',
-                        borderLeftColor: isExpiredType ? '#f43f5e' : isExpiringSoonType ? '#f59e0b' : isRenewedType ? '#10b981' : '#c5a880',
-                      }}
-                    >
-                      {/* Top Header of Card */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center space-x-2.5">
-                          {!notif.isRead && (
-                            <span className="w-2 h-2 rounded-full bg-[#c5a880] animate-pulse" title="Unread Alert" />
-                          )}
-                          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 border uppercase ${badgeColor}`}>
-                            {stageLabel}
-                          </span>
-                          <span className="text-xs text-neutral-400 font-mono">
-                            {new Date(notif.createdAt).toLocaleDateString('en-GB', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {!notif.isRead && (
-                            <button
-                              onClick={() => handleMarkNotifAsRead(notif._id)}
-                              className="px-2.5 py-1 text-[10px] text-neutral-400 hover:text-white border border-white/10 hover:border-white/30 uppercase tracking-wider transition"
-                              title="Mark this alert as read"
-                            >
-                              MARK READ
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteNotif(notif._id)}
-                            className="p-1.5 text-neutral-500 hover:text-rose-400 border border-transparent hover:border-rose-900 transition"
-                            title="Dismiss notification"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Title & Message */}
-                      <div className="mb-4">
-                        <h4 className="font-serif text-lg text-white font-medium mb-1">
-                          {notif.title}
-                        </h4>
-                        <p className="text-xs text-neutral-300 font-light leading-relaxed">
-                          {notif.message}
-                        </p>
-                      </div>
-
-                      {/* Customer Dossier Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#111111] border border-white/5 text-xs font-mono mb-4">
-                        <div>
-                          <span className="text-[9px] text-neutral-500 uppercase block">CUSTOMER</span>
-                          <span className="text-white font-semibold truncate block">{notif.customerName || 'N/A'}</span>
-                          <span className="text-[10px] text-neutral-400 truncate block">{notif.customerEmail || ''}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-neutral-500 uppercase block">PHONE / CONTACT</span>
-                          <span className="text-neutral-300 block">{notif.customerPhone || 'Not provided'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-neutral-500 uppercase block">MEMBERSHIP PLAN</span>
-                          <span className="text-[#c5a880] font-semibold block">{notif.membershipPlan || 'None'}</span>
-                          <span className="text-[10px] text-neutral-400 block">Status: {notif.membershipStatus || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-neutral-500 uppercase block">EXPIRY DATE</span>
-                          <span className="text-white block">
-                            {notif.membershipEndDate
-                              ? new Date(notif.membershipEndDate).toLocaleDateString('en-GB', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
-                              : 'None'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Action Triggers */}
-                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-                        {notif.customerId && (
-                          <button
-                            onClick={() => setSelectedDossierMemberId(notif.customerId)}
-                            className="px-3.5 py-1.5 bg-[#181818] border border-white/20 hover:border-[#c5a880] text-neutral-200 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[#c5a880]" />
-                            <span>VIEW CUSTOMER PROFILE</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => {
-                            setEditingPlanMember({
-                              _id: notif.customerId,
-                              name: notif.customerName,
-                              membership: {
-                                planName: notif.membershipPlan || 'THE METROPOLITAN',
-                                status: notif.membershipStatus || 'Active',
-                                endDate: notif.membershipEndDate,
-                              },
-                            });
-                          }}
-                          className="px-3.5 py-1.5 bg-[#c5a880] hover:bg-white text-black text-xs font-bold tracking-wider uppercase transition flex items-center space-x-1.5"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>RENEW MEMBERSHIP</span>
-                        </button>
-
-                        {notif.customerPhone && (
-                          <a
-                            href={`tel:${notif.customerPhone}`}
-                            className="px-3 py-1.5 border border-white/10 hover:border-white/30 text-neutral-400 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1"
-                          >
-                            <Phone className="w-3 h-3 text-[#c5a880]" />
-                            <span>CALL</span>
-                          </a>
-                        )}
-
-                        {notif.customerEmail && (
-                          <a
-                            href={`mailto:${notif.customerEmail}?subject=QNOX GYM Membership Renewal Notice`}
-                            className="px-3 py-1.5 border border-white/10 hover:border-white/30 text-neutral-400 hover:text-white text-xs tracking-wider uppercase transition flex items-center space-x-1"
-                          >
-                            <Mail className="w-3 h-3 text-[#c5a880]" />
-                            <span>EMAIL FOLLOW-UP</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ================= TAB 11: MEMBERSHIP REQUESTS (FREEZE & CANCELLATION) ================= */}
-        {activeTab === 'requests' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
-              <div>
-                <span className="text-[10px] tracking-[0.25em] text-sky-400 uppercase font-bold block mb-1">
-                  EXECUTIVE MEMBERSHIP SURVEILLANCE
-                </span>
-                <h3 className="font-serif text-2xl text-white">Membership Requests Console</h3>
-                <p className="text-xs text-neutral-400 mt-1 max-w-xl">
-                  Review and process customer freeze and cancellation requests with automatic date adjustments and notification dispatches.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => loadMembershipRequests()}
-                  className="px-4 py-2 border border-white/10 hover:border-white/30 text-neutral-300 text-xs tracking-wider uppercase transition flex items-center space-x-1.5"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingRequests ? 'animate-spin text-[#c5a880]' : ''}`} />
-                  <span>REFRESH</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter pills */}
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[#0a0a0a] border border-white/10 text-xs">
-              <div className="flex items-center space-x-2">
-                <span className="text-neutral-500 uppercase tracking-widest text-[10px] mr-2">TYPE:</span>
-                {['All', 'Freeze', 'Cancellation'].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => {
-                      setRequestsFilter(t);
-                    }}
-                    className={`px-3 py-1 text-xs uppercase tracking-wider font-mono border transition ${
-                      requestsFilter === t
-                        ? 'border-[#c5a880] text-white bg-[#c5a880]/10 font-bold'
-                        : 'border-white/10 text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-neutral-500 uppercase tracking-widest text-[10px] mr-2">STATUS:</span>
-                {['All', 'Pending', 'Approved', 'Rejected'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      setRequestsStatusFilter(s);
-                    }}
-                    className={`px-3 py-1 text-xs uppercase tracking-wider font-mono border transition ${
-                      requestsStatusFilter === s
-                        ? s === 'Pending'
-                          ? 'border-sky-500 text-sky-300 bg-sky-950/30 font-bold'
-                          : s === 'Approved'
-                          ? 'border-emerald-500 text-emerald-300 bg-emerald-950/30 font-bold'
-                          : s === 'Rejected'
-                          ? 'border-rose-500 text-rose-300 bg-rose-950/30 font-bold'
-                          : 'border-[#c5a880] text-white bg-[#c5a880]/10 font-bold'
-                        : 'border-white/10 text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Requests Table */}
-            {loadingRequests ? (
-              <div className="py-20 text-center text-xs text-neutral-500 font-mono tracking-widest uppercase">
-                LOADING MEMBERSHIP REQUESTS...
-              </div>
-            ) : membershipRequests.length === 0 ? (
-              <div className="p-12 text-center border border-white/10 bg-[#0a0a0a]">
-                <Clock className="w-8 h-8 text-neutral-600 mx-auto mb-3" />
-                <h4 className="font-serif text-lg text-white mb-1">No Membership Requests Found</h4>
-                <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-                  There are currently no customer freeze or cancellation requests matching the selected filters.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-white/10 bg-[#0a0a0a]">
-                <table className="w-full text-left text-xs text-neutral-300 font-mono">
-                  <thead className="bg-[#121212] text-[#c5a880] uppercase tracking-wider text-[10px] border-b border-white/10">
-                    <tr>
-                      <th className="p-4">Customer</th>
-                      <th className="p-4">Type</th>
-                      <th className="p-4">Duration / Specifics</th>
-                      <th className="p-4">Reason</th>
-                      <th className="p-4">Submitted</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {membershipRequests.map((req) => (
-                      <tr key={req._id} className="hover:bg-white/[0.02] transition">
-                        <td className="p-4">
-                          <div className="font-sans font-semibold text-white">{req.userName}</div>
-                          <div className="text-[11px] text-neutral-500 font-mono">{req.userEmail}</div>
-                          {req.memberId && (
-                            <span className="text-[9px] px-1 bg-white/5 text-[#c5a880] border border-white/10 inline-block mt-0.5">
-                              {req.memberId}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                              req.type === 'Freeze'
-                                ? 'bg-sky-950/60 text-sky-400 border border-sky-500/40'
-                                : 'bg-rose-950/60 text-rose-400 border border-rose-500/40'
-                            }`}
-                          >
-                            {req.type}
-                          </span>
-                        </td>
-                        <td className="p-4 text-neutral-300">
-                          {req.type === 'Freeze' ? (
-                            <div>
-                              <span>{req.freezeDays || 30} Days Pause</span>
-                              {req.freezeStartDate && (
-                                <div className="text-[10px] text-neutral-500">
-                                  From {new Date(req.freezeStartDate).toLocaleDateString('en-GB')}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div>
-                              <span>Voluntary Departure</span>
-                              {req.refundAmount > 0 && (
-                                <div className="text-[10px] text-emerald-400">
-                                  Refund: ₹{req.refundAmount.toLocaleString('en-IN')}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4 max-w-xs font-sans text-neutral-300 font-light truncate" title={req.reason}>
-                          {req.reason}
-                        </td>
-                        <td className="p-4 text-neutral-400">
-                          {new Date(req.createdAt).toLocaleDateString('en-GB')}
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                              req.status === 'Pending'
-                                ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40'
-                                : req.status === 'Approved'
-                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
-                                : 'bg-rose-950/60 text-rose-400 border border-rose-500/40'
-                            }`}
-                          >
-                            {req.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                          {req.status === 'Pending' ? (
-                            <>
-                              <button
-                                onClick={() => setSelectedRequestAction({ request: req, action: 'approve' })}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-black text-xs font-bold uppercase tracking-wider transition"
-                              >
-                                APPROVE
-                              </button>
-                              <button
-                                onClick={() => setSelectedRequestAction({ request: req, action: 'reject' })}
-                                className="px-3 py-1 border border-rose-500/50 text-rose-400 hover:bg-rose-950/40 text-xs font-bold uppercase tracking-wider transition"
-                              >
-                                REJECT
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-[10px] text-neutral-500">
-                              Reviewed by {req.reviewedByName || 'Admin'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
+        {/* Dashboard Dynamic Tab Content */}
+        <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-10">
+          {activeTab === 'overview' && (
+            <OverviewTab
+              stats={stats}
+              chartData={chartData}
+              analyticsPeriod={analyticsPeriod}
+              setAnalyticsPeriod={setAnalyticsPeriod}
+              recentActivities={recentActivities}
+            />
+          )}
+
+          {activeTab === 'members' && (
+            <MembersTab
+              members={members}
+              memberMetrics={memberMetrics}
+              memberSearch={memberSearch}
+              setMemberSearch={setMemberSearch}
+              memberStatusFilter={memberStatusFilter}
+              setMemberStatusFilter={setMemberStatusFilter}
+              memberExpiringFilter={memberExpiringFilter}
+              setMemberExpiringFilter={setMemberExpiringFilter}
+              setMemberPlanFilter={setMemberPlanFilter}
+              memberSortBy={memberSortBy}
+              setMemberSortBy={setMemberSortBy}
+              memberPage={memberPage}
+              memberTotalPages={memberTotalPages}
+              loadMembers={loadMembers}
+              setSelectedDossierMemberId={setSelectedDossierMemberId}
+              setEditingPlanMember={setEditingPlanMember}
+              setExtendTargetUser={setExtendTargetUser}
+              setExtendDays={setExtendDays}
+              setShowExtendModal={setShowExtendModal}
+              handleReactivateMember={handleReactivateMember}
+              handleSuspendMember={handleSuspendMember}
+              handleSendReminder={handleSendReminder}
+              deleteMemberRecord={deleteMemberRecord}
+              exportMembersCsv={exportMembersCsv}
+            />
+          )}
+
+          {activeTab === 'plans' && (
+            <PlansTab
+              plans={plans}
+              setShowPlanModal={setShowPlanModal}
+              setEditingPlan={setEditingPlan}
+              setPlanForm={setPlanForm}
+              handleTogglePlan={handleTogglePlan}
+              handleDeletePlan={handleDeletePlan}
+            />
+          )}
+
+          {activeTab === 'bookings' && (
+            <BookingsTab
+              bookings={bookings}
+              loadBookings={loadBookings}
+              handleSetAttendance={handleSetAttendance}
+            />
+          )}
+
+          {activeTab === 'trainers' && (
+            <TrainersTab
+              trainers={trainers}
+              setShowTrainerModal={setShowTrainerModal}
+              setEditingTrainer={setEditingTrainer}
+              setTrainerForm={setTrainerForm}
+              handleDeleteTrainer={handleDeleteTrainer}
+            />
+          )}
+
+          {activeTab === 'trainer-applications' && (
+            <TrainerApplicationsTab
+              trainerApplications={trainerApplications}
+              pendingTrainerAppsCount={pendingTrainerAppsCount}
+              trainerAppFilter={trainerAppFilter}
+              setTrainerAppFilter={setTrainerAppFilter}
+              setSelectedTrainerApp={setSelectedTrainerApp}
+              setTrainerAppRemarks={setTrainerAppRemarks}
+              approvingAppId={approvingAppId}
+              handleApproveTrainerApp={handleApproveTrainerApp}
+              loadTrainerApplications={loadTrainerApplications}
+            />
+          )}
+
+          {activeTab === 'clubs' && (
+            <ClubsTab
+              clubs={clubs}
+              setShowClubModal={setShowClubModal}
+              setEditingClub={setEditingClub}
+              setClubForm={setClubForm}
+              handleDeleteClub={handleDeleteClub}
+            />
+          )}
+
+          {activeTab === 'payments' && (
+            <PaymentsTab
+              payments={payments}
+              setSelectedReceipt={setSelectedReceipt}
+            />
+          )}
+
+          {activeTab === 'newsletter' && (
+            <NewsletterTab
+              subscribers={subscribers}
+              campaignForm={campaignForm}
+              setCampaignForm={setCampaignForm}
+              sendingCampaign={sendingCampaign}
+              handleSendCampaign={handleSendCampaign}
+            />
+          )}
+
+          {activeTab === 'inquiries' && (
+            <InquiriesTab inquiries={inquiries} />
+          )}
+
+          {activeTab === 'notifications' && (
+            <NotificationsTab
+              adminNotifications={adminNotifications}
+              notifStatusFilter={notifStatusFilter}
+              setNotifStatusFilter={setNotifStatusFilter}
+              notifTypeFilter={notifTypeFilter}
+              setNotifTypeFilter={setNotifTypeFilter}
+              notifSearch={notifSearch}
+              setNotifSearch={setNotifSearch}
+              notifMetrics={notifMetrics}
+              notifLoading={notifLoading}
+              runningExpiryEngine={runningExpiryEngine}
+              loadNotifications={loadNotifications}
+              handleRunExpiryEngine={handleRunExpiryEngine}
+              handleMarkAllNotifsAsRead={handleMarkAllNotifsAsRead}
+              handleMarkNotifAsRead={handleMarkNotifAsRead}
+              handleDeleteNotif={handleDeleteNotif}
+              setSelectedDossierMemberId={setSelectedDossierMemberId}
+              setEditingPlanMember={setEditingPlanMember}
+            />
+          )}
+
+          {activeTab === 'requests' && (
+            <RequestsTab
+              membershipRequests={membershipRequests}
+              requestsFilter={requestsFilter}
+              setRequestsFilter={setRequestsFilter}
+              requestsStatusFilter={requestsStatusFilter}
+              setRequestsStatusFilter={setRequestsStatusFilter}
+              loadingRequests={loadingRequests}
+              loadMembershipRequests={loadMembershipRequests}
+              setSelectedRequestAction={setSelectedRequestAction}
+            />
+          )}
         </main>
       </div>
 
-      {/* Modal: Add/Edit Plan */}
-      {showPlanModal && (
-        <div className="qnox-checkout-backdrop">
-          <div className="qnox-checkout-dialog max-w-lg">
-            <button onClick={() => setShowPlanModal(false)} className="absolute top-6 right-6 p-2 text-neutral-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="font-serif text-2xl text-white mb-4">{editingPlan ? 'Edit Membership Tier' : 'Commission New Tier'}</h3>
-            <form onSubmit={handleSavePlan} className="space-y-3 text-xs">
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Plan Name</label>
-                <input required type="text" value={planForm.name} onChange={e => setPlanForm({ ...planForm, name: e.target.value })} className="qnox-modal-form-input" placeholder="e.g. THE METROPOLITAN" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Code</label>
-                <input required type="text" value={planForm.code} onChange={e => setPlanForm({ ...planForm, code: e.target.value })} className="qnox-modal-form-input" placeholder="METRO" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Subtitle</label>
-                <input required type="text" value={planForm.subtitle} onChange={e => setPlanForm({ ...planForm, subtitle: e.target.value })} className="qnox-modal-form-input" placeholder="London Multi-Sanctuary Access" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] uppercase text-neutral-400 block mb-1">Monthly Price (₹)</label>
-                  <input required type="number" value={planForm.pricing?.monthly} onChange={e => setPlanForm({ ...planForm, pricing: { ...planForm.pricing, monthly: Number(e.target.value) } })} className="qnox-modal-form-input" />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase text-neutral-400 block mb-1">Yearly Price (₹)</label>
-                  <input required type="number" value={planForm.pricing?.yearly} onChange={e => setPlanForm({ ...planForm, pricing: { ...planForm.pricing, yearly: Number(e.target.value) } })} className="qnox-modal-form-input" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Description</label>
-                <textarea required rows={2} value={planForm.description} onChange={e => setPlanForm({ ...planForm, description: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Benefits (Comma-separated)</label>
-                <input type="text" value={planForm.benefits} onChange={e => setPlanForm({ ...planForm, benefits: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <button type="submit" className="w-full py-3 bg-[#c5a880] text-black font-bold uppercase tracking-widest mt-4">
-                SAVE MEMBERSHIP TIER
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modals & Drawers */}
+      <PlanModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+        editingPlan={editingPlan}
+        planForm={planForm}
+        setPlanForm={setPlanForm}
+        handleSavePlan={handleSavePlan}
+      />
 
-      {/* Modal: Add/Edit Trainer */}
-      {showTrainerModal && (
-        <div className="qnox-checkout-backdrop">
-          <div className="qnox-checkout-dialog max-w-lg">
-            <button onClick={() => setShowTrainerModal(false)} className="absolute top-6 right-6 p-2 text-neutral-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="font-serif text-2xl text-white mb-4">{editingTrainer ? 'Edit Master Coach' : 'Add Master Coach'}</h3>
-            <form onSubmit={handleSaveTrainer} className="space-y-3 text-xs">
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Coach Name</label>
-                <input required type="text" value={trainerForm.name} onChange={e => setTrainerForm({ ...trainerForm, name: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Role & Specialization</label>
-                <input required type="text" value={trainerForm.role} onChange={e => setTrainerForm({ ...trainerForm, role: e.target.value })} className="qnox-modal-form-input" placeholder="HEAD OF STRENGTH" />
-              </div>
-              <ImageUploadField
-                label="Coach Photo (Upload or URL)"
-                value={trainerForm.photo}
-                onChange={(url) => setTrainerForm({ ...trainerForm, photo: url })}
-                placeholder="https://images.unsplash.com/..."
-              />
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Biography</label>
-                <textarea required rows={3} value={trainerForm.bio} onChange={e => setTrainerForm({ ...trainerForm, bio: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <button type="submit" className="w-full py-3 bg-[#c5a880] text-black font-bold uppercase tracking-widest mt-4">
-                SAVE MASTER COACH
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      <TrainerModal
+        isOpen={showTrainerModal}
+        onClose={() => setShowTrainerModal(false)}
+        editingTrainer={editingTrainer}
+        trainerForm={trainerForm}
+        setTrainerForm={setTrainerForm}
+        handleSaveTrainer={handleSaveTrainer}
+      />
 
-      {/* Modal: Add/Edit Club */}
-      {showClubModal && (
-        <div className="qnox-checkout-backdrop">
-          <div className="qnox-checkout-dialog max-w-lg">
-            <button onClick={() => setShowClubModal(false)} className="absolute top-6 right-6 p-2 text-neutral-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="font-serif text-2xl text-white mb-4">{editingClub ? 'Edit Sanctuary' : 'Commission New Sanctuary'}</h3>
-            <form onSubmit={handleSaveClub} className="space-y-3 text-xs">
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Sanctuary Name</label>
-                <input required type="text" value={clubForm.name} onChange={e => setClubForm({ ...clubForm, name: e.target.value })} className="qnox-modal-form-input" placeholder="QNOX Mayfair Sanctuary" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Location / District</label>
-                <input required type="text" value={clubForm.location} onChange={e => setClubForm({ ...clubForm, location: e.target.value })} className="qnox-modal-form-input" placeholder="Mayfair, London W1K" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Address</label>
-                <input required type="text" value={clubForm.address} onChange={e => setClubForm({ ...clubForm, address: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <ImageUploadField
-                label="Sanctuary Hero Image (Upload or URL)"
-                value={clubForm.heroImage}
-                onChange={(url) => setClubForm({ ...clubForm, heroImage: url })}
-                placeholder="https://images.unsplash.com/..."
-              />
-              <div>
-                <label className="text-[10px] uppercase text-neutral-400 block mb-1">Description</label>
-                <textarea required rows={2} value={clubForm.description} onChange={e => setClubForm({ ...clubForm, description: e.target.value })} className="qnox-modal-form-input" />
-              </div>
-              <button type="submit" className="w-full py-3 bg-[#c5a880] text-black font-bold uppercase tracking-widest mt-4">
-                SAVE SANCTUARY
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      <ClubModal
+        isOpen={showClubModal}
+        onClose={() => setShowClubModal(false)}
+        editingClub={editingClub}
+        clubForm={clubForm}
+        setClubForm={setClubForm}
+        handleSaveClub={handleSaveClub}
+      />
 
-      {/* Invoice Viewer Modal */}
-      {selectedReceipt && (
-        <ReceiptModal
-          isOpen={Boolean(selectedReceipt)}
-          onClose={() => setSelectedReceipt(null)}
-          payment={selectedReceipt}
-        />
-      )}
+      <TrainerAppDetailDrawer
+        app={selectedTrainerApp}
+        onClose={() => setSelectedTrainerApp(null)}
+        trainerAppRemarks={trainerAppRemarks}
+        setTrainerAppRemarks={setTrainerAppRemarks}
+        approvingAppId={approvingAppId}
+        handleApproveTrainerApp={handleApproveTrainerApp}
+        handleRejectTrainerApp={handleRejectTrainerApp}
+      />
 
-      {/* 360° Member Dossier Drawer */}
-      {selectedDossierMemberId && (
+      <ReceiptModal
+        isOpen={Boolean(selectedReceipt)}
+        onClose={() => setSelectedReceipt(null)}
+        payment={selectedReceipt}
+      />
+
+      {Boolean(selectedDossierMemberId) && (
         <MemberDossierDrawer
           memberId={selectedDossierMemberId}
           initialMember={members.find((x) => x._id === selectedDossierMemberId)}
@@ -2835,227 +1095,45 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
         />
       )}
 
-      {/* Ultra-Luxury Residency Assignment / Plan Edit Modal */}
-      {editingPlanMember && (
-        <AssignResidencyModal
-          isOpen={Boolean(editingPlanMember)}
-          member={editingPlanMember}
-          plans={plans}
-          onClose={() => setEditingPlanMember(null)}
-          onSuccess={() => {
-            loadMembers(memberPage);
-            loadOverview();
-            if (onShowToast) onShowToast({ type: 'success', message: 'Residency tier successfully commissioned' });
-          }}
-        />
-      )}
+      <AssignResidencyModal
+        isOpen={Boolean(editingPlanMember)}
+        member={editingPlanMember}
+        plans={plans}
+        onClose={() => setEditingPlanMember(null)}
+        onSuccess={() => {
+          loadMembers(memberPage);
+          loadOverview();
+          if (onShowToast) onShowToast({ type: 'success', message: 'Residency tier successfully commissioned' });
+        }}
+      />
 
-      {/* Membership Request Approval / Rejection Modal */}
-      {selectedRequestAction && (
-        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0e0e0e] border border-white/20 w-full max-w-md p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div>
-                <span className="text-[10px] tracking-[0.25em] text-[#c5a880] font-bold uppercase block">
-                  {selectedRequestAction.action === 'approve' ? 'APPROVE REQUEST' : 'REJECT REQUEST'}
-                </span>
-                <h4 className="font-serif text-lg text-white font-semibold">
-                  {selectedRequestAction.request.userName} &bull; {selectedRequestAction.request.type}
-                </h4>
-              </div>
-              <button
-                onClick={() => setSelectedRequestAction(null)}
-                className="text-neutral-400 hover:text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <RequestActionModal
+        selectedRequestAction={selectedRequestAction}
+        onClose={() => setSelectedRequestAction(null)}
+        approvalNotes={approvalNotes}
+        setApprovalNotes={setApprovalNotes}
+        refundAmount={refundAmount}
+        setRefundAmount={setRefundAmount}
+        rejectionReason={rejectionReason}
+        setRejectionReason={setRejectionReason}
+        handleApproveRequest={handleApproveRequest}
+        handleRejectRequest={handleRejectRequest}
+      />
 
-            {selectedRequestAction.action === 'approve' ? (
-              <form onSubmit={handleApproveRequest} className="space-y-4">
-                <p className="text-xs text-neutral-300 font-light leading-relaxed">
-                  {selectedRequestAction.request.type === 'Freeze'
-                    ? `Approving will pause this member's residency for ${selectedRequestAction.request.freezeDays || 30} days. Their active remaining days will be safeguarded and restored upon unfreezing.`
-                    : 'Approving will terminate active residency privileges immediately.'}
-                </p>
-
-                {selectedRequestAction.request.type === 'Cancellation' && (
-                  <div>
-                    <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                      REFUND AMOUNT (₹, IF AUTHORIZED)
-                    </label>
-                    <input
-                      type="number"
-                      value={refundAmount}
-                      onChange={(e) => setRefundAmount(Number(e.target.value))}
-                      min="0"
-                      className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                    ADMINISTRATIVE CONCIERGE NOTES
-                  </label>
-                  <textarea
-                    value={approvalNotes}
-                    onChange={(e) => setApprovalNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Internal reference notes..."
-                    className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end space-x-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRequestAction(null)}
-                    className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>CONFIRM APPROVAL</span>
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleRejectRequest} className="space-y-4">
-                <p className="text-xs text-rose-300 font-light leading-relaxed">
-                  Provide an official reason for rejection. This reason will be dispatched to the member via personalized notification.
-                </p>
-
-                <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                    REJECTION REASON
-                  </label>
-                  <textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    required
-                    rows={3}
-                    placeholder="e.g. Minimum commitment tenure not completed, freeze allowance exceeded..."
-                    className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-rose-400 outline-none resize-none font-light"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end space-x-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRequestAction(null)}
-                    className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>CONFIRM REJECTION</span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Courtesy Validity Extension Modal */}
-      {showExtendModal && extendTargetUser && (
-        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0e0e0e] border border-white/20 w-full max-w-md p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div>
-                <span className="text-[10px] tracking-[0.25em] text-sky-400 font-bold uppercase block">MEMBERSHIP VALIDITY</span>
-                <h4 className="font-serif text-lg text-white font-semibold">Extend Residency Validity</h4>
-              </div>
-              <button
-                onClick={() => {
-                  setShowExtendModal(false);
-                  setExtendTargetUser(null);
-                }}
-                className="text-neutral-400 hover:text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-3 bg-[#141414] border border-white/5 space-y-1 text-xs font-mono">
-              <div className="text-white font-bold">{extendTargetUser.name}</div>
-              <div className="text-neutral-400 text-[11px]">{extendTargetUser.email}</div>
-              <div className="text-[#c5a880] text-[11px]">
-                Current Expiry: {extendTargetUser.membership?.endDate ? new Date(extendTargetUser.membership.endDate).toLocaleDateString('en-GB') : 'No active end date'}
-              </div>
-            </div>
-
-            <form onSubmit={handleExtendSubmit} className="space-y-4">
-              <div>
-                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                  DAYS TO EXTEND
-                </label>
-                <select
-                  value={extendDays}
-                  onChange={(e) => setExtendDays(Number(e.target.value))}
-                  className="w-full bg-[#141414] border border-white/10 px-3.5 py-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
-                >
-                  <option value={7}>+7 Days (1 Week Extension)</option>
-                  <option value={15}>+15 Days (Half-Month)</option>
-                  <option value={30}>+30 Days (Standard 1 Month)</option>
-                  <option value={60}>+60 Days (2 Months Courtesy)</option>
-                  <option value={90}>+90 Days (Quarterly Extension)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                  EXTENSION REASON / AUDIT NOTE
-                </label>
-                <textarea
-                  value={extendReason}
-                  onChange={(e) => setExtendReason(e.target.value)}
-                  required
-                  rows={3}
-                  className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExtendModal(false);
-                    setExtendTargetUser(null);
-                  }}
-                  className="px-4 py-2 border border-white/10 text-xs text-neutral-400 hover:text-white uppercase tracking-wider transition"
-                >
-                  CANCEL
-                </button>
-                <button
-                  type="submit"
-                  disabled={processingExtend}
-                  className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5 disabled:opacity-50"
-                >
-                  {processingExtend ? (
-                    <span>EXTENDING...</span>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>APPLY EXTENSION</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      <ExtendMembershipModal
+        isOpen={showExtendModal}
+        onClose={() => {
+          setShowExtendModal(false);
+          setExtendTargetUser(null);
+        }}
+        extendTargetUser={extendTargetUser}
+        extendDays={extendDays}
+        setExtendDays={setExtendDays}
+        extendReason={extendReason}
+        setExtendReason={setExtendReason}
+        processingExtend={processingExtend}
+        handleConfirmExtend={handleExtendSubmit}
+      />
     </div>
   );
 }

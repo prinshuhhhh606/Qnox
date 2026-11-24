@@ -74,96 +74,138 @@ Every component has its own dedicated `.css` file imported directly within that 
 
 ---
 
-## 📁 Complete Project Architecture (MVC)
+## 📁 Complete Project Architecture (MVC Architecture)
 
 ```
 NoxGym/
 ├── backend/
 │   ├── src/
-│   │   ├── config/
-│   │   │   └── db.js                 # MongoDB connection & memory fallback
-│   │   ├── controllers/              # MVC Controllers
-│   │   │   ├── authController.js
-│   │   │   ├── adminController.js
-│   │   │   ├── bookingController.js
-│   │   │   ├── clubController.js
-│   │   │   ├── inquiryController.js
-│   │   │   ├── membershipPlanController.js
-│   │   │   ├── newsletterController.js
-│   │   │   ├── paymentController.js
-│   │   │   ├── trainerController.js
-│   │   │   └── uploadController.js
-│   │   ├── models/                   # Mongoose Database Schemas
-│   │   │   ├── Booking.js
-│   │   │   ├── ClassSchedule.js
-│   │   │   ├── Club.js
-│   │   │   ├── MembershipInquiry.js
-│   │   │   ├── MembershipPlan.js
-│   │   │   ├── Newsletter.js
-│   │   │   ├── NewsletterCampaign.js
-│   │   │   ├── Payment.js
-│   │   │   ├── Trainer.js
-│   │   │   └── User.js
-│   │   ├── routes/                   # API Endpoints
-│   │   │   ├── adminRoutes.js
+│   │   ├── config/                   # Configuration Layer
+│   │   │   └── db.js                 # MongoDB connection & zero-downtime memory store
+│   │   │
+│   │   ├── models/                   # [M] MODEL LAYER (Mongoose Schemas & Data Logic)
+│   │   │   ├── User.js               # Member, Admin & Trainer dossiers
+│   │   │   ├── Trainer.js            # Master Coach profiles & specialties
+│   │   │   ├── TrainerApplication.js # Accreditation & onboarding requests
+│   │   │   ├── TrainerNotification.js# Trainer portal notifications
+│   │   │   ├── MembershipPlan.js     # Multi-tier residency pricing
+│   │   │   ├── MembershipRequest.js  # Freeze & cancellation requests
+│   │   │   ├── Payment.js            # Razorpay transactions & tax invoices
+│   │   │   ├── Booking.js            # Atomic class reservations
+│   │   │   ├── ClassSchedule.js      # Timetable & sanctuary slots
+│   │   │   ├── Club.js               # Sanctuary portfolio locations
+│   │   │   ├── Attendance.js         # Sanctuary check-ins & scan logs
+│   │   │   ├── FitnessProgress.js    # Biometrics & performance tracking
+│   │   │   ├── AuditLog.js           # Tamper-evident admin audit trail
+│   │   │   ├── Newsletter.js         # Subscriber email records
+│   │   │   ├── NewsletterCampaign.js # Broadcast campaign dispatches
+│   │   │   ├── Notification.js       # Admin system alert notifications
+│   │   │   └── MembershipInquiry.js  # VIP walkthrough tour requests
+│   │   │
+│   │   ├── views/                    # [V] VIEW LAYER (Server-Side Templates)
+│   │   │   └── emailTemplates.js     # Branded dark-luxury HTML email views
+│   │   │
+│   │   ├── controllers/              # [C] CONTROLLER LAYER (Business Logic)
+│   │   │   ├── authController.js             # Registration, JWT login, Password recovery
+│   │   │   ├── adminController.js            # Executive dashboard analytics & dossiers
+│   │   │   ├── trainerApplicationController.js # Accreditation approvals & review queue
+│   │   │   ├── trainerDashboardController.js   # Coach dashboard, schedule & clients
+│   │   │   ├── trainerController.js          # Public trainers directory CRUD
+│   │   │   ├── membershipPlanController.js   # Residency tiers CRUD & pricing
+│   │   │   ├── membershipController.js       # Freeze, extend & cancellations
+│   │   │   ├── paymentController.js          # Razorpay orders & HMAC verification
+│   │   │   ├── bookingController.js          # Atomic class reservation & cancellation
+│   │   │   ├── clubController.js             # Sanctuary locations CRUD & status
+│   │   │   ├── scheduleController.js         # Timetable filtering & availability
+│   │   │   ├── newsletterController.js       # Campaign dispatches & CSV export
+│   │   │   ├── notificationController.js     # Unread count & notification actions
+│   │   │   ├── inquiryController.js          # VIP walkthrough tour submissions
+│   │   │   └── uploadController.js           # Media & certificate document uploads
+│   │   │
+│   │   ├── routes/                   # ROUTING LAYER (REST Endpoints)
 │   │   │   ├── authRoutes.js
+│   │   │   ├── adminRoutes.js
+│   │   │   ├── trainerApplicationRoutes.js
+│   │   │   ├── trainerDashboardRoutes.js
+│   │   │   ├── trainerRoutes.js
+│   │   │   ├── membershipPlanRoutes.js
+│   │   │   ├── membershipRoutes.js
+│   │   │   ├── paymentRoutes.js
 │   │   │   ├── bookingRoutes.js
 │   │   │   ├── clubRoutes.js
-│   │   │   ├── inquiryRoutes.js
-│   │   │   ├── membershipPlanRoutes.js
+│   │   │   ├── scheduleRoutes.js
 │   │   │   ├── newsletterRoutes.js
-│   │   │   ├── paymentRoutes.js
-│   │   │   ├── trainerRoutes.js
+│   │   │   ├── notificationRoutes.js
+│   │   │   ├── inquiryRoutes.js
 │   │   │   └── uploadRoutes.js
-│   │   ├── middlewares/
+│   │   │
+│   │   ├── middlewares/              # INTERCEPTOR & SECURITY LAYER
 │   │   │   ├── auth.js               # JWT verification & RBAC authorization
 │   │   │   ├── errorHandler.js       # Centralized error handler
 │   │   │   ├── rateLimiter.js        # Express rate limiting
-│   │   │   └── upload.js             # Multer image storage & type filter
-│   │   ├── services/
-│   │   │   ├── emailService.js       # Nodemailer luxury HTML templates
-│   │   │   └── paymentService.js     # Razorpay order & HMAC SHA-256 verification
+│   │   │   └── upload.js             # Multer document & image processor
+│   │   │
+│   │   ├── services/                 # INTEGRATION SERVICES
+│   │   │   ├── emailService.js       # Nodemailer SMTP dispatch service
+│   │   │   └── paymentService.js     # Razorpay order & signature verification
+│   │   │
 │   │   ├── seed/
 │   │   │   └── seedData.js           # Preloads Admin, Clubs, Plans, Trainers, Classes
-│   │   └── app.js                    # Helmet, CORS, Rate Limit & Route mounting
+│   │   └── app.js                    # Express app configuration & middleware pipeline
+│   │
 │   ├── tests/
-│   │   └── api.test.js               # Automated production test suite
-│   ├── public/uploads/               # Static image upload directory
-│   ├── server.js                     # Backend entry point
+│   │   └── api.test.js               # Production integrity test suite (15/15 passed)
+│   ├── public/uploads/               # Uploaded documents, proofs & media
+│   ├── server.js                     # Backend HTTP server entry point
 │   ├── package.json
 │   └── .env
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── components/               # Modular UI Components + Dedicated CSS
+│   │   ├── pages/                    # [V] CLIENT-SIDE VIEW LAYER (Full Pages)
+│   │   │   ├── Home.jsx              # Landing sanctuary showcase
+│   │   │   ├── JoinAsTrainerPage.jsx # 4-step accreditation registration & login
+│   │   │   ├── ApplicationStatusPage.jsx # Candidate tracking portal
+│   │   │   ├── TrainersPage.jsx      # Master Coaches & Practitioners
+│   │   │   ├── MembershipPage.jsx    # Residency tiers & benefits
+│   │   │   ├── ClubsPage.jsx         # Architectural clubs directory
+│   │   │   ├── TimetablePage.jsx     # Masterclass calendar & booking
+│   │   │   ├── SanctuariesPage.jsx   # Architectural photography tour
+│   │   │   └── PressPage.jsx         # Global press & architectural accolades
+│   │   │
+│   │   ├── components/               # REUSABLE UI VIEWS + DEDICATED CSS
 │   │   │   ├── AdminDashboard.jsx & AdminDashboard.css
+│   │   │   ├── TrainerDashboard/TrainerDashboard.jsx & TrainerDashboard.css
 │   │   │   ├── AuthModal.jsx & AuthModal.css
-│   │   │   ├── ClubsSection.jsx & ClubsSection.css
-│   │   │   ├── DisciplinesSection.jsx & DisciplinesSection.css
-│   │   │   ├── EditorialQuotes.jsx & EditorialQuotes.css
-│   │   │   ├── Footer.jsx & Footer.css
-│   │   │   ├── Hero.jsx & Hero.css
-│   │   │   ├── MasterTrainers.jsx & MasterTrainers.css
 │   │   │   ├── MemberPortalModal.jsx & MemberPortalModal.css
-│   │   │   ├── MembershipTiers.jsx & MembershipTiers.css
-│   │   │   ├── Navbar.jsx & Navbar.css
+│   │   │   ├── MemberDossierDrawer.jsx & MemberDossierDrawer.css
 │   │   │   ├── PaymentCheckoutModal.jsx & PaymentCheckoutModal.css
 │   │   │   ├── ReceiptModal.jsx & ReceiptModal.css
+│   │   │   ├── TourModal.jsx & TourModal.css
+│   │   │   ├── AssignResidencyModal.jsx & AssignResidencyModal.css
+│   │   │   ├── Navbar.jsx & Navbar.css
+│   │   │   ├── Hero.jsx & Hero.css
+│   │   │   ├── MembershipTiers.jsx & MembershipTiers.css
+│   │   │   ├── ClubsSection.jsx & ClubsSection.css
+│   │   │   ├── DisciplinesSection.jsx & DisciplinesSection.css
+│   │   │   ├── MasterTrainers.jsx & MasterTrainers.css
 │   │   │   ├── ScheduleSection.jsx & ScheduleSection.css
-│   │   │   ├── Toast.jsx & Toast.css
-│   │   │   └── TourModal.jsx & TourModal.css
-│   │   ├── pages/
-│   │   │   └── Home.jsx
-│   │   ├── services/
-│   │   │   └── api.js                # Fullstack API client with JWT storage
+│   │   │   ├── EditorialQuotes.jsx & EditorialQuotes.css
+│   │   │   ├── Footer.jsx & Footer.css
+│   │   │   └── Toast.jsx & Toast.css
+│   │   │
+│   │   ├── services/                 # CLIENT CONTROLLER & ADAPTER LAYER
+│   │   │   └── api.js                # API client, JWT manager & offline sync
+│   │   │
+│   │   ├── hooks/                    # CUSTOM REACT HOOKS
 │   │   ├── styles/
-│   │   │   └── index.css
-│   │   ├── App.jsx
-│   │   └── main.jsx
+│   │   │   └── index.css             # Tailwind base & global luxury styles
+│   │   ├── App.jsx                   # React Router & Global Modal Providers
+│   │   └── main.jsx                  # Client entry point
+│   │
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── tailwind.config.js
-│   ├── postcss.config.js
 │   └── package.json
 │
 └── package.json                      # Monorepo runner scripts

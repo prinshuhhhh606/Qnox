@@ -398,6 +398,8 @@ export default function MemberDossierDrawer({ memberId, initialMember, onClose, 
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
 
+  if (!memberId) return null;
+
   return (
     <div className="qnox-dossier-overlay" onClick={onClose}>
       <div className="qnox-dossier-drawer" onClick={(e) => e.stopPropagation()}>

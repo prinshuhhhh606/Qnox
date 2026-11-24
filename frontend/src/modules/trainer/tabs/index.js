@@ -1,0 +1,13 @@
+export { default as OverviewTab } from '../../../components/TrainerDashboard/tabs/OverviewTab';
+export { default as MembersTab } from '../../../components/TrainerDashboard/tabs/MembersTab';
+export { default as AttendanceTab } from '../../../components/TrainerDashboard/tabs/AttendanceTab';
+export { default as WorkoutsTab } from '../../../components/TrainerDashboard/tabs/WorkoutsTab';
+export { default as AiWorkoutsTab } from '../../../components/TrainerDashboard/tabs/AiWorkoutsTab';
+export { default as DietsTab } from '../../../components/TrainerDashboard/tabs/DietsTab';
+export { default as AssessmentsTab } from '../../../components/TrainerDashboard/tabs/AssessmentsTab';
+export { default as SessionsTab } from '../../../components/TrainerDashboard/tabs/SessionsTab';
+export { default as ExercisesTab } from '../../../components/TrainerDashboard/tabs/ExercisesTab';
+export { default as MessagesTab } from '../../../components/TrainerDashboard/tabs/MessagesTab';
+export { default as ReportsTab } from '../../../components/TrainerDashboard/tabs/ReportsTab';
+export { default as NotificationsTab } from '../../../components/TrainerDashboard/tabs/NotificationsTab';
+export { default as ProfileTab } from '../../../components/TrainerDashboard/tabs/ProfileTab';

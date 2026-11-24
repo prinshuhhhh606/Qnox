@@ -1,0 +1,12 @@
+export { default as OverviewTab } from './OverviewTab';
+export { default as MembersTab } from './MembersTab';
+export { default as PlansTab } from './PlansTab';
+export { default as BookingsTab } from './BookingsTab';
+export { default as TrainersTab } from './TrainersTab';
+export { default as TrainerApplicationsTab } from './TrainerApplicationsTab';
+export { default as ClubsTab } from './ClubsTab';
+export { default as PaymentsTab } from './PaymentsTab';
+export { default as NewsletterTab } from './NewsletterTab';
+export { default as InquiriesTab } from './InquiriesTab';
+export { default as NotificationsTab } from './NotificationsTab';
+export { default as RequestsTab } from './RequestsTab';

@@ -1,0 +1,142 @@
+/* QNOX LUXURY DARK COACH PORTAL THEME */
+.trainer-portal-container {
+  min-height: 100vh;
+  background-color: #050505;
+  color: #ededed;
+  font-family: 'Cinzel', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.trainer-glass-card {
+  background: rgba(14, 14, 14, 0.7);
+  border: 1px solid rgba(197, 168, 128, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+  transition: all 0.25s ease-in-out;
+}
+
+.trainer-glass-card:hover {
+  border-color: rgba(197, 168, 128, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+}
+
+.trainer-gold-gradient-text {
+  background: linear-gradient(135deg, #e8d7be 0%, #c5a880 50%, #9b7e52 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.trainer-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a3a3a3;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.trainer-nav-item:hover {
+  color: #f5f5f5;
+  background: rgba(197, 168, 128, 0.08);
+  border-color: rgba(197, 168, 128, 0.2);
+}
+
+.trainer-nav-item.active {
+  color: #c5a880;
+  background: rgba(197, 168, 128, 0.14);
+  border-color: rgba(197, 168, 128, 0.4);
+  box-shadow: 0 0 15px rgba(197, 168, 128, 0.15);
+}
+
+.trainer-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.trainer-badge-gold {
+  background: rgba(197, 168, 128, 0.15);
+  color: #c5a880;
+  border: 1px solid rgba(197, 168, 128, 0.3);
+}
+
+.trainer-badge-green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.trainer-badge-blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.trainer-btn-primary {
+  background: linear-gradient(135deg, #c5a880 0%, #9b7e52 100%);
+  color: #050505;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trainer-btn-primary:hover {
+  opacity: 0.95;
+  box-shadow: 0 0 20px rgba(197, 168, 128, 0.4);
+  transform: translateY(-1px);
+}
+
+.trainer-btn-outline {
+  background: transparent;
+  color: #c5a880;
+  border: 1px solid rgba(197, 168, 128, 0.4);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trainer-btn-outline:hover {
+  background: rgba(197, 168, 128, 0.12);
+  border-color: #c5a880;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}

@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Users, Calendar, CheckSquare, Dumbbell, Sparkles, Utensils, Ruler,
-  Award, TrendingUp, UserCheck, Clock, BookOpen, MessageSquare,
-  BarChart3, Bell, User, Settings, LogOut, Search, Plus, CheckCircle,
-  XCircle, Filter, ArrowUpRight, AlertCircle, RefreshCw, Send, ChevronRight,
-  Shield, Edit3, Eye, FileText, ChevronDown, Check, Play, Pause, Flame
+  Award, TrendingUp, UserCheck, BookOpen, MessageSquare,
+  BarChart3, Bell, User, Settings, LogOut, ArrowUpRight, Shield
 } from 'lucide-react';
 import {
   getTrainerDashboardStats,
   getTrainerMembers,
   getTrainerMemberDetail,
-  updateMemberFitnessProfile,
   addTrainerMemberNote,
   getTrainerAttendance,
   markMemberCheckIn,
@@ -37,12 +34,36 @@ import {
   getTrainerProfileData,
   updateTrainerProfileData
 } from '../../services/api';
+
+// Tabs
+import OverviewTab from './tabs/OverviewTab';
+import MembersTab from './tabs/MembersTab';
+import AttendanceTab from './tabs/AttendanceTab';
+import WorkoutsTab from './tabs/WorkoutsTab';
+import AiWorkoutsTab from './tabs/AiWorkoutsTab';
+import DietsTab from './tabs/DietsTab';
+import AssessmentsTab from './tabs/AssessmentsTab';
+import SessionsTab from './tabs/SessionsTab';
+import ExercisesTab from './tabs/ExercisesTab';
+import MessagesTab from './tabs/MessagesTab';
+import ReportsTab from './tabs/ReportsTab';
+import NotificationsTab from './tabs/NotificationsTab';
+import ProfileTab from './tabs/ProfileTab';
+
+// Modals
+import CheckInModal from './modals/CheckInModal';
+import MemberDetailDrawer from './modals/MemberDetailDrawer';
+import NewAssessmentModal from './modals/NewAssessmentModal';
+import NewSessionModal from './modals/NewSessionModal';
+import NewWorkoutModal from './modals/NewWorkoutModal';
+import NewExerciseModal from './modals/NewExerciseModal';
+
 import './TrainerDashboard.css';
 
 export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, onShowToast }) {
-  // Navigation tabs (18 required modules)
+  // Navigation tabs
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mainWorkspaceRef = useRef(null);
 
@@ -58,13 +79,12 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
     unreadNotifications: 0
   });
   const [todaySessions, setTodaySessions] = useState([]);
-  const [upcomingSessions, setUpcomingSessions] = useState([]);
-  const [recentMembers, setRecentMembers] = useState([]);
+  const [, setUpcomingSessions] = useState([]);
+  const [, setRecentMembers] = useState([]);
   const [recentAttendance, setRecentAttendance] = useState([]);
 
-  // Module States
+  // Members & Dossier
   const [members, setMembers] = useState([]);
-  const [selectedMember, setSelectedMember] = useState(null);
   const [memberDetailDrawer, setMemberDetailDrawer] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [memberCategoryFilter, setMemberCategoryFilter] = useState('All');
@@ -78,7 +98,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Workout Plans
   const [workoutPlans, setWorkoutPlans] = useState([]);
   const [newWorkoutModal, setNewWorkoutModal] = useState(false);
-  const [workoutCategoryFilter, setWorkoutCategoryFilter] = useState('All');
+  const [workoutCategoryFilter] = useState('All');
   const [workoutForm, setWorkoutForm] = useState({
     title: '',
     category: 'Chest Workout',
@@ -153,8 +173,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Exercise Library
   const [exercises, setExercises] = useState([]);
   const [exerciseSearch, setExerciseSearch] = useState('');
-  const [exerciseEquipmentFilter, setExerciseEquipmentFilter] = useState('All');
-  const [exerciseMuscleFilter, setExerciseMuscleFilter] = useState('All');
+  const [exerciseEquipmentFilter] = useState('All');
   const [newExerciseModal, setNewExerciseModal] = useState(false);
   const [exerciseForm, setExerciseForm] = useState({
     name: '',
@@ -211,9 +230,8 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
     else if (activeTab === 'messages' && activeChatMember) loadChat(activeChatMember._id);
     else if (activeTab === 'reports') loadReports();
     else if (activeTab === 'notifications') loadNotifications();
-    else if (activeTab === 'profile') loadProfile();
+    else if (activeTab === 'profile' || activeTab === 'settings') loadProfile();
 
-    // Reset workspace and window scroll to top whenever a new section is selected
     if (mainWorkspaceRef.current) {
       mainWorkspaceRef.current.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       mainWorkspaceRef.current.scrollTop = 0;
@@ -417,6 +435,36 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
       setGeneratedAiWorkout(null);
       loadWorkoutPlans();
       setActiveTab('workouts');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleCreateWorkout = async () => {
+    if (!workoutForm.title) {
+      showToast('Please enter workout title', 'error');
+      return;
+    }
+    try {
+      await createWorkoutPlan(workoutForm);
+      showToast('Workout plan created successfully!');
+      setNewWorkoutModal(false);
+      loadWorkoutPlans();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleCreateExercise = async () => {
+    if (!exerciseForm.name) {
+      showToast('Please enter exercise name', 'error');
+      return;
+    }
+    try {
+      await createCustomExercise(exerciseForm);
+      showToast('Exercise movement created successfully!');
+      setNewExerciseModal(false);
+      loadExerciseLibrary();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -675,1437 +723,189 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
           data-scrollable="true"
           className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-[#050505]"
         >
-          {/* ================= 1. DASHBOARD OVERVIEW ================= */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8 max-w-7xl mx-auto">
-              {/* Hero Banner */}
-              <div className="trainer-glass-card p-6 md:p-8 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-l-4 border-l-[#c5a880]">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="trainer-badge trainer-badge-gold">TRAINER COMMAND</span>
-                    <span className="text-xs text-neutral-400">Mayfair Performance Sanctuary</span>
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-serif text-white tracking-wide">
-                    Welcome, Coach {currentUser?.name || 'Marcus'}
-                  </h1>
-                  <p className="text-xs md:text-sm text-neutral-400 mt-1 max-w-xl">
-                    Here is your real-time athlete readiness matrix, schedule, and transformation queue for today.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => setActiveTab('ai-workouts')}
-                    className="trainer-btn-primary flex items-center gap-2 shadow-lg"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    AI Workout Assistant
-                  </button>
-                  <button
-                    onClick={() => setCheckInModal(true)}
-                    className="trainer-btn-outline flex items-center gap-2"
-                  >
-                    <CheckSquare className="w-4 h-4" />
-                    Mark Check-In
-                  </button>
-                </div>
-              </div>
-
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="trainer-glass-card p-5">
-                  <div className="flex items-center justify-between text-neutral-400 mb-2">
-                    <span className="text-xs uppercase tracking-wider">Assigned Members</span>
-                    <Users className="w-4 h-4 text-[#c5a880]" />
-                  </div>
-                  <div className="text-3xl font-serif text-white font-semibold">{stats.totalAssignedMembers}</div>
-                  <div className="text-[11px] text-emerald-400 mt-2 flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" /> {stats.activeMembers} active memberships
-                  </div>
-                </div>
-
-                <div className="trainer-glass-card p-5">
-                  <div className="flex items-center justify-between text-neutral-400 mb-2">
-                    <span className="text-xs uppercase tracking-wider">Today Present</span>
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <div className="text-3xl font-serif text-white font-semibold">{stats.todayPresent}</div>
-                  <div className="text-[11px] text-neutral-400 mt-2">
-                    {stats.todayAbsent} members pending check-in
-                  </div>
-                </div>
-
-                <div className="trainer-glass-card p-5">
-                  <div className="flex items-center justify-between text-neutral-400 mb-2">
-                    <span className="text-xs uppercase tracking-wider">Personal Clients</span>
-                    <UserCheck className="w-4 h-4 text-[#c5a880]" />
-                  </div>
-                  <div className="text-3xl font-serif text-white font-semibold">{stats.ptClients}</div>
-                  <div className="text-[11px] text-[#c5a880] mt-2">
-                    {stats.todaySessionsCount} sessions today
-                  </div>
-                </div>
-
-                <div className="trainer-glass-card p-5">
-                  <div className="flex items-center justify-between text-neutral-400 mb-2">
-                    <span className="text-xs uppercase tracking-wider">Assessments Due</span>
-                    <Award className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <div className="text-3xl font-serif text-white font-semibold">{stats.pendingAssessments}</div>
-                  <div className="text-[11px] text-amber-400/90 mt-2">
-                    Requires transformation review
-                  </div>
-                </div>
-              </div>
-
-              {/* Today's Schedule & Attendance Activity */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left 2 Cols: Schedule */}
-                <div className="lg:col-span-2 trainer-glass-card p-6">
-                  <div className="flex items-center justify-between mb-5 pb-3 border-b border-neutral-800">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#c5a880]" />
-                      <h3 className="font-serif text-base tracking-wide text-neutral-100 uppercase">
-                        Today's Training Schedule
-                      </h3>
-                    </div>
-                    <button
-                      onClick={() => setNewSessionModal(true)}
-                      className="text-xs text-[#c5a880] hover:underline flex items-center gap-1 uppercase tracking-wider"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Book Session
-                    </button>
-                  </div>
-
-                  {todaySessions.length === 0 ? (
-                    <div className="text-center py-10 text-neutral-500 text-xs">
-                      No sessions scheduled for today yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {todaySessions.map((session) => (
-                        <div
-                          key={session._id}
-                          className="flex items-center justify-between p-3.5 rounded-lg bg-neutral-900/60 border border-neutral-800 hover:border-[#c5a880]/30 transition"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#161616] border border-[#c5a880]/30 flex items-center justify-center font-bold text-xs text-[#c5a880]">
-                              {session.startTime.slice(0, 5)}
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-neutral-200">
-                                {session.member?.name || 'Athletic Member'}
-                              </p>
-                              <p className="text-[11px] text-neutral-400">{session.trainingType} • {session.focusArea}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`trainer-badge ${
-                                session.status === 'Completed'
-                                  ? 'trainer-badge-green'
-                                  : session.status === 'Cancelled'
-                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                  : 'trainer-badge-gold'
-                              }`}
-                            >
-                              {session.status}
-                            </span>
-                            {session.status === 'Scheduled' && (
-                              <button
-                                onClick={() => handleUpdatePTSessionStatus(session._id, 'Completed')}
-                                className="p-1.5 text-xs text-neutral-400 hover:text-emerald-400 rounded"
-                                title="Mark Completed"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right 1 Col: Recent Attendance */}
-                <div className="trainer-glass-card p-6">
-                  <div className="flex items-center justify-between mb-5 pb-3 border-b border-neutral-800">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-[#c5a880]" />
-                      <h3 className="font-serif text-base tracking-wide text-neutral-100 uppercase">
-                        Live Club Access
-                      </h3>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab('attendance')}
-                      className="text-xs text-[#c5a880] hover:underline uppercase tracking-wider"
-                    >
-                      View All
-                    </button>
-                  </div>
-
-                  {recentAttendance.length === 0 ? (
-                    <div className="text-center py-10 text-neutral-500 text-xs">No recent swipes.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentAttendance.slice(0, 5).map((rec) => (
-                        <div key={rec._id} className="flex items-center justify-between text-xs">
-                          <div>
-                            <p className="font-medium text-neutral-200">{rec.memberName}</p>
-                            <p className="text-[10px] text-neutral-500">
-                              {new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {rec.activityType}
-                            </p>
-                          </div>
-                          {rec.checkOut ? (
-                            <span className="text-[10px] text-neutral-500">Out {rec.durationMinutes}m</span>
-                          ) : (
-                            <button
-                              onClick={() => handleCheckOutMember(rec._id)}
-                              className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40"
-                            >
-                              Check-Out
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <OverviewTab
+              currentUser={currentUser}
+              stats={stats}
+              todaySessions={todaySessions}
+              recentAttendance={recentAttendance}
+              setActiveTab={setActiveTab}
+              setCheckInModal={setCheckInModal}
+              setNewSessionModal={setNewSessionModal}
+              handleUpdatePTSessionStatus={handleUpdatePTSessionStatus}
+            />
           )}
 
-          {/* ================= 2. MY MEMBERS ================= */}
           {activeTab === 'members' && (
-            <div className="space-y-6 max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">Assigned Athletes & Members</h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Manage member profiles, medical assessments, workout goals, and progress notes.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-64">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                    <input
-                      type="text"
-                      placeholder="Search member name or email..."
-                      value={memberSearch}
-                      onChange={(e) => setMemberSearch(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && loadMembers()}
-                      className="w-full pl-9 pr-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-xs text-neutral-200 focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-                  <select
-                    value={memberCategoryFilter}
-                    onChange={(e) => {
-                      setMemberCategoryFilter(e.target.value);
-                      setTimeout(loadMembers, 50);
-                    }}
-                    className="bg-neutral-900 border border-neutral-800 text-xs text-neutral-300 py-2 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  >
-                    <option value="All">All Categories</option>
-                    <option value="Beginner">Beginner</option>
-                    <option value="Intermediate">Intermediate</option>
-                    <option value="Advanced">Advanced</option>
-                    <option value="Personal Training">Personal Training</option>
-                    <option value="General Gym Member">General Member</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Members Table */}
-              <div className="trainer-glass-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#0b0b0b] text-neutral-400 uppercase tracking-wider text-[10px] border-b border-neutral-800">
-                      <tr>
-                        <th className="py-3 px-4">Member</th>
-                        <th className="py-3 px-4">Category</th>
-                        <th className="py-3 px-4">Fitness Goal</th>
-                        <th className="py-3 px-4">Weight / Target</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-900">
-                      {members.map((m) => (
-                        <tr key={m._id} className="hover:bg-neutral-900/40 transition">
-                          <td className="py-3 px-4 flex items-center gap-3">
-                            <img
-                              src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover border border-[#c5a880]/30"
-                            />
-                            <div>
-                              <p className="font-semibold text-neutral-200">{m.name}</p>
-                              <p className="text-[10px] text-neutral-500">{m.email}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="trainer-badge trainer-badge-gold">
-                              {m.memberCategory || 'General'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-neutral-300">{m.fitnessGoal || 'General Fitness'}</td>
-                          <td className="py-3 px-4 text-neutral-300">
-                            {m.currentWeight || 70} kg → <span className="text-[#c5a880]">{m.targetWeight || 68} kg</span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="trainer-badge trainer-badge-green">
-                              {m.membership?.status || 'Active'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => viewMemberDrawer(m._id)}
-                                className="px-2.5 py-1 text-[11px] rounded bg-neutral-800 hover:bg-[#c5a880] hover:text-black transition"
-                              >
-                                Dossier
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setActiveChatMember(m);
-                                  setActiveTab('messages');
-                                }}
-                                className="p-1 text-neutral-400 hover:text-[#c5a880]"
-                                title="Chat"
-                              >
-                                <MessageSquare className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <MembersTab
+              members={members}
+              memberSearch={memberSearch}
+              setMemberSearch={setMemberSearch}
+              memberCategoryFilter={memberCategoryFilter}
+              setMemberCategoryFilter={setMemberCategoryFilter}
+              loadMembers={loadMembers}
+              viewMemberDrawer={viewMemberDrawer}
+              setActiveChatMember={setActiveChatMember}
+              setActiveTab={setActiveTab}
+            />
           )}
 
-          {/* ================= 3. ATTENDANCE MANAGEMENT ================= */}
           {activeTab === 'attendance' && (
-            <div className="space-y-6 max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">Member Attendance Management</h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Track check-in, check-out, duration, and authorized club access.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setCheckInModal(true)}
-                  className="trainer-btn-primary flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Check-In Member
-                </button>
-              </div>
-
-              <div className="trainer-glass-card overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#0b0b0b] text-neutral-400 uppercase tracking-wider text-[10px] border-b border-neutral-800">
-                    <tr>
-                      <th className="py-3 px-4">Member</th>
-                      <th className="py-3 px-4">Check-In Time</th>
-                      <th className="py-3 px-4">Check-Out Time</th>
-                      <th className="py-3 px-4">Duration</th>
-                      <th className="py-3 px-4">Activity</th>
-                      <th className="py-3 px-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-900">
-                    {attendanceRecords.map((rec) => (
-                      <tr key={rec._id} className="hover:bg-neutral-900/40">
-                        <td className="py-3 px-4 font-semibold text-neutral-200">{rec.memberName}</td>
-                        <td className="py-3 px-4 text-neutral-400">
-                          {new Date(rec.checkIn).toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-neutral-400">
-                          {rec.checkOut ? new Date(rec.checkOut).toLocaleString() : (
-                            <span className="text-amber-400 font-medium">In Sanctuary</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-neutral-300">
-                          {rec.checkOut ? `${rec.durationMinutes} mins` : 'Active'}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="trainer-badge trainer-badge-gold">{rec.activityType}</span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          {!rec.checkOut && (
-                            <button
-                              onClick={() => handleCheckOutMember(rec._id)}
-                              className="px-2.5 py-1 text-[11px] rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40"
-                            >
-                              Check-Out
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AttendanceTab
+              attendanceRecords={attendanceRecords}
+              setCheckInModal={setCheckInModal}
+              handleCheckOutMember={handleCheckOutMember}
+            />
           )}
 
-          {/* ================= 4. WORKOUT PLANS ================= */}
           {activeTab === 'workouts' && (
-            <div className="space-y-6 max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">Workout Plan Architecture</h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Design and assign personalized training splits across 12 athletic categories.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setActiveTab('ai-workouts')}
-                    className="trainer-btn-outline flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4 text-[#c5a880]" /> AI Generator
-                  </button>
-                  <button
-                    onClick={() => setNewWorkoutModal(true)}
-                    className="trainer-btn-primary flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" /> Create Routine
-                  </button>
-                </div>
-              </div>
-
-              {/* Workout Plans Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {workoutPlans.map((wp) => (
-                  <div key={wp._id} className="trainer-glass-card p-5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="trainer-badge trainer-badge-gold">{wp.category}</span>
-                        {wp.aiGenerated && (
-                          <span className="text-[10px] text-[#c5a880] flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" /> AI
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-serif text-base text-neutral-100 font-semibold">{wp.title}</h3>
-                      <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{wp.description}</p>
-                      
-                      <div className="mt-4 pt-3 border-t border-neutral-800 text-[11px] text-neutral-400 space-y-1">
-                        <div>Duration: <span className="text-neutral-200">{wp.durationWeeks} weeks</span></div>
-                        <div>Target: <span className="text-neutral-200">{wp.targetAudience}</span></div>
-                        {wp.member && (
-                          <div className="text-[#c5a880]">Assigned to: {wp.member?.name || 'Athlete'}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-5 pt-3 border-t border-neutral-800 flex items-center justify-between">
-                      <span className="text-[10px] text-neutral-500">Status: {wp.status}</span>
-                      <button
-                        onClick={() => {
-                          const memId = prompt('Enter Member ID or Name to assign this plan:');
-                          if (memId && wp.member?._id) assignWorkoutPlan(wp._id, wp.member._id);
-                          else showToast('Plan assigned to active roster!');
-                        }}
-                        className="text-xs text-[#c5a880] hover:underline uppercase tracking-wider"
-                      >
-                        Assign Plan
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <WorkoutsTab
+              workoutPlans={workoutPlans}
+              setActiveTab={setActiveTab}
+              setNewWorkoutModal={setNewWorkoutModal}
+              assignWorkoutPlan={assignWorkoutPlan}
+              showToast={showToast}
+            />
           )}
 
-          {/* ================= 5. AI WORKOUT ASSISTANT ================= */}
           {activeTab === 'ai-workouts' && (
-            <div className="space-y-6 max-w-5xl mx-auto">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Sparkles className="w-5 h-5 text-[#c5a880]" />
-                  <h2 className="text-2xl font-serif text-white tracking-wide">AI Workout Assistant Engine</h2>
-                </div>
-                <p className="text-xs text-neutral-400">
-                  Synthesize an evidence-based athletic split factoring in age, injury profile, frequency, and equipment.
-                </p>
-              </div>
-
-              <div className="trainer-glass-card p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                    Target Member
-                  </label>
-                  <select
-                    value={aiWorkoutForm.memberId}
-                    onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, memberId: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  >
-                    <option value="">Select Athlete (Optional)</option>
-                    {members.map((m) => (
-                      <option key={m._id} value={m._id}>{m.name} ({m.fitnessGoal || 'General'})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                    Fitness Goal
-                  </label>
-                  <select
-                    value={aiWorkoutForm.goal}
-                    onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, goal: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  >
-                    <option value="Muscle Gain">Muscle Gain (Hypertrophy)</option>
-                    <option value="Fat Loss">Fat Loss & Conditioning</option>
-                    <option value="Strength Training">Pure Strength (Powerlifting)</option>
-                    <option value="Endurance">Endurance & Athletic Mobility</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                    Experience Level
-                  </label>
-                  <select
-                    value={aiWorkoutForm.experienceLevel}
-                    onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, experienceLevel: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  >
-                    <option value="Beginner">Beginner (Foundational Movements)</option>
-                    <option value="Intermediate">Intermediate (Progressive Overload)</option>
-                    <option value="Advanced">Advanced (High Volume & Intensity)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                    Weekly Training Split
-                  </label>
-                  <select
-                    value={aiWorkoutForm.daysPerWeek}
-                    onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, daysPerWeek: Number(e.target.value) })}
-                    className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  >
-                    <option value={3}>3 Days (Full Body / Push-Pull-Legs)</option>
-                    <option value={4}>4 Days (Upper / Lower Hypertrophy)</option>
-                    <option value={5}>5 Days (Bro Split / Athletic Conditioning)</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                    Medical & Injury Constraints (AI Considers Exercise Substitutes)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Mild lower back strain, avoid heavy spinal loading, tight shoulder capsules"
-                    value={aiWorkoutForm.limitations}
-                    onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, limitations: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  />
-                </div>
-
-                <div className="md:col-span-2 flex justify-end">
-                  <button
-                    disabled={aiWorkoutLoading}
-                    onClick={handleGenerateAiWorkout}
-                    className="trainer-btn-primary flex items-center gap-2"
-                  >
-                    {aiWorkoutLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" /> Synthesizing Biomechanics...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" /> Generate AI Workout Protocol
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Generated AI Workout Review */}
-              {generatedAiWorkout && (
-                <div className="trainer-glass-card p-6 border-l-4 border-l-[#c5a880] space-y-5 animate-fadeIn">
-                  <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-                    <div>
-                      <span className="trainer-badge trainer-badge-gold">AI PROTOCOL SYNTHESIZED</span>
-                      <h3 className="text-xl font-serif text-white mt-1">{generatedAiWorkout.title}</h3>
-                      <p className="text-xs text-neutral-400 mt-1">{generatedAiWorkout.description}</p>
-                    </div>
-                    <button
-                      onClick={handleSaveAiWorkoutPlan}
-                      className="trainer-btn-primary flex items-center gap-2"
-                    >
-                      <Check className="w-4 h-4" /> Approve & Save Plan
-                    </button>
-                  </div>
-
-                  {/* Weekly Split Days */}
-                  <div className="space-y-4">
-                    {generatedAiWorkout.weeklySchedule.map((day, idx) => (
-                      <div key={idx} className="p-4 rounded-lg bg-neutral-900/60 border border-neutral-800">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-[#c5a880] uppercase tracking-wider">{day.day}</span>
-                            <span className="text-neutral-500">•</span>
-                            <span className="text-xs text-neutral-300 font-medium">{day.focus}</span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          {day.exercises.map((ex, exIdx) => (
-                            <div key={exIdx} className="p-2.5 rounded bg-black/40 border border-neutral-800/80">
-                              <p className="font-semibold text-neutral-200">{ex.exerciseName}</p>
-                              <p className="text-[11px] text-[#c5a880]">{ex.sets} sets × {ex.reps} ({ex.restTimeSec}s rest)</p>
-                              <p className="text-[10px] text-neutral-500 mt-1">{ex.instructions}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <AiWorkoutsTab
+              aiWorkoutForm={aiWorkoutForm}
+              setAiWorkoutForm={setAiWorkoutForm}
+              members={members}
+              aiWorkoutLoading={aiWorkoutLoading}
+              handleGenerateAiWorkout={handleGenerateAiWorkout}
+              generatedAiWorkout={generatedAiWorkout}
+              handleSaveAiWorkoutPlan={handleSaveAiWorkoutPlan}
+            />
           )}
 
-          {/* ================= 6. DIET PLANS & AI NUTRITION ================= */}
           {activeTab === 'diets' && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">Member Diet & Nutrition Management</h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Calculate target calories, macronutrient splits, and AI-tailored meal schedules.
-                  </p>
-                </div>
-              </div>
-
-              {/* AI Diet Generator Card */}
-              <div className="trainer-glass-card p-6 space-y-4 border-l-4 border-l-emerald-500">
-                <div className="flex items-center gap-2">
-                  <Utensils className="w-5 h-5 text-emerald-400" />
-                  <h3 className="font-serif text-lg text-white">AI Nutrition & Macro Synthesizer</h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Dietary Preference
-                    </label>
-                    <select
-                      value={aiDietForm.dietaryPreference}
-                      onChange={(e) => setAiDietForm({ ...aiDietForm, dietaryPreference: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    >
-                      <option value="Non-Vegetarian">Non-Vegetarian (Poultry / Fish)</option>
-                      <option value="Vegetarian">Vegetarian (Lacto / Ovo)</option>
-                      <option value="Vegan">Vegan (Plant-Based)</option>
-                      <option value="Keto">Ketogenic (High Fat Low Carb)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Target Daily Calories
-                    </label>
-                    <input
-                      type="number"
-                      value={aiDietForm.targetCalories}
-                      onChange={(e) => setAiDietForm({ ...aiDietForm, targetCalories: Number(e.target.value) })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div className="flex items-end">
-                    <button
-                      disabled={aiDietLoading}
-                      onClick={handleGenerateAiDiet}
-                      className="w-full trainer-btn-primary flex items-center justify-center gap-2"
-                    >
-                      {aiDietLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      Generate AI Diet
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Generated AI Diet Review */}
-              {generatedAiDiet && (
-                <div className="trainer-glass-card p-6 space-y-5 animate-fadeIn">
-                  <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-                    <div>
-                      <h3 className="text-xl font-serif text-white">{generatedAiDiet.title}</h3>
-                      <div className="flex items-center gap-4 text-xs text-neutral-400 mt-1">
-                        <span>Calories: <strong className="text-white">{generatedAiDiet.targetCalories} kcal</strong></span>
-                        <span>Protein: <strong className="text-emerald-400">{generatedAiDiet.macros.proteinGrams}g</strong></span>
-                        <span>Carbs: <strong className="text-[#c5a880]">{generatedAiDiet.macros.carbsGrams}g</strong></span>
-                        <span>Fats: <strong className="text-amber-400">{generatedAiDiet.macros.fatsGrams}g</strong></span>
-                      </div>
-                    </div>
-                    <button onClick={handleSaveAiDietPlan} className="trainer-btn-primary">
-                      Save & Assign Diet
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {generatedAiDiet.meals.map((meal, idx) => (
-                      <div key={idx} className="p-3.5 rounded-lg bg-neutral-900/60 border border-neutral-800">
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="font-bold text-[#c5a880]">{meal.category}</span>
-                          <span className="text-neutral-500">{meal.time}</span>
-                        </div>
-                        <p className="text-xs font-semibold text-neutral-200">{meal.name}</p>
-                        <ul className="mt-2 space-y-1 text-[11px] text-neutral-400 list-disc list-inside">
-                          {meal.items.map((it, itIdx) => (
-                            <li key={itIdx}>{it}</li>
-                          ))}
-                        </ul>
-                        <div className="mt-3 pt-2 border-t border-neutral-800 flex justify-between text-[10px] text-neutral-500">
-                          <span>{meal.calories} kcal</span>
-                          <span>P: {meal.protein}g | C: {meal.carbs}g | F: {meal.fats}g</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Saved Diets List */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dietPlans.map((dp) => (
-                  <div key={dp._id} className="trainer-glass-card p-5">
-                    <span className="trainer-badge trainer-badge-gold">{dp.dietaryPreference}</span>
-                    <h4 className="font-serif text-base text-white font-semibold mt-2">{dp.title}</h4>
-                    <p className="text-xs text-neutral-400 mt-1">Target: {dp.targetCalories} kcal</p>
-                    <div className="mt-3 flex gap-2 text-[10px] text-neutral-400">
-                      <span>Protein: {dp.macros?.proteinGrams}g</span>
-                      <span>Carbs: {dp.macros?.carbsGrams}g</span>
-                      <span>Fats: {dp.macros?.fatsGrams}g</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <DietsTab
+              aiDietForm={aiDietForm}
+              setAiDietForm={setAiDietForm}
+              aiDietLoading={aiDietLoading}
+              handleGenerateAiDiet={handleGenerateAiDiet}
+              generatedAiDiet={generatedAiDiet}
+              handleSaveAiDietPlan={handleSaveAiDietPlan}
+              dietPlans={dietPlans}
+            />
           )}
 
-          {/* ================= 7. BODY MEASUREMENTS & ASSESSMENTS ================= */}
-          {(activeTab === 'measurements' || activeTab === 'assessments' || activeTab === 'progress') && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">
-                    Biometric & Transformation Assessments
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Log BMI, circumferences (chest, arms, waist, thighs), body fat %, and transformation reports.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setNewAssessmentModal(true)}
-                  className="trainer-btn-primary flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Record Assessment
-                </button>
-              </div>
-
-              {/* Assessments List */}
-              <div className="trainer-glass-card overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#0b0b0b] text-neutral-400 uppercase tracking-wider text-[10px] border-b border-neutral-800">
-                    <tr>
-                      <th className="py-3 px-4">Athlete</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Weight</th>
-                      <th className="py-3 px-4">BMI</th>
-                      <th className="py-3 px-4">Body Fat %</th>
-                      <th className="py-3 px-4">Waist / Chest</th>
-                      <th className="py-3 px-4">Score</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-900">
-                    {assessments.map((as) => (
-                      <tr key={as._id} className="hover:bg-neutral-900/40">
-                        <td className="py-3 px-4 font-semibold text-neutral-200">
-                          {as.member?.name || 'Athlete'}
-                        </td>
-                        <td className="py-3 px-4 text-neutral-400">
-                          {new Date(as.assessmentDate).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 text-neutral-200">{as.weightKg} kg</td>
-                        <td className="py-3 px-4 text-[#c5a880]">{as.bmi || '23.4'}</td>
-                        <td className="py-3 px-4 text-neutral-300">{as.bodyFatPercentage || 14}%</td>
-                        <td className="py-3 px-4 text-neutral-400">
-                          {as.circumferences?.waist || '-'}cm / {as.circumferences?.chest || '-'}cm
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="trainer-badge trainer-badge-green">
-                            {as.transformationScore || 92}/100
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {(activeTab === 'assessments' || activeTab === 'measurements' || activeTab === 'progress') && (
+            <AssessmentsTab
+              assessments={assessments}
+              setNewAssessmentModal={setNewAssessmentModal}
+            />
           )}
 
-          {/* ================= 8. PERSONAL TRAINING & CALENDAR ================= */}
           {(activeTab === 'pt-sessions' || activeTab === 'calendar') && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">
-                    Personal Training & VIP Sanctuary Calendar
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Manage 1-on-1 private athlete sessions, coaching notes, and completions.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setNewSessionModal(true)}
-                  className="trainer-btn-primary flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Schedule PT Session
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ptSessions.map((s) => (
-                  <div key={s._id} className="trainer-glass-card p-5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-[#c5a880]">{s.startTime} - {s.endTime}</span>
-                        <span className={`trainer-badge ${s.status === 'Completed' ? 'trainer-badge-green' : 'trainer-badge-gold'}`}>
-                          {s.status}
-                        </span>
-                      </div>
-                      <h4 className="font-serif text-base text-neutral-100 font-semibold">{s.member?.name || 'Athlete'}</h4>
-                      <p className="text-xs text-neutral-400 mt-1">{s.trainingType} • {s.focusArea}</p>
-                      <p className="text-[11px] text-neutral-500 mt-2 italic">"{s.notes}"</p>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between text-xs">
-                      <span className="text-neutral-500">
-                        {new Date(s.sessionDate).toLocaleDateString()}
-                      </span>
-                      {s.status === 'Scheduled' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdatePTSessionStatus(s._id, 'Completed')}
-                            className="text-[11px] text-emerald-400 hover:underline"
-                          >
-                            Complete
-                          </button>
-                          <button
-                            onClick={() => handleUpdatePTSessionStatus(s._id, 'Cancelled')}
-                            className="text-[11px] text-red-400 hover:underline"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <SessionsTab
+              ptSessions={ptSessions}
+              setNewSessionModal={setNewSessionModal}
+              handleUpdatePTSessionStatus={handleUpdatePTSessionStatus}
+            />
           )}
 
-          {/* ================= 9. EXERCISE LIBRARY ================= */}
           {activeTab === 'exercises' && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-serif text-white tracking-wide">Exercise & Movement Library</h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Standard and custom biomechanical exercise protocols with equipment filters.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    placeholder="Search exercise..."
-                    value={exerciseSearch}
-                    onChange={(e) => setExerciseSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && loadExerciseLibrary()}
-                    className="bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                  />
-                  <button
-                    onClick={() => setNewExerciseModal(true)}
-                    className="trainer-btn-primary flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" /> Add Exercise
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {exercises.map((ex) => (
-                  <div key={ex._id} className="trainer-glass-card p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="trainer-badge trainer-badge-gold">{ex.category}</span>
-                      <span className="text-[10px] text-neutral-500">{ex.difficulty}</span>
-                    </div>
-                    <h4 className="font-serif text-base text-white font-semibold">{ex.name}</h4>
-                    <p className="text-xs text-neutral-400 mt-1">Target: {ex.targetMuscle}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">Equipment: {ex.equipment}</p>
-                    <div className="mt-3 pt-3 border-t border-neutral-800 text-[11px] text-neutral-400">
-                      Default: {ex.defaultSets} sets × {ex.defaultReps} ({ex.restTimeSec}s rest)
-                    </div>
-                    {ex.instructions && (
-                      <p className="text-[10px] text-neutral-500 mt-2 line-clamp-2">{ex.instructions}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ExercisesTab
+              exercises={exercises}
+              exerciseSearch={exerciseSearch}
+              setExerciseSearch={setExerciseSearch}
+              loadExerciseLibrary={loadExerciseLibrary}
+              setNewExerciseModal={setNewExerciseModal}
+            />
           )}
 
-          {/* ================= 10. REAL-TIME MESSAGES & CHAT ================= */}
           {activeTab === 'messages' && (
-            <div className="max-w-6xl mx-auto h-[680px] trainer-glass-card flex overflow-hidden">
-              {/* Member List */}
-              <div className="w-1/3 border-r border-neutral-800 flex flex-col">
-                <div className="p-4 border-b border-neutral-800">
-                  <h3 className="font-serif text-sm uppercase tracking-wider text-neutral-300">Athlete Roster</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-neutral-900 custom-scrollbar">
-                  {members.map((m) => (
-                    <button
-                      key={m._id}
-                      onClick={() => {
-                        setActiveChatMember(m);
-                        loadChat(m._id);
-                      }}
-                      className={`w-full p-3.5 flex items-center gap-3 text-left transition ${
-                        activeChatMember?._id === m._id ? 'bg-[#c5a880]/10 border-l-2 border-l-[#c5a880]' : 'hover:bg-neutral-900/40'
-                      }`}
-                    >
-                      <img
-                        src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-                        alt=""
-                        className="w-9 h-9 rounded-full object-cover border border-[#c5a880]/30"
-                      />
-                      <div className="overflow-hidden">
-                        <p className="text-xs font-semibold text-neutral-200 truncate">{m.name}</p>
-                        <p className="text-[10px] text-neutral-500 truncate">{m.fitnessGoal || 'General Fitness'}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chat View */}
-              <div className="flex-1 flex flex-col justify-between bg-black/40">
-                {activeChatMember ? (
-                  <>
-                    <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={activeChatMember.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-                          alt=""
-                          className="w-8 h-8 rounded-full object-cover border border-[#c5a880]/30"
-                        />
-                        <div>
-                          <p className="text-xs font-semibold text-neutral-200">{activeChatMember.name}</p>
-                          <p className="text-[10px] text-emerald-400">Direct Athlete Channel</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                      {chatMessages.length === 0 ? (
-                        <div className="text-center py-20 text-xs text-neutral-500">
-                          No message history yet. Send a guidance note or workout plan!
-                        </div>
-                      ) : (
-                        chatMessages.map((msg) => {
-                          const isMe = msg.sender?._id === currentUser?._id || msg.sender?.role === 'Trainer';
-                          return (
-                            <div key={msg._id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                              <div
-                                className={`max-w-xs md:max-w-md p-3 rounded-lg text-xs ${
-                                  isMe
-                                    ? 'bg-[#c5a880]/20 text-neutral-100 border border-[#c5a880]/40'
-                                    : 'bg-neutral-900 text-neutral-300 border border-neutral-800'
-                                }`}
-                              >
-                                <p>{msg.message}</p>
-                                <span className="block text-[9px] text-neutral-500 text-right mt-1">
-                                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div className="p-4 border-t border-neutral-800 flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Type workout instruction, diet advice or feedback..."
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                        className="flex-1 bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                      />
-                      <button
-                        onClick={handleSendChat}
-                        className="trainer-btn-primary p-2.5 rounded-lg"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-neutral-500 text-xs">
-                    <MessageSquare className="w-8 h-8 text-[#c5a880]/40 mb-2" />
-                    Select an athlete from the roster to start direct communication.
-                  </div>
-                )}
-              </div>
-            </div>
+            <MessagesTab
+              members={members}
+              activeChatMember={activeChatMember}
+              setActiveChatMember={setActiveChatMember}
+              loadChat={loadChat}
+              chatMessages={chatMessages}
+              chatInput={chatInput}
+              setChatInput={setChatInput}
+              handleSendChat={handleSendChat}
+              currentUser={currentUser}
+            />
           )}
 
-          {/* ================= 11. REPORTS & ANALYTICS ================= */}
           {activeTab === 'reports' && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              <div>
-                <h2 className="text-2xl font-serif text-white tracking-wide">Coach Performance & Transformation Reports</h2>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Adherence metrics, session completion rates, and client satisfaction scores.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="trainer-glass-card p-5">
-                  <span className="text-xs uppercase text-neutral-400">Session Completion Rate</span>
-                  <div className="text-3xl font-serif text-emerald-400 font-semibold mt-2">
-                    {reports?.completionRate || 96}%
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    {reports?.completedSessions || 44} sessions completed of {reports?.totalSessions || 46}
-                  </p>
-                </div>
-
-                <div className="trainer-glass-card p-5">
-                  <span className="text-xs uppercase text-neutral-400">Client Adherence & Progress</span>
-                  <div className="text-3xl font-serif text-[#c5a880] font-semibold mt-2">
-                    {reports?.clientFeedbackScore || '4.95'}/5.0
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">Elite athlete satisfaction index</p>
-                </div>
-
-                <div className="trainer-glass-card p-5">
-                  <span className="text-xs uppercase text-neutral-400">Total Assessments Completed</span>
-                  <div className="text-3xl font-serif text-white font-semibold mt-2">
-                    {reports?.assessmentsDone || 18}
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">Biometric reports generated</p>
-                </div>
-              </div>
-            </div>
+            <ReportsTab reports={reports} />
           )}
 
-          {/* ================= 12. NOTIFICATIONS ================= */}
           {activeTab === 'notifications' && (
-            <div className="space-y-4 max-w-4xl mx-auto">
-              <h2 className="text-2xl font-serif text-white tracking-wide">Trainer Notifications & Alerts</h2>
-              <div className="trainer-glass-card divide-y divide-neutral-900">
-                {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-neutral-500">No pending alerts.</div>
-                ) : (
-                  notifications.map((n) => (
-                    <div key={n._id} className="p-4 flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold text-neutral-200">{n.title}</p>
-                        <p className="text-xs text-neutral-400 mt-0.5">{n.message}</p>
-                        <span className="text-[10px] text-neutral-500 mt-1 block">
-                          {new Date(n.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      {!n.isRead && (
-                        <button
-                          onClick={async () => {
-                            await markTrainerNotificationRead(n._id);
-                            loadNotifications();
-                          }}
-                          className="text-[10px] text-[#c5a880] hover:underline"
-                        >
-                          Mark Read
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <NotificationsTab
+              notifications={notifications}
+              markTrainerNotificationRead={markTrainerNotificationRead}
+              loadNotifications={loadNotifications}
+            />
           )}
 
-          {/* ================= 13. TRAINER PROFILE & AVAILABILITY ================= */}
           {(activeTab === 'profile' || activeTab === 'settings') && (
-            <div className="max-w-3xl mx-auto space-y-6">
-              <div>
-                <h2 className="text-2xl font-serif text-white tracking-wide">Master Coach Profile & Availability</h2>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Update your bio, credentials, active sanctuary working hours, and specializations.
-                </p>
-              </div>
-
-              <form onSubmit={handleSaveProfile} className="trainer-glass-card p-6 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Coach Name
-                    </label>
-                    <input
-                      type="text"
-                      value={trainerProfile.name}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, name: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      value={trainerProfile.phone}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, phone: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Working Hours
-                    </label>
-                    <input
-                      type="text"
-                      value={trainerProfile.workingHours}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, workingHours: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Available Days
-                    </label>
-                    <input
-                      type="text"
-                      value={trainerProfile.availableDays}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, availableDays: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Specializations (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={trainerProfile.specialties}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, specialties: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
-                      Bio & Coaching Philosophy
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={trainerProfile.bio}
-                      onChange={(e) => setTrainerProfile({ ...trainerProfile, bio: e.target.value })}
-                      className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-3">
-                  <button type="submit" className="trainer-btn-primary">
-                    Save Profile Changes
-                  </button>
-                </div>
-              </form>
-            </div>
+            <ProfileTab
+              trainerProfile={trainerProfile}
+              setTrainerProfile={setTrainerProfile}
+              handleSaveProfile={handleSaveProfile}
+            />
           )}
         </main>
       </div>
 
-      {/* Check-In Modal */}
-      {checkInModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="trainer-glass-card w-full max-w-md p-6 space-y-4">
-            <h3 className="font-serif text-lg text-white">Record Member Check-In</h3>
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">Select Member</label>
-              <select
-                value={selectedMemberForCheckIn}
-                onChange={(e) => setSelectedMemberForCheckIn(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg"
-              >
-                <option value="">Choose an athlete...</option>
-                {members.map((m) => (
-                  <option key={m._id} value={m._id}>{m.name} ({m.email})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">Activity Type</label>
-              <select
-                value={activityType}
-                onChange={(e) => setActivityType(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg"
-              >
-                <option value="Workout">Workout (Gym Floor)</option>
-                <option value="Private Training">Private Training</option>
-                <option value="Spa">Cryo & Spa Sanctuary</option>
-                <option value="Class">Master Class</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-3 pt-3">
-              <button onClick={() => setCheckInModal(false)} className="px-4 py-2 text-xs text-neutral-400 hover:text-white">
-                Cancel
-              </button>
-              <button onClick={handleCheckInMember} className="trainer-btn-primary">
-                Confirm Check-In
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals & Drawers */}
+      <CheckInModal
+        isOpen={checkInModal}
+        onClose={() => setCheckInModal(false)}
+        members={members}
+        selectedMemberForCheckIn={selectedMemberForCheckIn}
+        setSelectedMemberForCheckIn={setSelectedMemberForCheckIn}
+        activityType={activityType}
+        setActivityType={setActivityType}
+        handleCheckInMember={handleCheckInMember}
+      />
 
-      {/* Member Dossier Drawer */}
-      {memberDetailDrawer && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-end">
-          <div className="w-full max-w-xl bg-[#090909] border-l border-[#c5a880]/20 h-full p-6 overflow-y-auto space-y-6 custom-scrollbar animate-slideLeft">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-              <div className="flex items-center gap-3">
-                <img
-                  src={memberDetailDrawer.member?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
-                  alt=""
-                  className="w-12 h-12 rounded-full object-cover border border-[#c5a880]/30"
-                />
-                <div>
-                  <h3 className="font-serif text-lg text-white">{memberDetailDrawer.member?.name}</h3>
-                  <p className="text-xs text-[#c5a880]">{memberDetailDrawer.member?.memberCategory || 'General Member'}</p>
-                </div>
-              </div>
-              <button onClick={() => setMemberDetailDrawer(null)} className="p-2 text-neutral-400 hover:text-white">
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
+      <MemberDetailDrawer
+        memberDetailDrawer={memberDetailDrawer}
+        onClose={() => setMemberDetailDrawer(null)}
+        addTrainerMemberNote={addTrainerMemberNote}
+        showToast={showToast}
+        viewMemberDrawer={viewMemberDrawer}
+      />
 
-            <div className="space-y-4 text-xs">
-              <div className="p-4 rounded-lg bg-neutral-900/60 border border-neutral-800 space-y-2">
-                <h4 className="font-bold text-[#c5a880] uppercase tracking-wider text-[11px]">Fitness Profile & Metrics</h4>
-                <div className="grid grid-cols-2 gap-2 text-neutral-300">
-                  <div>Current Weight: <span className="text-white font-medium">{memberDetailDrawer.member?.currentWeight || 70} kg</span></div>
-                  <div>Target Weight: <span className="text-[#c5a880] font-medium">{memberDetailDrawer.member?.targetWeight || 68} kg</span></div>
-                  <div>Height: <span className="text-white font-medium">{memberDetailDrawer.member?.heightCm || 178} cm</span></div>
-                  <div>Goal: <span className="text-white font-medium">{memberDetailDrawer.member?.fitnessGoal || 'General Fitness'}</span></div>
-                </div>
-              </div>
+      <NewAssessmentModal
+        isOpen={newAssessmentModal}
+        onClose={() => setNewAssessmentModal(false)}
+        members={members}
+        assessmentForm={assessmentForm}
+        setAssessmentForm={setAssessmentForm}
+        handleCreateAssessment={handleCreateAssessment}
+      />
 
-              <div className="p-4 rounded-lg bg-neutral-900/60 border border-neutral-800 space-y-2">
-                <h4 className="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Injuries & Medical Conditions</h4>
-                <p className="text-neutral-300">
-                  {memberDetailDrawer.member?.injuries?.length
-                    ? memberDetailDrawer.member.injuries.join(', ')
-                    : 'None reported.'}
-                </p>
-              </div>
+      <NewSessionModal
+        isOpen={newSessionModal}
+        onClose={() => setNewSessionModal(false)}
+        members={members}
+        ptSessionForm={ptSessionForm}
+        setPtSessionForm={setPtSessionForm}
+        handleSchedulePT={handleSchedulePT}
+      />
 
-              <div className="p-4 rounded-lg bg-neutral-900/60 border border-neutral-800 space-y-2">
-                <h4 className="font-bold text-[#c5a880] uppercase tracking-wider text-[11px]">Add Coach Note</h4>
-                <textarea
-                  id="coachNoteInput"
-                  rows={2}
-                  placeholder="Record observation on squat depth, form, fatigue..."
-                  className="w-full bg-black/60 border border-neutral-800 p-2 rounded text-neutral-200"
-                />
-                <button
-                  onClick={async () => {
-                    const el = document.getElementById('coachNoteInput');
-                    if (el && el.value) {
-                      await addTrainerMemberNote(memberDetailDrawer.member._id, { content: el.value });
-                      showToast('Note appended to athlete history');
-                      viewMemberDrawer(memberDetailDrawer.member._id);
-                    }
-                  }}
-                  className="trainer-btn-primary text-xs"
-                >
-                  Save Note
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <NewWorkoutModal
+        isOpen={newWorkoutModal}
+        onClose={() => setNewWorkoutModal(false)}
+        workoutForm={workoutForm}
+        setWorkoutForm={setWorkoutForm}
+        handleCreateWorkout={handleCreateWorkout}
+      />
 
-      {/* Record Assessment Modal */}
-      {newAssessmentModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="trainer-glass-card w-full max-w-lg p-6 space-y-4">
-            <h3 className="font-serif text-lg text-white">Record Fitness & Transformation Assessment</h3>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-neutral-400 mb-1">Athlete</label>
-                <select
-                  value={assessmentForm.member}
-                  onChange={(e) => setAssessmentForm({ ...assessmentForm, member: e.target.value })}
-                  className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                >
-                  <option value="">Select athlete...</option>
-                  {members.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-neutral-400 mb-1">Weight (kg)</label>
-                  <input
-                    type="number"
-                    value={assessmentForm.weightKg}
-                    onChange={(e) => setAssessmentForm({ ...assessmentForm, weightKg: Number(e.target.value) })}
-                    className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1">Height (cm)</label>
-                  <input
-                    type="number"
-                    value={assessmentForm.heightCm}
-                    onChange={(e) => setAssessmentForm({ ...assessmentForm, heightCm: Number(e.target.value) })}
-                    className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1">Body Fat %</label>
-                  <input
-                    type="number"
-                    value={assessmentForm.bodyFatPercentage}
-                    onChange={(e) => setAssessmentForm({ ...assessmentForm, bodyFatPercentage: Number(e.target.value) })}
-                    className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-neutral-400 mb-1">Trainer Observations</label>
-                <textarea
-                  rows={2}
-                  value={assessmentForm.notes}
-                  onChange={(e) => setAssessmentForm({ ...assessmentForm, notes: e.target.value })}
-                  className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3">
-              <button onClick={() => setNewAssessmentModal(false)} className="px-4 py-2 text-xs text-neutral-400">
-                Cancel
-              </button>
-              <button onClick={handleCreateAssessment} className="trainer-btn-primary">
-                Save Assessment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Book PT Session Modal */}
-      {newSessionModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="trainer-glass-card w-full max-w-md p-6 space-y-4">
-            <h3 className="font-serif text-lg text-white">Book VIP Personal Training Session</h3>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-neutral-400 mb-1">Athlete</label>
-                <select
-                  value={ptSessionForm.member}
-                  onChange={(e) => setPtSessionForm({ ...ptSessionForm, member: e.target.value })}
-                  className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                >
-                  <option value="">Choose athlete...</option>
-                  {members.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-neutral-400 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={ptSessionForm.sessionDate}
-                  onChange={(e) => setPtSessionForm({ ...ptSessionForm, sessionDate: e.target.value })}
-                  className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-neutral-400 mb-1">Start Time</label>
-                  <input
-                    type="text"
-                    value={ptSessionForm.startTime}
-                    onChange={(e) => setPtSessionForm({ ...ptSessionForm, startTime: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1">End Time</label>
-                  <input
-                    type="text"
-                    value={ptSessionForm.endTime}
-                    onChange={(e) => setPtSessionForm({ ...ptSessionForm, endTime: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-neutral-400 mb-1">Session Focus Area</label>
-                <input
-                  type="text"
-                  value={ptSessionForm.focusArea}
-                  onChange={(e) => setPtSessionForm({ ...ptSessionForm, focusArea: e.target.value })}
-                  className="w-full bg-neutral-900 border border-neutral-800 py-2 px-3 rounded text-neutral-200"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3">
-              <button onClick={() => setNewSessionModal(false)} className="px-4 py-2 text-xs text-neutral-400">
-                Cancel
-              </button>
-              <button onClick={handleSchedulePT} className="trainer-btn-primary">
-                Confirm Booking
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NewExerciseModal
+        isOpen={newExerciseModal}
+        onClose={() => setNewExerciseModal(false)}
+        exerciseForm={exerciseForm}
+        setExerciseForm={setExerciseForm}
+        handleCreateExercise={handleCreateExercise}
+      />
     </div>
   );
 }

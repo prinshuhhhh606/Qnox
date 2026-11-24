@@ -1,0 +1,165 @@
+/* MasterTrainers.css - World-Class Coaches Roster & Horizontal Slider */
+.qnox-trainers-section {
+  padding-top: 100px;
+  padding-bottom: 110px;
+  background-color: #070707;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background subtle ambient glows */
+.qnox-trainers-section::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  right: -5%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(197, 168, 128, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.qnox-trainers-section::after {
+  content: '';
+  position: absolute;
+  bottom: 5%;
+  left: -5%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(197, 168, 128, 0.03) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Horizontal Track */
+.qnox-trainers-slider {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  padding: 16px 4px 28px 4px;
+  cursor: grab;
+  user-select: none;
+}
+
+.qnox-trainers-slider.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+}
+
+.qnox-trainers-slider::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Individual Slide Card */
+.qnox-trainer-slide {
+  flex: 0 0 340px;
+  max-width: 360px;
+  scroll-snap-align: start;
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease, box-shadow 0.4s ease;
+  position: relative;
+}
+
+@media (max-width: 640px) {
+  .qnox-trainer-slide {
+    flex: 0 0 290px;
+  }
+}
+
+.qnox-trainer-slide:hover {
+  transform: translateY(-8px);
+  border-color: rgba(197, 168, 128, 0.7);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.95), 0 0 25px rgba(197, 168, 128, 0.1);
+}
+
+.qnox-trainer-badge {
+  padding: 4px 10px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #c5a880;
+  border: 1px solid rgba(197, 168, 128, 0.35);
+  backdrop-filter: blur(12px);
+}
+
+/* Slider Navigation Buttons */
+.qnox-slider-nav-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(10, 10, 10, 0.8);
+  color: #ffffff;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+.qnox-slider-nav-btn:hover:not(:disabled) {
+  border-color: #c5a880;
+  color: #c5a880;
+  background-color: rgba(197, 168, 128, 0.08);
+  transform: scale(1.06);
+  box-shadow: 0 0 15px rgba(197, 168, 128, 0.2);
+}
+
+.qnox-slider-nav-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.qnox-slider-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Edge Fade Gradients */
+.qnox-slider-fade-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60px;
+  height: 100%;
+  background: linear-gradient(to right, #070707 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.qnox-slider-fade-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60px;
+  height: 100%;
+  background: linear-gradient(to left, #070707 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Animated Progress Bar */
+.qnox-progress-rail {
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.1);
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.qnox-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c5a880 0%, #ffffff 100%);
+  transition: width 0.3s ease-out;
+}

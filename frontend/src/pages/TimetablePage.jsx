@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Calendar, Clock, User, Filter, CheckCircle, AlertCircle, ArrowUpRight, Search, MapPin, Zap } from 'lucide-react';
 import { fetchSchedule, reserveClassBooking } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 
 const defaultClasses = [
   {
@@ -205,7 +208,13 @@ const defaultClasses = [
 
 const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export default function TimetablePage({ currentUser, onOpenAuth, onShowToast }) {
+export default function TimetablePage(props) {
+  const outletCtx = useOutletContext() || {};
+  const { currentUser: authUser } = useAuth();
+  const { showToast: notifToast } = useNotifications();
+  const currentUser = props.currentUser || authUser;
+  const onOpenAuth = props.onOpenAuth || outletCtx.onOpenAuth;
+  const onShowToast = props.onShowToast || notifToast;
   const [classes, setClasses] = useState(defaultClasses);
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [selectedCategory, setSelectedCategory] = useState('ALL');

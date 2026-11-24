@@ -1,0 +1,7 @@
+/* Mobile & responsive media query adjustments */
+@media (max-width: 768px) {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+}

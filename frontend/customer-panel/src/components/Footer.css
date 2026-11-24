@@ -1,0 +1,52 @@
+/* Footer.css - Third Space Replica Luxury Hallmark */
+.qnox-footer {
+  background-color: #030303;
+  color: #ffffff;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 80px;
+  padding-bottom: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.qnox-footer-glow {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(197, 168, 128, 0.05) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(160px);
+  pointer-events: none;
+}
+
+.qnox-watermark-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 48px 0;
+  user-select: none;
+}
+
+.qnox-watermark-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(2.2rem, 7.2vw, 7.8rem);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.08);
+  text-transform: uppercase;
+  display: inline-block;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  text-align: center;
+  user-select: none;
+  transition: color 0.7s ease, transform 0.7s ease;
+}
+
+.qnox-watermark-title:hover {
+  color: rgba(255, 255, 255, 0.2);
+}

@@ -17,9 +17,34 @@ export default function ApplicationStatusPage() {
   const [application, setApplication] = useState(null);
   const [error, setError] = useState('');
 
+  const [recentLocalApps, setRecentLocalApps] = useState([]);
+
   useEffect(() => {
+    // Read local applications on this device
+    try {
+      const localStore = JSON.parse(localStorage.getItem('qnox_local_trainer_applications') || '[]');
+      setRecentLocalApps(localStore);
+    } catch (e) {}
+
     if (initialAppId || initialEmail) {
       handleSearch(initialAppId, initialEmail);
+    } else {
+      // Auto-load last submitted application on this device
+      try {
+        const lastId = localStorage.getItem('qnox_last_trainer_app_id');
+        const lastEmail = localStorage.getItem('qnox_last_trainer_email');
+        const localApps = JSON.parse(localStorage.getItem('qnox_local_trainer_applications') || '[]');
+        if (lastId || lastEmail) {
+          if (lastId) setApplicationId(lastId);
+          if (lastEmail) setEmail(lastEmail);
+          handleSearch(lastId || '', lastEmail || '');
+        } else if (localApps.length > 0) {
+          const first = localApps[0];
+          setApplicationId(first.applicationId);
+          setEmail(first.email);
+          handleSearch(first.applicationId, first.email);
+        }
+      } catch (e) {}
     }
   }, [initialAppId, initialEmail]);
 
@@ -152,6 +177,35 @@ export default function ApplicationStatusPage() {
             <div className="mt-4 p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {recentLocalApps.length > 0 && !application && (
+            <div className="mt-6 pt-5 border-t border-neutral-800">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#c5a880] block mb-2">
+                Recently Submitted Applications on this Device:
+              </span>
+              <div className="space-y-2">
+                {recentLocalApps.map((a) => (
+                  <button
+                    key={a.applicationId}
+                    type="button"
+                    onClick={() => {
+                      setApplicationId(a.applicationId);
+                      setEmail(a.email);
+                      handleSearch(a.applicationId, a.email);
+                    }}
+                    className="w-full p-3 bg-[#121212] hover:bg-[#1a1a1a] border border-neutral-800 hover:border-[#c5a880]/50 rounded-lg flex items-center justify-between text-left text-xs transition"
+                  >
+                    <div>
+                      <span className="font-mono text-[#c5a880] font-bold mr-2">{a.applicationId}</span>
+                      <span className="text-white font-medium">{a.fullName}</span>
+                      <span className="text-neutral-500 text-[11px] block">{a.email}</span>
+                    </div>
+                    {getStatusBadge(a.status || 'Pending')}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

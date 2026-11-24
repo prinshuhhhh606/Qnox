@@ -6,8 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:customer": "npm run dev --prefix customer-panel",
+    "dev:admin": "npm run dev --prefix admin-panel",
+    "dev:trainer": "npm run dev --prefix trainer-panel",
+    "build:customer": "npm run build --prefix customer-panel",
+    "build:admin": "npm run build --prefix admin-panel",
+    "build:trainer": "npm run build --prefix trainer-panel",
+    "build:all": "npm run build:customer && npm run build:admin && npm run build:trainer"
   },
+  "workspaces": [
+    "customer-panel",
+    "admin-panel",
+    "trainer-panel"
+  ],
   "dependencies": {
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.19",

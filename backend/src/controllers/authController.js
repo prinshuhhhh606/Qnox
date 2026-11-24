@@ -79,22 +79,58 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email }).select('+password');
+    let user = null;
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState === 1) {
+      try {
+        user = await User.findOne({ email }).select('+password');
+      } catch (e) {}
+    }
+
     if (!user) {
-      // Check if this email has a pending or rejected trainer application
-      const TrainerApplication = require('../models/TrainerApplication');
-      const pendingApp = await TrainerApplication.findOne({ email: email.toLowerCase() });
-      if (pendingApp) {
-        if (pendingApp.status === 'Pending' || pendingApp.status === 'Under Review') {
+      // Check if this email has a pending, rejected, or approved trainer application
+      const { findInMemoryApplicationByEmail } = require('./trainerApplicationController');
+      let app = null;
+      if (mongoose.connection.readyState === 1) {
+        try {
+          const TrainerApplication = require('../models/TrainerApplication');
+          app = await TrainerApplication.findOne({ email: email.toLowerCase() });
+        } catch (e) {}
+      }
+      if (!app) {
+        app = findInMemoryApplicationByEmail(email.toLowerCase());
+      }
+
+      if (app) {
+        if (app.status === 'Pending' || app.status === 'Under Review') {
           return res.status(403).json({
             success: false,
-            message: `Your trainer application (${pendingApp.applicationId}) is currently pending admin review. You can only log in after approval.`,
+            message: `Your trainer application (${app.applicationId}) is currently pending admin review. You can only log in after approval.`,
           });
-        } else if (pendingApp.status === 'Rejected') {
+        } else if (app.status === 'Rejected') {
           return res.status(403).json({
             success: false,
-            message: `Your trainer application was rejected: "${pendingApp.adminRemarks || 'Did not meet compliance standards'}".`,
+            message: `Your trainer application was rejected: "${app.adminRemarks || 'Did not meet compliance standards'}".`,
           });
+        } else if (app.status === 'Approved') {
+          // If approved, check password and authenticate directly as Trainer
+          if (app.password && app.password !== password) {
+            return res.status(401).json({
+              success: false,
+              message: 'Invalid credentials. Access rejected.',
+            });
+          }
+          const approvedUser = {
+            _id: app._id || 'trn_user_' + Date.now(),
+            name: app.fullName,
+            email: app.email,
+            phone: app.phone,
+            role: 'Trainer',
+            avatar: app.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800',
+            membership: null,
+            createdAt: app.createdAt || new Date().toISOString(),
+          };
+          return sendTokenResponse(approvedUser, 200, res, `Welcome to QNOX Master Coach Portal, ${approvedUser.name}.`);
         }
       }
 

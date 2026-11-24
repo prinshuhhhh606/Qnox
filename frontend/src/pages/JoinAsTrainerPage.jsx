@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   CheckCircle, ArrowRight, ArrowLeft, Upload, Shield, Award,
   Dumbbell, Sparkles, AlertCircle, FileText, Lock, User,
@@ -9,9 +9,20 @@ import { submitTrainerApplication } from '../services/api';
 
 export default function JoinAsTrainerPage({ onShowToast, onOpenTrainerLogin }) {
   const navigate = useNavigate();
+  const outletCtx = useOutletContext() || {};
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
+
+  const handleTrainerLogin = () => {
+    if (onOpenTrainerLogin) {
+      onOpenTrainerLogin();
+    } else if (outletCtx.onOpenAuth) {
+      outletCtx.onOpenAuth('trainer');
+    } else {
+      navigate('/trainer');
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -270,8 +281,8 @@ export default function JoinAsTrainerPage({ onShowToast, onOpenTrainerLogin }) {
               </a>
               <button
                 type="button"
-                onClick={onOpenTrainerLogin}
-                className="px-8 py-3.5 bg-[#c5a880]/20 border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black font-semibold text-xs uppercase tracking-widest rounded-lg shadow-lg transition flex items-center gap-2"
+                onClick={handleTrainerLogin}
+                className="px-8 py-3.5 bg-[#c5a880]/20 border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black font-semibold text-xs uppercase tracking-widest rounded-lg shadow-lg transition flex items-center gap-2 cursor-pointer"
               >
                 <Dumbbell className="w-4 h-4" />
                 <span>Trainer Login</span>

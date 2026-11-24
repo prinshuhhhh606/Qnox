@@ -1,0 +1,10 @@
+:root {
+  --color-gold: #c5a880;
+  --color-gold-hover: #b4976f;
+  --color-gold-light: #e8d7be;
+  --color-bg-deep: #050505;
+  --color-bg-card: #090909;
+  --color-bg-card-alt: #101010;
+  --color-border-subtle: rgba(197, 168, 128, 0.15);
+  --color-border-active: rgba(197, 168, 128, 0.4);
+}

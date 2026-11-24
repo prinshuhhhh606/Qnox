@@ -6,8 +6,15 @@
     "install:all": "npm install --prefix backend && npm install --prefix frontend",
     "start": "node backend/server.js",
     "backend": "node backend/server.js",
-    "frontend": "npm run dev --prefix frontend",
+    "frontend": "npm run dev --prefix frontend/customer-panel",
+    "customer": "npm run dev --prefix frontend/customer-panel",
+    "admin": "npm run dev --prefix frontend/admin-panel",
+    "trainer": "npm run dev --prefix frontend/trainer-panel",
     "build:frontend": "npm run build --prefix frontend",
+    "build:customer": "npm run build --prefix frontend/customer-panel",
+    "build:admin": "npm run build --prefix frontend/admin-panel",
+    "build:trainer": "npm run build --prefix frontend/trainer-panel",
+    "build:all": "npm run build:customer && npm run build:admin && npm run build:trainer",
     "test:backend": "npm test --prefix backend"
   },
   "keywords": [

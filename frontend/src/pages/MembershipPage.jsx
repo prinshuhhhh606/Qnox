@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Check, Star, Shield, Crown, Sparkles, ArrowRight, HelpCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { fetchMembershipPlans } from '../services/api';
 
@@ -126,7 +127,10 @@ const faqs = [
   },
 ];
 
-export default function MembershipPage({ onOpenTourModal, onSelectPlanForCheckout }) {
+export default function MembershipPage(props) {
+  const outletCtx = useOutletContext() || {};
+  const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal;
+  const onSelectPlanForCheckout = props.onSelectPlanForCheckout || outletCtx.onSelectPlanForCheckout;
   const [plans, setPlans] = useState(defaultTiers);
   const [duration, setDuration] = useState('monthly'); // 'monthly' | 'quarterly' | 'halfYearly' | 'yearly'
   const [openFaq, setOpenFaq] = useState(null);

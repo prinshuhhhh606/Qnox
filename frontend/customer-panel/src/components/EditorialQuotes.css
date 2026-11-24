@@ -1,0 +1,31 @@
+/* EditorialQuotes.css - Press Acclaim & Brand Ticker */
+.qnox-press-section {
+  padding-top: 100px;
+  padding-bottom: 100px;
+  background-color: #050505;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.qnox-quote-card {
+  background-color: #090909;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: border-color 0.3s ease;
+}
+
+.qnox-quote-card:hover {
+  border-color: rgba(197, 168, 128, 0.4);
+}
+
+.qnox-marquee-container {
+  margin-top: 80px;
+  padding: 32px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}

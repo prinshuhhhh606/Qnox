@@ -20,7 +20,11 @@ export default function Toast({ toasts = [], onDismiss }) {
               <div className="qnox-toast-title">
                 {toast.title || (type === 'success' ? 'SUCCESS' : type === 'error' ? 'ALERT' : 'NOTICE')}
               </div>
-              <div className="qnox-toast-msg">{toast.message}</div>
+              <div className="qnox-toast-msg">
+                {typeof toast.message === 'object' && toast.message !== null
+                  ? (toast.message.message || JSON.stringify(toast.message))
+                  : String(toast.message || '')}
+              </div>
             </div>
             <button
               onClick={() => onDismiss(toast.id)}

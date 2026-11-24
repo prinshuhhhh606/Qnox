@@ -1,0 +1,51 @@
+/* ScheduleSection.css - Live Masterclass Timetable */
+.qnox-schedule-section {
+  padding-top: 110px;
+  padding-bottom: 110px;
+  background-color: #050505;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.qnox-day-btn {
+  padding: 10px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #0a0a0a;
+  color: #a3a3a3;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.qnox-day-btn.active {
+  background-color: #ffffff;
+  color: #050505;
+  border-color: #ffffff;
+}
+
+.qnox-schedule-card {
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: all 0.3s ease;
+}
+
+.qnox-schedule-card:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+@media (min-width: 768px) {
+  .qnox-schedule-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

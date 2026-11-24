@@ -143,6 +143,7 @@ export default function Footer({ onOpenTourModal }) {
             <ul className="space-y-2.5 text-neutral-400 font-light">
               <li><Link to="/trainers" className="hover:text-white transition-colors">Master Practitioners</Link></li>
               <li><Link to="/join-as-trainer" className="text-[#c5a880] hover:text-white font-medium transition-colors">Join as Trainer (Apply)</Link></li>
+              <li><Link to="/trainer" className="text-[#c5a880] hover:text-white font-medium transition-colors">Trainer Portal Login</Link></li>
               <li><Link to="/trainer/application-status" className="hover:text-white transition-colors">Application Status</Link></li>
               <li><Link to="/press" className="hover:text-white transition-colors">Press & Critical Reviews</Link></li>
               <li><Link to="/press" className="hover:text-white transition-colors">The Longevity Journal</Link></li>
