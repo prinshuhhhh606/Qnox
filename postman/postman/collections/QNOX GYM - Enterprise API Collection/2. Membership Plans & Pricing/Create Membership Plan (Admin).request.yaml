@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{base_url}}/membership-plans"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "name": "The Obsidian Black",
+      "code": "OBSIDIAN_BLACK",
+      "subtitle": "The Pinnacle of Private Performance",
+      "description": "Spanning dark basalt stone, hand-finished bronze, slate ozone pool and hypoxic recovery.",
+      "pricing": {
+        "monthly": 1500,
+        "quarterly": 4200,
+        "halfYearly": 7800,
+        "yearly": 14500
+      },
+      "benefits": [
+        "25m Natural Slate Ozone Pool Access",
+        "Sub-Zero Cryotherapy (-110°C)",
+        "Hypoxic Altitude Suite",
+        "Private Valet & Concierge"
+      ],
+      "tierLevel": "VIP",
+      "status": "Active"
+    }
+order: 4000

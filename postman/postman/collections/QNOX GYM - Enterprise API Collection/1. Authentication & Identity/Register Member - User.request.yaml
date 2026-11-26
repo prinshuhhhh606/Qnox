@@ -1,0 +1,17 @@
+$kind: http-request
+name: Register Member / User
+description: Registers a new gym member and returns JWT authentication token.
+url: "{{base_url}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Arjun Kapoor",
+      "email": "arjun.kapoor@example.com",
+      "password": "Password@123",
+      "phone": "+91 98765 12345"
+    }
+order: 1000

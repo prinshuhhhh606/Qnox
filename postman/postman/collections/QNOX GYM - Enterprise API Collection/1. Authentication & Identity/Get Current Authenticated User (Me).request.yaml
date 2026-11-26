@@ -1,0 +1,7 @@
+$kind: http-request
+description: Fetches live user profile, assigned role, and membership status.
+url: "{{base_url}}/auth/me"
+method: GET
+headers:
+  Authorization: Bearer {{token}}
+order: 3000

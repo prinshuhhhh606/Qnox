@@ -17,6 +17,20 @@ exports.getDashboardOverview = async (req, res, next) => {
       'membership.status': 'Active',
     });
 
+    // 3-Day Free Trial surveillance metrics
+    const now = new Date();
+    const totalTrials = await User.countDocuments({ 'trial.hasUsedTrial': true });
+    const activeTrials = await User.countDocuments({
+      'trial.status': 'Active',
+      'trial.endDate': { $gt: now },
+    });
+    const expiredTrials = await User.countDocuments({
+      $or: [
+        { 'trial.status': 'Expired' },
+        { 'trial.status': 'Active', 'trial.endDate': { $lte: now } },
+      ],
+    });
+
     const revenueResult = await Payment.aggregate([
       { $match: { status: 'Completed' } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
@@ -52,6 +66,11 @@ exports.getDashboardOverview = async (req, res, next) => {
           totalRevenue: totalRevenue || 1420000,
           totalBookings: totalBookings || 482,
           pendingInquiries: pendingInquiries || 14,
+          trialStats: {
+            totalTrials: totalTrials || 0,
+            activeTrials: activeTrials || 0,
+            expiredTrials: expiredTrials || 0,
+          },
         },
         recentActivities: {
           payments: recentPayments,
@@ -151,7 +170,15 @@ exports.getMembersList = async (req, res, next) => {
       ];
     }
 
-    if (status && status !== 'All' && status !== 'Archived') {
+    if (status === 'Trial Active') {
+      const now = new Date();
+      query['trial.status'] = 'Active';
+      query['trial.endDate'] = { $gt: now };
+    } else if (status === 'Trial Expired') {
+      query['trial.status'] = 'Expired';
+    } else if (status === 'All Trials') {
+      query['trial.hasUsedTrial'] = true;
+    } else if (status && status !== 'All' && status !== 'Archived') {
       query['membership.status'] = status;
     }
 
@@ -246,7 +273,15 @@ exports.exportMembersCsv = async (req, res, next) => {
       ];
     }
 
-    if (status && status !== 'All' && status !== 'Archived') {
+    if (status === 'Trial Active') {
+      const now = new Date();
+      query['trial.status'] = 'Active';
+      query['trial.endDate'] = { $gt: now };
+    } else if (status === 'Trial Expired') {
+      query['trial.status'] = 'Expired';
+    } else if (status === 'All Trials') {
+      query['trial.hasUsedTrial'] = true;
+    } else if (status && status !== 'All' && status !== 'Archived') {
       query['membership.status'] = status;
     }
 

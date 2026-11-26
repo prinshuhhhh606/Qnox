@@ -1,12 +1,39 @@
-/* ClubsSection.css - London Architectural Portfolio */
+/* ClubsSection.css - London Architectural Portfolio Horizontal Slider */
 .qnox-clubs-section {
   padding-top: 110px;
   padding-bottom: 110px;
   background-color: #050505;
   position: relative;
+  overflow: hidden;
 }
 
-.qnox-club-card {
+.qnox-clubs-slider {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  padding-bottom: 24px;
+  padding-top: 8px;
+  cursor: grab;
+  user-select: none;
+}
+
+.qnox-clubs-slider.is-dragging {
+  cursor: grabbing;
+}
+
+.qnox-clubs-slider::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.qnox-club-slide-card {
+  width: 320px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
   background-color: #0a0a0a;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -15,7 +42,19 @@
   justify-content: space-between;
 }
 
-.qnox-club-card:hover {
+@media (min-width: 640px) {
+  .qnox-club-slide-card {
+    width: 380px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .qnox-club-slide-card {
+    width: 420px;
+  }
+}
+
+.qnox-club-slide-card:hover {
   border-color: rgba(197, 168, 128, 0.6);
   box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.9);
 }
@@ -29,3 +68,4 @@
   border: 1px solid;
   backdrop-filter: blur(12px);
 }
+

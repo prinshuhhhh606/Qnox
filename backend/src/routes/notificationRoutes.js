@@ -13,6 +13,7 @@ const { protect, authorize } = require('../middlewares/auth');
 // All notification endpoints require JWT authentication
 router.use(protect);
 
+router.get('/', getMyNotifications);
 router.get('/my-notifications', getMyNotifications);
 router.get('/unread-count', getUnreadCount);
 router.put('/read-all', markAllAsRead);

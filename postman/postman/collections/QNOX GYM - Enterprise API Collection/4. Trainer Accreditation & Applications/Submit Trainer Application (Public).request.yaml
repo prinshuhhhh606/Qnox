@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{base_url}}/trainer/apply"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "fullName": "Karan Malhotra",
+      "email": "karan.malhotra@coachqnox.in",
+      "phone": "+91 99887 66554",
+      "password": "CoachPassword@2026",
+      "confirmPassword": "CoachPassword@2026",
+      "gender": "Male",
+      "experienceYears": 7,
+      "specializations": [
+        "Olympic Lifting",
+        "Hypertrophy",
+        "Sports Conditioning"
+      ],
+      "qualifications": "ACSM Certified Exercise Physiologist, CSCS",
+      "certifications": "ISSA Master Trainer",
+      "bio": "Elite strength coach specialized in power biomechanics.",
+      "gymName": "Sanctuary Mayfair Partner",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "confirmedAccuracy": true
+    }
+order: 1000

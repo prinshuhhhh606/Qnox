@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/admin/members/MEMBER_USER_ID/freeze"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "freezeDays": 30,
+      "reason": "Executive business deployment"
+    }
+order: 7000

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Quote, ArrowUpRight, Download, Mail, ExternalLink, Calendar, Newspaper, CheckCircle2 } from 'lucide-react';
 
 const pressArticles = [
@@ -85,7 +86,9 @@ const brandAnnouncements = [
   },
 ];
 
-export default function PressPage({ onOpenTourModal }) {
+export default function PressPage(props) {
+  const outletCtx = useOutletContext() || {};
+  const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal || (() => {});
   const [pressInquirySubmitted, setPressInquirySubmitted] = useState(false);
   const [mediaKitDownloaded, setMediaKitDownloaded] = useState(false);
 

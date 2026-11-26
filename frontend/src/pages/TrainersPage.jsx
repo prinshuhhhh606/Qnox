@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Award, Trophy, ArrowUpRight, Search, CheckCircle, Mail, Phone, Calendar, X, Star, ChevronLeft, ChevronRight, SlidersHorizontal, LayoutGrid, Sparkles } from 'lucide-react';
 import { fetchTrainers } from '../services/api';
 import '../components/MasterTrainers.css';
@@ -114,7 +115,9 @@ const defaultTrainers = [
   },
 ];
 
-export default function TrainersPage({ onOpenTourModal }) {
+export default function TrainersPage(props) {
+  const outletCtx = useOutletContext() || {};
+  const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal || (() => {});
   const [trainersList, setTrainersList] = useState(defaultTrainers);
   const [selectedSpecialty, setSelectedSpecialty] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');

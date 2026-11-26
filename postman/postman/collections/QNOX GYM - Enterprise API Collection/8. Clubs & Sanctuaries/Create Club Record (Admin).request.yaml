@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{base_url}}/clubs"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "name": "QNOX Knightsbridge Pavilion",
+      "slug": "knightsbridge-pavilion",
+      "location": "Knightsbridge, London SW1X",
+      "address": "22 Sloane Street, London SW1X 9NE",
+      "status": "OPEN",
+      "tagline": "Private Hydrothermal & Altitude Foundry",
+      "description": "Three-story subterranean architectural retreat carved from raw concrete and slate.",
+      "amenities": [
+        "Slate Pool",
+        "Sub-Zero Cryotherapy",
+        "Hypoxic Rig"
+      ]
+    }
+order: 3000

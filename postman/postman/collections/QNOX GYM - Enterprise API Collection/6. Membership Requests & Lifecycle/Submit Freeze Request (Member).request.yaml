@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/memberships/freeze-request"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "reason": "Medical recovery",
+      "freezeDays": 14
+    }
+order: 2000

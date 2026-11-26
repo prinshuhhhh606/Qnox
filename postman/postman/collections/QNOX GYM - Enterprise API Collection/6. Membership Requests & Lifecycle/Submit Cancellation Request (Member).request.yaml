@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{base_url}}/memberships/cancellation-request"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "reason": "Relocating abroad"
+    }
+order: 3000

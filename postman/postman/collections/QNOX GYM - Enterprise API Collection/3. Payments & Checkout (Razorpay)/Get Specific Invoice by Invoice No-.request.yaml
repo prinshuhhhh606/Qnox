@@ -1,0 +1,7 @@
+$kind: http-request
+name: Get Specific Invoice by Invoice No.
+url: "{{base_url}}/payments/invoice/INV-2026-0001"
+method: GET
+headers:
+  Authorization: Bearer {{token}}
+order: 5000

@@ -1,0 +1,16 @@
+$kind: http-request
+description: Initializes payment with Razorpay and returns order_id.
+url: "{{base_url}}/payments/create-order"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "planId": "65e0123456789abcdef01234",
+      "billingCycle": "yearly",
+      "currency": "INR"
+    }
+order: 1000

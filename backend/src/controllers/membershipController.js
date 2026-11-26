@@ -55,6 +55,23 @@ exports.getMyMembership = async (req, res, next) => {
       }
     }
 
+    // Backend Trial Expiration Engine: Check and update trial status automatically
+    let trial = user.trial || { isActive: false, status: 'None', hasUsedTrial: false };
+    if (trial.status === 'Active' && trial.endDate) {
+      if (now > new Date(trial.endDate)) {
+        trial.isActive = false;
+        trial.status = 'Expired';
+        user.trial.isActive = false;
+        user.trial.status = 'Expired';
+        await user.save({ validateBeforeSave: false });
+      }
+    }
+
+    let trialRemainingMs = 0;
+    if (trial.status === 'Active' && trial.endDate) {
+      trialRemainingMs = Math.max(0, new Date(trial.endDate).getTime() - now.getTime());
+    }
+
     // Check for active or pending requests
     const pendingRequest = await MembershipRequest.findOne({
       user: req.user._id,
@@ -77,6 +94,145 @@ exports.getMyMembership = async (req, res, next) => {
         autoRenew: membership.autoRenew !== false,
         pendingRequest: pendingRequest || null,
         membershipHistory: user.membershipHistory || [],
+        trial: {
+          isActive: trial.isActive || false,
+          status: trial.status || 'None',
+          trialType: trial.trialType || '3-Day VIP Sanctuary Trial',
+          startDate: trial.startDate,
+          endDate: trial.endDate,
+          hasUsedTrial: trial.hasUsedTrial || false,
+          activatedAt: trial.activatedAt,
+          remainingMs: trialRemainingMs,
+          remainingHours: Math.floor(trialRemainingMs / (1000 * 60 * 60)),
+          remainingMinutes: Math.floor((trialRemainingMs % (1000 * 60 * 60)) / (1000 * 60)),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Start 3-Day Free Trial (Strict 72-Hour VIP Pass)
+// @route   POST /api/memberships/start-trial
+// @access  Private (Registered Member)
+exports.startFreeTrial = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User profile not found.' });
+    }
+
+    // 1. One-time restriction check
+    if (user.trial && (user.trial.hasUsedTrial || user.trial.status === 'Active' || user.trial.status === 'Expired')) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already utilized your one-time 3-Day Free Trial on this account.',
+      });
+    }
+
+    // 2. Prevent trial activation if user already holds an active paid membership
+    if (user.membership && user.membership.status === 'Active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Active members already have full sanctuary privileges and cannot activate a trial.',
+      });
+    }
+
+    // 3. Exact 72 Hours calculation on server (never trust client)
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + 72 * 60 * 60 * 1000); // exactly 72 hours (3 days)
+
+    user.trial = {
+      isActive: true,
+      status: 'Active',
+      trialType: '3-Day VIP Sanctuary Trial',
+      startDate,
+      endDate,
+      hasUsedTrial: true,
+      activatedAt: startDate,
+    };
+
+    await user.save({ validateBeforeSave: false });
+
+    // Send Welcome Notification
+    try {
+      await Notification.create({
+        recipient: user._id,
+        recipientRole: 'Gym Member',
+        title: '🌟 3-Day VIP Sanctuary Trial Activated',
+        message: `Welcome to QNOX GYM. Your 72-hour all-access sanctuary pass is active until ${endDate.toLocaleString('en-GB')}. Explore our classes and master facilities.`,
+        type: 'CUSTOM',
+      });
+    } catch (notifErr) {
+      console.warn('[Notification Warning]:', notifErr.message);
+    }
+
+    // Log to Audit trail
+    await createAudit({
+      admin: null,
+      member: user,
+      action: 'Trial Activated',
+      details: 'Member started one-time 3-Day VIP Free Trial pass.',
+      previousValue: 'None',
+      newValue: 'Active 72-Hour Trial',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Your 3-Day Free Trial has been activated successfully! Enjoy 72 hours of full sanctuary access.',
+      data: {
+        trial: user.trial,
+        remainingHours: 72,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Live Trial Status & Time Remaining
+// @route   GET /api/memberships/trial-status
+// @access  Private (Gym Member)
+exports.getTrialStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    let trial = user.trial || { isActive: false, status: 'None', hasUsedTrial: false };
+    const now = new Date();
+
+    // Check expiration on every access
+    if (trial.status === 'Active' && trial.endDate) {
+      if (now > new Date(trial.endDate)) {
+        trial.isActive = false;
+        trial.status = 'Expired';
+        user.trial.isActive = false;
+        user.trial.status = 'Expired';
+        await user.save({ validateBeforeSave: false });
+      }
+    }
+
+    const remainingMs = trial.status === 'Active' && trial.endDate
+      ? Math.max(0, new Date(trial.endDate).getTime() - now.getTime())
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isActive: trial.isActive || false,
+        status: trial.status || 'None',
+        trialType: trial.trialType || '3-Day VIP Sanctuary Trial',
+        startDate: trial.startDate,
+        endDate: trial.endDate,
+        hasUsedTrial: trial.hasUsedTrial || false,
+        activatedAt: trial.activatedAt,
+        remainingMs,
+        remainingHours: Math.floor(remainingMs / (1000 * 60 * 60)),
+        remainingMinutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)),
+        isEligible: !trial.hasUsedTrial && (!user.membership || user.membership.status !== 'Active'),
       },
     });
   } catch (error) {

@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/newsletter/subscribe"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "subscriber@qnoxfit.com"
+    }
+order: 3000

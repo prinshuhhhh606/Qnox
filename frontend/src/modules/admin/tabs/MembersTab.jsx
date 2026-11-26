@@ -115,6 +115,34 @@ export default function MembersTab({
         >
           ARCHIVED ({memberMetrics.archived || 0})
         </button>
+        <button
+          onClick={() => {
+            setMemberStatusFilter('Trial Active');
+            setMemberExpiringFilter('All');
+            loadMembers(1);
+          }}
+          className={`px-3 py-1.5 text-xs font-mono border transition ${
+            memberStatusFilter === 'Trial Active'
+              ? 'border-emerald-400 text-emerald-300 bg-emerald-950/40'
+              : 'border-white/10 text-neutral-400 hover:text-white'
+          }`}
+        >
+          TRIAL ACTIVE
+        </button>
+        <button
+          onClick={() => {
+            setMemberStatusFilter('Trial Expired');
+            setMemberExpiringFilter('All');
+            loadMembers(1);
+          }}
+          className={`px-3 py-1.5 text-xs font-mono border transition ${
+            memberStatusFilter === 'Trial Expired'
+              ? 'border-rose-400 text-rose-300 bg-rose-950/40'
+              : 'border-white/10 text-neutral-400 hover:text-white'
+          }`}
+        >
+          TRIAL EXPIRED
+        </button>
       </div>
 
       {/* Advanced Search & Filter Controls */}
@@ -285,7 +313,17 @@ export default function MembersTab({
                       <div className="text-[11px] text-neutral-500">{m.phone || 'No phone on record'}</div>
                     </td>
                     <td className="text-[#c5a880] font-medium">
-                      <div>{m.membership?.planName || 'None'}</div>
+                      <div>
+                        {isActive
+                          ? (m.membership?.planName || 'Active Plan')
+                          : m.trial?.status === 'Active'
+                          ? '3-Day VIP Free Trial'
+                          : m.trial?.status === 'Expired'
+                          ? 'Free Trial (Expired)'
+                          : m.trial?.status === 'Converted'
+                          ? (m.membership?.planName || 'Paid Member')
+                          : (m.membership?.planName || 'None')}
+                      </div>
                       {m.membership?.billingCycle && m.membership.billingCycle !== 'none' && (
                         <div className="text-[10px] text-neutral-500 capitalize">
                           {m.membership.billingCycle}
@@ -297,6 +335,10 @@ export default function MembersTab({
                         className={`qnox-status-badge ${
                           isArchived
                             ? 'neutral'
+                            : m.trial?.status === 'Active' && !isActive
+                            ? 'active text-emerald-300 border-emerald-500/50 bg-emerald-950/40'
+                            : m.trial?.status === 'Expired' && !isActive
+                            ? 'active text-rose-300 border-rose-500/50 bg-rose-950/40'
                             : m.membership?.status === 'Suspended'
                             ? 'active text-rose-400 border-rose-500/40 bg-rose-950/30'
                             : m.membership?.status === 'Expiring Soon'
@@ -308,13 +350,23 @@ export default function MembersTab({
                             : 'neutral'
                         }`}
                       >
-                        {isArchived ? 'ARCHIVED' : m.membership?.status || 'NONE'}
+                        {isArchived
+                          ? 'ARCHIVED'
+                          : m.trial?.status === 'Active' && !isActive
+                          ? 'TRIAL ACTIVE'
+                          : m.trial?.status === 'Expired' && !isActive
+                          ? 'TRIAL EXPIRED'
+                          : m.membership?.status || 'NONE'}
                       </span>
                     </td>
                     <td className="font-mono text-xs">
                       <span className={isExpired ? 'text-rose-400' : isFrozen ? 'text-sky-300' : ''}>
-                        {m.membership?.endDate
+                        {m.trial?.status === 'Active' && m.trial.endDate && !isActive
+                          ? `${new Date(m.trial.endDate).toLocaleDateString('en-GB')} (72h)`
+                          : m.membership?.endDate
                           ? new Date(m.membership.endDate).toLocaleDateString('en-GB')
+                          : m.trial?.endDate
+                          ? `${new Date(m.trial.endDate).toLocaleDateString('en-GB')} (Trial)`
                           : '—'}
                       </span>
                     </td>

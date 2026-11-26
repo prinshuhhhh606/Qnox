@@ -22,11 +22,9 @@ function AppInitializer() {
     }
 
     window.openAdminLogin = () => {
-      if (currentUser && ['Admin', 'Super Admin'].includes(currentUser.role)) {
-        sessionStorage.setItem('qnox_view_mode', 'admin');
-        window.location.hash = '#admin';
-        navigate('/admin');
-      }
+      sessionStorage.setItem('qnox_view_mode', 'admin');
+      window.location.hash = '#admin';
+      navigate('/admin');
     };
 
     return () => {

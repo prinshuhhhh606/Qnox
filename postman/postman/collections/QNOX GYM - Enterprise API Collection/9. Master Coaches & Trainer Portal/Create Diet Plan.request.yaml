@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{base_url}}/trainer-portal/diets"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "title": "Executive Ketogenic & Bio-Repair",
+      "dailyCalories": 2400,
+      "proteinGrams": 180,
+      "carbGrams": 50,
+      "fatGrams": 160
+    }
+order: 5000

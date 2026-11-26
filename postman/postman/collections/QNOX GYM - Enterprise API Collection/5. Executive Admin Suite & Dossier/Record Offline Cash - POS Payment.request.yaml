@@ -1,0 +1,17 @@
+$kind: http-request
+name: Record Offline Cash / POS Payment
+url: "{{base_url}}/admin/members/MEMBER_USER_ID/payments"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "amount": 14500,
+      "method": "Cash",
+      "planName": "The Obsidian Black",
+      "notes": "Concierge executive cash settlement"
+    }
+order: 9000

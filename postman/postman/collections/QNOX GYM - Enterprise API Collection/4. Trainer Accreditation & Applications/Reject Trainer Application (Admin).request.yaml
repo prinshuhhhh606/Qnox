@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{base_url}}/trainer/admin/applications/app_seed_001/reject"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "adminRemarks": "Application does not meet current sanctuary compliance standards."
+    }
+order: 6000

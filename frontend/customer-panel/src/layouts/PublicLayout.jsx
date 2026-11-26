@@ -70,7 +70,11 @@ export default function PublicLayout() {
         />
       </main>
 
-      <Footer onOpenTourModal={handleOpenTourModal} />
+      <Footer
+        onOpenTourModal={handleOpenTourModal}
+        onOpenAdmin={handleOpenAdmin}
+        onOpenAuth={handleOpenAuth}
+      />
 
       {/* Global Modals */}
       <TourModal

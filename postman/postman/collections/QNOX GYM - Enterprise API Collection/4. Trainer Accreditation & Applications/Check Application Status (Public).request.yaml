@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{base_url}}/trainer/application-status?email=vikram.sen@qnoxfit.com"
+method: GET
+queryParams:
+  email: vikram.sen@qnoxfit.com
+order: 2000

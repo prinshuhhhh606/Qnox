@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/auth/updatedetails"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "name": "Arjun K. V.",
+      "phone": "+91 99999 00000"
+    }
+order: 4000

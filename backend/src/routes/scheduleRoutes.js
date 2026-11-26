@@ -5,6 +5,10 @@ const { getSchedules, bookClassSpot } = require('../controllers/scheduleControll
 router.route('/')
   .get(getSchedules);
 
+// Alias for weekly timetable schedule
+router.route('/week')
+  .get(getSchedules);
+
 router.route('/:classId/book')
   .post(bookClassSpot);
 

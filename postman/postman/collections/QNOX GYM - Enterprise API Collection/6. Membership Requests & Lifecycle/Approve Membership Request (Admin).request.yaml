@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/memberships/admin/requests/REQUEST_ID/approve"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "adminNotes": "Approved under executive discretion",
+      "refundAmount": 0
+    }
+order: 5000

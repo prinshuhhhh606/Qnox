@@ -1,0 +1,5 @@
+$kind: collection
+description: Official Postman Collection for QNOX GYM - Luxury Private Athletic Sanctuary & Enterprise Gym Suite. Includes all endpoints categorized into 12 core folders.
+variables:
+  base_url: http://localhost:5000/api
+  token: demo_super_admin_jwt_token_2026

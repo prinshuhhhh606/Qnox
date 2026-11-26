@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Crown, DollarSign, Calendar, MessageSquare } from 'lucide-react';
+import { Users, Crown, DollarSign, Calendar, MessageSquare, Sparkles, Clock, Zap } from 'lucide-react';
 
 export default function OverviewTab({
   stats = {},
@@ -59,6 +59,56 @@ export default function OverviewTab({
           </div>
           <div className="font-serif text-3xl text-white font-bold">{stats.pendingInquiries || 0}</div>
           <p className="text-[10px] text-amber-400 mt-1">Awaiting concierge call</p>
+        </div>
+      </div>
+
+      {/* 3-Day Free Trial Surveillance Intelligence */}
+      <div className="bg-[#080808] border border-[#c5a880]/30 p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+          <div className="flex items-center space-x-2.5 text-[#c5a880]">
+            <Sparkles className="w-4 h-4 text-[#c5a880]" />
+            <span className="text-[11px] font-mono tracking-widest uppercase font-bold text-white">
+              3-DAY FREE TRIAL SURVEILLANCE & CONVERSION
+            </span>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 bg-[#c5a880]/10 text-[#c5a880] border border-[#c5a880]/30 uppercase">
+            LIVE TELEMETRY
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 bg-[#101010] border border-white/5 flex items-center space-x-3.5">
+            <div className="p-3 bg-[#c5a880]/10 border border-[#c5a880]/30 text-[#c5a880]">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono tracking-wider uppercase text-neutral-400 block">TOTAL TRIAL ADMISSIONS</span>
+              <div className="font-serif text-2xl text-white font-bold">{stats.trialStats?.totalTrials || 0}</div>
+              <p className="text-[10px] text-neutral-400 mt-0.5">All-time 72-Hour VIP activations</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-[#101010] border border-white/5 flex items-center space-x-3.5">
+            <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 text-emerald-400">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono tracking-wider uppercase text-neutral-400 block">CURRENTLY ACTIVE TRIALS</span>
+              <div className="font-serif text-2xl text-emerald-400 font-bold">{stats.trialStats?.activeTrials || 0}</div>
+              <p className="text-[10px] text-emerald-300/80 mt-0.5">Holding live sanctuary privileges</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-[#101010] border border-white/5 flex items-center space-x-3.5">
+            <div className="p-3 bg-rose-950/40 border border-rose-500/40 text-rose-400">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono tracking-wider uppercase text-neutral-400 block">EXPIRED / READY TO UPGRADE</span>
+              <div className="font-serif text-2xl text-rose-400 font-bold">{stats.trialStats?.expiredTrials || 0}</div>
+              <p className="text-[10px] text-rose-300/80 mt-0.5">Eligible for concierge upgrade offer</p>
+            </div>
+          </div>
         </div>
       </div>
 

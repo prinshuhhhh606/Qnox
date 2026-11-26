@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{base_url}}/clubs/mayfair-sanctuary"
+method: GET
+order: 2000

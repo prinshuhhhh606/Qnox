@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Shield, Instagram, Linkedin, Youtube, Twitter } from 'lucide-react';
 import { subscribeNewsletter } from '../services/api';
 import './Footer.css';
 
-export default function Footer({ onOpenTourModal }) {
+export default function Footer({ onOpenTourModal, onOpenAdmin, onOpenAuth }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -170,15 +171,25 @@ export default function Footer({ onOpenTourModal }) {
             </p>
             <div className="pt-2">
               <button
+                type="button"
                 onClick={() => {
-                  if (typeof window !== 'undefined' && window.openAdminLogin) {
+                  sessionStorage.setItem('qnox_view_mode', 'admin');
+                  window.location.hash = '#admin';
+                  if (onOpenAdmin) {
+                    onOpenAdmin();
+                  } else if (onOpenAuth) {
+                    onOpenAuth('admin');
+                  } else if (typeof window !== 'undefined' && window.openAdminLogin) {
                     window.openAdminLogin();
+                  } else {
+                    navigate('/admin');
                   }
                 }}
-                className="text-[10px] tracking-widest uppercase text-neutral-500 hover:text-[#c5a880] transition-colors underline underline-offset-4 flex items-center space-x-1"
+                className="text-[10px] tracking-widest uppercase text-neutral-400 hover:text-[#c5a880] transition-colors underline underline-offset-4 flex items-center space-x-1.5 cursor-pointer py-1"
+                title="Access Executive Command Suite"
               >
-                <Shield className="w-3 h-3 text-[#c5a880]" />
-                <span>EXECUTIVE ADMIN PORTAL</span>
+                <Shield className="w-3.5 h-3.5 text-[#c5a880]" />
+                <span className="font-semibold">EXECUTIVE ADMIN PORTAL</span>
               </button>
             </div>
           </div>

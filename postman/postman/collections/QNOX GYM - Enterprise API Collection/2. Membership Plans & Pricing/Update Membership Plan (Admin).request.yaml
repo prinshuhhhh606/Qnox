@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{base_url}}/membership-plans/PLAN_ID"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "name": "The Obsidian Black - Enhanced",
+      "pricing": {
+        "monthly": 1600,
+        "quarterly": 4500,
+        "halfYearly": 8200,
+        "yearly": 15000
+      }
+    }
+order: 5000

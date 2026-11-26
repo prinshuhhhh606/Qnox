@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{base_url}}/trainer/admin/applications/app_seed_001/approve"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "adminRemarks": "Credentials verified against UKSCA registry. Approved for Master Coach roster."
+    }
+order: 5000

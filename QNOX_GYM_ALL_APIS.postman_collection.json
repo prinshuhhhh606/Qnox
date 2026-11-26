@@ -1,0 +1,1285 @@
+{
+  "info": {
+    "_postman_id": "qnox-gym-api-suite-2026-v2",
+    "name": "QNOX Luxury Gym Suite API (All-in-One)",
+    "description": "Complete API Collection for QNOX GYM - Ultra Luxury Fitness Sanctuary & Enterprise Management Portal.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "demo_super_admin_jwt_token_2026",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication & Identity",
+      "item": [
+        {
+          "name": "Register Customer / Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Julian Sterling\",\n  \"email\": \"julian.sterling@qnoxfit.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+44 7911 123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login (Auto-Saves JWT Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('token', jsonData.token);",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "    console.log('JWT Token successfully set:', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@qnoxgym.com\",\n  \"password\": \"Admin@QNOX2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Profile Details",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Julian Sterling CBE\",\n  \"phone\": \"+44 7911 999888\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/updatedetails",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "updatedetails"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@qnoxfit.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgotpassword",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "forgotpassword"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. 3-Day Free Trial System",
+      "item": [
+        {
+          "name": "Start 3-Day Free Trial (72-Hour VIP Pass)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/memberships/start-trial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "start-trial"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Live Trial Status & Remaining Hours",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/memberships/trial-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "trial-status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Membership Plans & Pricing",
+      "item": [
+        {
+          "name": "Get All Public Plans",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/membership-plans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "membership-plans"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Plan by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/membership-plans/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "membership-plans",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "plan_1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Plan (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"THE FOUNDERS CLUB\",\n  \"code\": \"FOUNDERS\",\n  \"subtitle\": \"Private Global Syndicate\",\n  \"description\": \"Private syndicate tier strictly limited to 50 patrons.\",\n  \"pricing\": {\n    \"monthly\": 5000,\n    \"quarterly\": 12000,\n    \"halfYearly\": 22000,\n    \"yearly\": 40000\n  },\n  \"benefits\": [\n    \"Private helicopter transfer to Mayfair\",\n    \"24/7 personal doctor\"\n  ],\n  \"features\": {\n    \"accessType\": \"Worldwide All-Sanctuary\",\n    \"poolAccess\": true,\n    \"cryotherapy\": true\n  },\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/membership-plans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "membership-plans"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Toggle Plan Active Status (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/membership-plans/:id/toggle-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "membership-plans",
+                ":id",
+                "toggle-status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "plan_1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Payments & Checkout (Razorpay)",
+      "item": [
+        {
+          "name": "Create Checkout Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"6743b2a8f1c2d3e4b5a6c7d8\",\n  \"duration\": \"monthly\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/create-order",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "create-order"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Payment Signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"order_test_123\",\n  \"paymentId\": \"pay_test_456\",\n  \"signature\": \"simulated_signature_valid\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Invoices & Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/my-payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "my-payments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Transactions (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Bookings & Class Schedule",
+      "item": [
+        {
+          "name": "Get Weekly Timetable Schedule",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/schedule/week",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "schedule",
+                "week"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter Schedule by Day & Category",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/schedule?day=Monday&category=Conditioning",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "day",
+                  "value": "Monday"
+                },
+                {
+                  "key": "category",
+                  "value": "Conditioning"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Book Sanctuary Masterclass Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"6743b2a8f1c2d3e4b5a6c7d8\",\n  \"classTitle\": \"High-Altitude Hypoxic Conditioning\",\n  \"clubName\": \"Mayfair Sanctuary\",\n  \"trainerName\": \"Marcus Vance\",\n  \"day\": \"Monday\",\n  \"startTime\": \"07:00 AM\",\n  \"durationMinutes\": 60,\n  \"category\": \"Conditioning\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bookings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/my-bookings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bookings",
+                "my-bookings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Bookings (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bookings",
+                "all"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Booking Reservation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/:id/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bookings",
+                ":id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "bk_123"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Trainer Accreditation & Applications",
+      "item": [
+        {
+          "name": "Apply As Master Coach",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Vikram Sen\",\n  \"email\": \"vikram.sen@qnoxfit.com\",\n  \"phone\": \"+91 98765 43210\",\n  \"experienceYears\": 8,\n  \"qualifications\": \"ACSM Certified Exercise Physiologist, CSCS\",\n  \"specializations\": [\n    \"Weight Training\",\n    \"Muscle Building\",\n    \"Nutrition Coaching\"\n  ],\n  \"preferredClub\": \"The Iron Sanctuary (Mumbai)\",\n  \"bio\": \"Elite performance coach specializing in hypertrophy and biomechanics.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/trainer/apply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer",
+                "apply"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Trainer Applications (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainer/admin/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer",
+                "admin",
+                "applications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Trainer Application (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminRemarks\": \"Approved for Master Coach roster.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/trainer/admin/applications/:id/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer",
+                "admin",
+                "applications",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "app_123"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reject Trainer Application (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminRemarks\": \"Experience level does not meet compliance standards.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/trainer/admin/applications/:id/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer",
+                "admin",
+                "applications",
+                ":id",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "app_123"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Executive Admin Command Center",
+      "item": [
+        {
+          "name": "Executive Dashboard Overview Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/overview",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "overview"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Members Dossier List with Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/members?status=All&page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "members"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "All"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Member 360 Dossier",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/members/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "members",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6743b2a8f1c2d3e4b5a6c7d8"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Freeze Member Residency (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"freezeDays\": 30,\n  \"reason\": \"Personal international travel\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/members/:id/freeze",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "members",
+                ":id",
+                "freeze"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6743b2a8f1c2d3e4b5a6c7d8"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unfreeze Member Residency (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/members/:id/unfreeze",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "members",
+                ":id",
+                "unfreeze"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6743b2a8f1c2d3e4b5a6c7d8"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Members CSV (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/members/export-csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "members",
+                "export-csv"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Membership Lifecycle & Requests",
+      "item": [
+        {
+          "name": "Get My Membership Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/memberships/my-membership",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "my-membership"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Freeze Request (Member)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"freezeDays\": 30,\n  \"reason\": \"Medical rehabilitation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/memberships/freeze-request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "freeze-request"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Cancellation Request (Member)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Relocating to another country\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/memberships/cancellation-request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "cancellation-request"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Membership Requests (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/memberships/admin/requests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "memberships",
+                "admin",
+                "requests"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Clubs & Sanctuaries",
+      "item": [
+        {
+          "name": "Get All Sanctuaries",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/clubs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clubs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Sanctuary by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/clubs/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clubs",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "club_mayfair"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Master Coaches & Trainer Portal",
+      "item": [
+        {
+          "name": "Get Public Coaches Roster",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/trainers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Coach Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainer-portal/dashboard/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer-portal",
+                "dashboard",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Workout Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainer-portal/workouts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer-portal",
+                "workouts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Diet Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainer-portal/diets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainer-portal",
+                "diets"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Notifications & Surveillance",
+      "item": [
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Notifications Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/unread-count",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "unread-count"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications As Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Inquiries & Media Uploads",
+      "item": [
+        {
+          "name": "Submit VIP Sanctuary Tour Inquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Lord Alistair Sterling\",\n  \"email\": \"alistair@sterlingholdings.co.uk\",\n  \"phone\": \"+44 20 7946 0912\",\n  \"preferredClub\": \"Mayfair Sanctuary\",\n  \"membershipTier\": \"The Obsidian Black\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inquiries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "inquiries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Inquiries (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inquiries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "inquiries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Media Upload Gateway Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "upload"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

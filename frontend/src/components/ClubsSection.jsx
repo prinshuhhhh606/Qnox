@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
-import { MapPin, Clock, ArrowUpRight, Check, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MapPin, Clock, ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import './ClubsSection.css';
 
 export default function ClubsSection({ clubs = [], onOpenTourModal }) {
   const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const sliderRef = useRef(null);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  // Mouse drag support
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
 
   const filterOptions = [
     { label: 'ALL SANCTUARIES', value: 'ALL' },
@@ -17,12 +27,65 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
     return club.features && club.features[selectedFilter];
   });
 
+  const updateScrollMetrics = () => {
+    if (!sliderRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+    const maxScroll = scrollWidth - clientWidth;
+    setCanScrollLeft(scrollLeft > 10);
+    setCanScrollRight(scrollLeft < maxScroll - 10);
+    const progress = maxScroll > 0 ? (scrollLeft / maxScroll) * 100 : 0;
+    setScrollProgress(progress);
+  };
+
+  useEffect(() => {
+    updateScrollMetrics();
+  }, [filteredClubs]);
+
+  // Smooth slide navigation
+  const slidePrev = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.clientWidth > 640 ? 410 : 330;
+    sliderRef.current.scrollBy({ left: -cardWidth, behavior: 'smooth' });
+  };
+
+  const slideNext = () => {
+    if (!sliderRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+    const cardWidth = clientWidth > 640 ? 410 : 330;
+
+    if (scrollLeft + clientWidth >= scrollWidth - 20) {
+      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      sliderRef.current.scrollBy({ left: cardWidth, behavior: 'smooth' });
+    }
+  };
+
+  // Mouse Drag Events
+  const handleMouseDown = (e) => {
+    if (!sliderRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - sliderRef.current.offsetLeft);
+    setScrollLeftState(sliderRef.current.scrollLeft);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !sliderRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - sliderRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    sliderRef.current.scrollLeft = scrollLeftState - walk;
+  };
+
+  const stopDragging = () => {
+    setIsDragging(false);
+  };
+
   return (
-    <section id="clubs" className="py-28 bg-[#050505] relative">
+    <section id="clubs" className="py-28 bg-[#050505] relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 md:px-10">
         
-        {/* Header Title */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 pb-8 border-b border-white/10">
+        {/* Header Title with Controls */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 pb-8 border-b border-white/10">
           <div>
             <span className="text-[11px] tracking-[0.3em] uppercase text-[#c5a880] font-sans font-semibold block mb-3">
               THE LONDON PORTFOLIO
@@ -31,13 +94,44 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
               Our Private Club Sanctuaries
             </h2>
           </div>
-          <p className="text-neutral-400 text-xs sm:text-sm max-w-md mt-4 md:mt-0 font-light">
-            Distinct architectural sanctuaries strategically situated in London’s most prominent districts. Crafted with unyielding materials and tailored acoustic isolation.
-          </p>
+          
+          <div className="flex items-center justify-between md:justify-end gap-6 mt-6 md:mt-0">
+            <p className="text-neutral-400 text-xs sm:text-sm max-w-sm hidden sm:block font-light">
+              Distinct architectural sanctuaries strategically situated across London. Swipe or use controls to explore.
+            </p>
+
+            {/* Slider Navigation Arrows */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={slidePrev}
+                disabled={!canScrollLeft}
+                aria-label="Previous Sanctuary"
+                className={`w-11 h-11 rounded-none border flex items-center justify-center transition-all ${
+                  canScrollLeft
+                    ? 'border-white/20 text-white hover:border-[#c5a880] hover:text-[#c5a880] hover:bg-white/5'
+                    : 'border-white/5 text-neutral-600 cursor-not-allowed'
+                }`}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={slideNext}
+                disabled={!canScrollRight}
+                aria-label="Next Sanctuary"
+                className={`w-11 h-11 rounded-none border flex items-center justify-center transition-all ${
+                  canScrollRight
+                    ? 'border-white/20 text-white hover:border-[#c5a880] hover:text-[#c5a880] hover:bg-white/5'
+                    : 'border-white/5 text-neutral-600 cursor-not-allowed'
+                }`}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Feature Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-12">
+        <div className="flex flex-wrap items-center gap-3 mb-10">
           {filterOptions.map((opt) => (
             <button
               key={opt.value}
@@ -53,12 +147,20 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
           ))}
         </div>
 
-        {/* Clubs Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Horizontal Slider Track */}
+        <div
+          ref={sliderRef}
+          onScroll={updateScrollMetrics}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={stopDragging}
+          onMouseLeave={stopDragging}
+          className={`qnox-clubs-slider ${isDragging ? 'is-dragging' : ''}`}
+        >
           {filteredClubs.map((club) => (
             <div
-              key={club.slug}
-              className="group bg-[#0a0a0a] border border-white/10 hover:border-[#c5a880]/60 transition-all duration-500 flex flex-col justify-between"
+              key={club.slug || club.name}
+              className="qnox-club-slide-card group"
             >
               <div>
                 {/* Image Container with Luxury Zoom */}
@@ -66,7 +168,7 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
                   <img
                     src={club.heroImage}
                     alt={club.name}
-                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/30 to-transparent" />
                   
@@ -77,7 +179,7 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
                         ? 'bg-black/70 text-emerald-400 border-emerald-500/40'
                         : 'bg-black/70 text-[#c5a880] border-[#c5a880]/50'
                     }`}>
-                      {club.status}
+                      {club.status || 'OPEN'}
                     </span>
                   </div>
 
@@ -103,12 +205,12 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
                   {/* Hours */}
                   <div className="flex items-center space-x-2 text-[11px] text-neutral-400 border-t border-white/5 pt-4 mb-4">
                     <Clock className="w-3.5 h-3.5 text-neutral-500" />
-                    <span>Mon-Fri: {club.openingHours?.weekdays} &bull; Sat-Sun: {club.openingHours?.weekends}</span>
+                    <span>Mon-Fri: {club.openingHours?.weekdays || '06:00 - 22:00'} &bull; Sat-Sun: {club.openingHours?.weekends || '08:00 - 20:00'}</span>
                   </div>
 
                   {/* Key Amenities Pills */}
                   <div className="space-y-1.5 mb-6">
-                    {club.amenities?.slice(0, 3).map((amenity, idx) => (
+                    {(club.amenitiesList || club.amenities)?.slice(0, 3).map((amenity, idx) => (
                       <div key={idx} className="flex items-center space-x-2 text-xs text-neutral-300">
                         <span className="w-1 h-1 rounded-full bg-[#c5a880]" />
                         <span className="truncate">{amenity}</span>
@@ -121,7 +223,7 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
               {/* Bottom Card Footer Action */}
               <div className="px-6 sm:px-8 pb-6 sm:pb-8 pt-2">
                 <button
-                  onClick={() => onOpenTourModal(club.name)}
+                  onClick={() => onOpenTourModal && onOpenTourModal(club.name)}
                   className="w-full py-3 border border-white/15 group-hover:border-[#c5a880] group-hover:bg-[#c5a880] group-hover:text-black text-white text-xs font-semibold tracking-[0.2em] uppercase transition-all duration-300 flex items-center justify-center space-x-2"
                 >
                   <span>REQUEST PRIVATE TOUR</span>
@@ -131,6 +233,25 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
 
             </div>
           ))}
+        </div>
+
+        {/* Bottom Interactive Progress Bar & Info */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 font-mono">
+          <div className="flex items-center space-x-3 w-full sm:w-64">
+            <div className="flex-1 h-[2px] bg-white/10 relative overflow-hidden">
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-[#c5a880] transition-all duration-150"
+                style={{ width: `${Math.max(10, scrollProgress)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-neutral-400">
+              {Math.round(scrollProgress)}%
+            </span>
+          </div>
+
+          <div className="text-[10px] tracking-widest uppercase text-neutral-500">
+            SHOWING {filteredClubs.length} OF {clubs.length} SANCTUARIES &bull; DRAG OR SWIPE
+          </div>
         </div>
 
       </div>

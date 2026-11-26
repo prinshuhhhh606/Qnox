@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{base_url}}/trainer-portal/workouts"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "title": "Hypertrophy Acceleration Protocol",
+      "difficulty": "Advanced",
+      "durationWeeks": 8,
+      "daysPerWeek": 4
+    }
+order: 4000

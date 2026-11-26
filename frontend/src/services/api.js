@@ -1126,6 +1126,29 @@ export const triggerAdminExpiryCheck = async () => {
 };
 
 // ==========================================
+// 3-DAY FREE TRIAL APIS
+// ==========================================
+
+export const startFreeTrial = async () => {
+  const res = await fetch(`${API_BASE}/memberships/start-trial`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to activate 3-Day Free Trial');
+  return data;
+};
+
+export const fetchTrialStatus = async () => {
+  const res = await fetch(`${API_BASE}/memberships/trial-status`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trial status');
+  return data.data;
+};
+
+// ==========================================
 // MEMBERSHIP MANAGEMENT & LIFECYCLE
 // ==========================================
 

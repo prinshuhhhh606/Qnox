@@ -1,0 +1,17 @@
+$kind: http-request
+name: Book Sanctuary Session / Tour
+url: "{{base_url}}/bookings"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "classId": "cls_subzero_01",
+      "clubSlug": "mayfair-sanctuary",
+      "date": "2026-11-28",
+      "timeSlot": "07:00 - 08:30"
+    }
+order: 2000

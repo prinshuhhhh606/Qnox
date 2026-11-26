@@ -1,0 +1,14 @@
+$kind: http-request
+name: Mark Attendance (Admin / Trainer)
+url: "{{base_url}}/bookings/BOOKING_ID/attendance"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "status": "Attended"
+    }
+order: 6000

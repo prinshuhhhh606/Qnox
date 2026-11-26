@@ -25,6 +25,42 @@ exports.bookClass = async (req, res, next) => {
 
     const selectedDate = classDate || new Date().toISOString().split('T')[0];
 
+    // Check Membership & 3-Day Trial Gating (Admins and Trainers exempt)
+    const User = require('../models/User');
+    const freshUser = await User.findById(user._id);
+    const now = new Date();
+
+    if (freshUser && !['Admin', 'Super Admin', 'Trainer'].includes(freshUser.role)) {
+      const isPaidActive = freshUser.membership?.status === 'Active' && (!freshUser.membership.endDate || new Date(freshUser.membership.endDate) >= now);
+
+      let isTrialActive = false;
+      if (freshUser.trial?.status === 'Active' && freshUser.trial.endDate) {
+        if (now > new Date(freshUser.trial.endDate)) {
+          // Auto-expire trial on protected access
+          freshUser.trial.isActive = false;
+          freshUser.trial.status = 'Expired';
+          await freshUser.save({ validateBeforeSave: false });
+        } else {
+          isTrialActive = true;
+        }
+      }
+
+      if (!isPaidActive && !isTrialActive) {
+        if (freshUser.trial?.status === 'Expired' || (freshUser.trial?.endDate && now > new Date(freshUser.trial.endDate))) {
+          return res.status(403).json({
+            success: false,
+            code: 'TRIAL_EXPIRED',
+            message: 'Your 3-Day Free Trial has expired. Choose a membership plan to continue.',
+          });
+        }
+        return res.status(403).json({
+          success: false,
+          code: 'NO_ACTIVE_MEMBERSHIP',
+          message: 'An active membership or active 3-Day Free Trial is required to reserve sanctuary sessions.',
+        });
+      }
+    }
+
     // 1. Prevent duplicate bookings by the same user for this class on this date
     try {
       const existingBooking = await Booking.findOne({

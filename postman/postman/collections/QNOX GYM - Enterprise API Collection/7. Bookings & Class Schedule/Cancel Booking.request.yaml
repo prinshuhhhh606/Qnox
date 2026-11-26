@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{base_url}}/bookings/BOOKING_ID/cancel"
+method: PUT
+headers:
+  Authorization: Bearer {{token}}
+order: 5000

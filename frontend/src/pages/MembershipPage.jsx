@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { Check, Star, Shield, Crown, Sparkles, ArrowRight, HelpCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
-import { fetchMembershipPlans } from '../services/api';
+import { useOutletContext, useNavigate } from 'react-router-dom';
+import { Check, Star, Shield, Crown, Sparkles, ArrowRight, HelpCircle, ChevronDown, ChevronUp, Lock, Zap, Clock } from 'lucide-react';
+import { fetchMembershipPlans, startFreeTrial } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 
 const defaultTiers = [
   {
@@ -129,11 +131,17 @@ const faqs = [
 
 export default function MembershipPage(props) {
   const outletCtx = useOutletContext() || {};
+  const navigate = useNavigate();
+  const { currentUser, login } = useAuth();
+  const { showToast } = useNotifications();
+
   const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal;
+  const onOpenAuth = props.onOpenAuth || outletCtx.onOpenAuth;
   const onSelectPlanForCheckout = props.onSelectPlanForCheckout || outletCtx.onSelectPlanForCheckout;
   const [plans, setPlans] = useState(defaultTiers);
   const [duration, setDuration] = useState('monthly'); // 'monthly' | 'quarterly' | 'halfYearly' | 'yearly'
   const [openFaq, setOpenFaq] = useState(null);
+  const [trialLoading, setTrialLoading] = useState(false);
 
   useEffect(() => {
     const loadPlans = async () => {
@@ -148,6 +156,44 @@ export default function MembershipPage(props) {
     };
     loadPlans();
   }, []);
+
+  // Determine trial eligibility
+  const userTrial = currentUser?.trial;
+  const isPaidMember = currentUser?.membership?.status === 'Active';
+  const hasActiveTrial = userTrial?.status === 'Active' && userTrial?.endDate && new Date(userTrial.endDate) > new Date();
+  const hasExpiredTrial = userTrial?.status === 'Expired' || (userTrial?.endDate && new Date(userTrial.endDate) <= new Date());
+  const hasUsedTrial = userTrial?.hasUsedTrial || hasActiveTrial || hasExpiredTrial;
+  const isTrialEligible = !isPaidMember && !hasUsedTrial;
+
+  const handleStartTrial = async () => {
+    if (!currentUser) {
+      if (onOpenAuth) onOpenAuth('member');
+      showToast({ type: 'info', message: 'Please register or log in to activate your 3-Day Free Trial.' });
+      return;
+    }
+
+    if (isPaidMember) {
+      showToast({ type: 'info', message: 'You already hold an active residency membership.' });
+      return;
+    }
+
+    if (hasUsedTrial) {
+      showToast({ type: 'warning', message: 'You have already utilized your one-time 3-Day Free Trial.' });
+      return;
+    }
+
+    setTrialLoading(true);
+    try {
+      const res = await startFreeTrial();
+      showToast({ type: 'success', message: res.message || '3-Day Free Trial activated! Welcome to QNOX.' });
+      // Redirect to customer dashboard
+      navigate('/customer/dashboard');
+    } catch (err) {
+      showToast({ type: 'error', message: err.message || 'Failed to start free trial' });
+    } finally {
+      setTrialLoading(false);
+    }
+  };
 
   const durationOptions = [
     { key: 'monthly', label: 'MONTHLY', discount: null },
@@ -194,6 +240,86 @@ export default function MembershipPage(props) {
           <p className="text-neutral-300 text-sm sm:text-base font-light leading-relaxed max-w-2xl mx-auto">
             An investment in uncompromising physical mastery, acoustic solitude, and world-class sports science. Select your residency duration and secure your sanctuary identity.
           </p>
+
+          {/* 3-Day Free Trial VIP Callout Banner */}
+          <div className="pt-4 max-w-xl mx-auto">
+            {isTrialEligible && (
+              <div className="p-6 bg-gradient-to-r from-[#121212] via-[#1a1713] to-[#121212] border border-[#c5a880]/50 rounded-sm shadow-2xl space-y-4">
+                <div className="flex items-center justify-center space-x-2 text-[#c5a880]">
+                  <Sparkles className="w-4 h-4 animate-spin text-[#c5a880]" />
+                  <span className="text-xs font-mono tracking-widest uppercase font-bold">
+                    EXCLUSIVE FIRST-TIME ADMISSION
+                  </span>
+                </div>
+                <h3 className="font-serif text-xl sm:text-2xl text-white font-normal">
+                  Experience QNOX With a 3-Day Free Trial
+                </h3>
+                <p className="text-xs text-neutral-300 font-light leading-relaxed">
+                  Enjoy unrestricted 72-hour sanctuary access, slate pool, thermal spa, and masterclass sessions without upfront payment.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={handleStartTrial}
+                    disabled={trialLoading}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-[#c5a880] hover:bg-white text-black font-mono text-xs font-bold uppercase tracking-widest transition duration-300 flex items-center justify-center space-x-2.5 mx-auto disabled:opacity-50"
+                  >
+                    {trialLoading ? (
+                      <span>ACTIVATING VIP PASS...</span>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>START 3-DAY FREE TRIAL</span>
+                      </>
+                    )}
+                  </button>
+                  <span className="block text-[10px] text-neutral-400 font-mono mt-2">
+                    72 Hours Complimentary Access &bull; No Credit Card Required &bull; Instant Activation
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {hasActiveTrial && (
+              <div className="p-5 bg-emerald-950/40 border border-emerald-500/60 rounded-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-left space-y-1">
+                  <div className="flex items-center space-x-2 text-emerald-400">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-mono font-bold tracking-wider uppercase">
+                      3-DAY FREE TRIAL ACTIVE
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-300 font-light">
+                    Your 72-hour sanctuary privileges are currently running.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/customer/dashboard')}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-white text-black text-xs font-mono font-bold uppercase tracking-wider transition whitespace-nowrap"
+                >
+                  VIEW RESIDENCY DASHBOARD
+                </button>
+              </div>
+            )}
+
+            {hasExpiredTrial && !isPaidMember && (
+              <div className="p-5 bg-amber-950/40 border border-amber-500/60 rounded-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-left space-y-1">
+                  <div className="flex items-center space-x-2 text-amber-400">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-mono font-bold tracking-wider uppercase">
+                      FREE TRIAL EXPIRED
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-300 font-light">
+                    Your 3-day trial has concluded. Select an official residency tier below to maintain membership access.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono text-amber-300 uppercase tracking-widest px-3 py-1 bg-amber-900/50 border border-amber-600">
+                  UPGRADE BELOW
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

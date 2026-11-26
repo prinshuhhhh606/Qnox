@@ -268,7 +268,12 @@ exports.verifyPayment = async (req, res, next) => {
       }
     }
 
-    // 10. Activate User's Membership
+    // 10. Activate User's Membership & Convert Trial to Paid
+    if (user.trial && (user.trial.status === 'Active' || user.trial.status === 'Expired')) {
+      user.trial.status = 'Converted';
+      user.trial.isActive = false;
+    }
+
     user.membership = {
       planId: payment.planId,
       planName: payment.planName,

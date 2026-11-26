@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { MapPin, Clock, ArrowUpRight, Check, Sparkles, Search, Compass, Phone, Mail, ExternalLink, X, Shield } from 'lucide-react';
 import { fetchClubs } from '../services/api';
 
@@ -190,7 +191,9 @@ const defaultClubs = [
   },
 ];
 
-export default function ClubsPage({ onOpenTourModal }) {
+export default function ClubsPage(props) {
+  const outletCtx = useOutletContext() || {};
+  const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal || (() => {});
   const [clubs, setClubs] = useState(defaultClubs);
   const [loading, setLoading] = useState(true);
   const [selectedFeature, setSelectedFeature] = useState('ALL');

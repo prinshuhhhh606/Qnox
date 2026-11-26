@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{base_url}}/admin/members/MEMBER_USER_ID/renew"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "months": 12,
+      "planName": "The Obsidian Black",
+      "notes": "Annual renewal by Executive Concierge"
+    }
+order: 6000

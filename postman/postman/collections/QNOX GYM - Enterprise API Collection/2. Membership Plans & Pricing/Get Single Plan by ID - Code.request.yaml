@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get Single Plan by ID / Code
+url: "{{base_url}}/membership-plans/the-obsidian-black"
+method: GET
+order: 3000

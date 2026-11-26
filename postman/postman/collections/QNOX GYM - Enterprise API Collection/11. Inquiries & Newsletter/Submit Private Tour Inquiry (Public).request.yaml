@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{base_url}}/inquiries"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Vikram Malhotra",
+      "email": "vikram@malhotracapital.com",
+      "phone": "+91 98111 22334",
+      "clubSlug": "mayfair-sanctuary",
+      "message": "Interested in private corporate residency for 5 directors."
+    }
+order: 1000

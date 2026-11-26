@@ -109,7 +109,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/memberships', membershipRoutes);
-app.use('/api/trainer-portal', trainerDashboardRoutes);
+app.use(['/api/trainer-portal', '/api/trainer-port', '/api/bookingsal'], trainerDashboardRoutes);
 app.use('/api/trainer', trainerApplicationRoutes);
 
 // Root greeting

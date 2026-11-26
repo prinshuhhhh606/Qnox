@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Waves, Wind, Shield, Activity, Zap, CheckCircle2, ArrowRight, ArrowUpRight, Flame, Droplets, Sparkles } from 'lucide-react';
 
 const sanctuarySpaces = [
@@ -118,7 +119,9 @@ const sanctuarySpaces = [
   },
 ];
 
-export default function SanctuariesPage({ onOpenTourModal }) {
+export default function SanctuariesPage(props) {
+  const outletCtx = useOutletContext() || {};
+  const onOpenTourModal = props.onOpenTourModal || outletCtx.onOpenTourModal || (() => {});
   const [activeSpaceId, setActiveSpaceId] = useState('aquatics');
   const activeSpace = sanctuarySpaces.find((s) => s.id === activeSpaceId) || sanctuarySpaces[0];
 

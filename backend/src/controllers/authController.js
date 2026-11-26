@@ -194,7 +194,11 @@ exports.updateDetails = async (req, res, next) => {
     if (req.body.avatar) {
       fieldsToUpdate.avatar = req.body.avatar;
     }
-
+console.log("========== UPDATE DETAILS ==========");
+console.log("User ID:", req.user?.id);
+console.log("User _ID:", req.user?._id);
+console.log("User Role:", req.user?.role);
+console.log("User Object:", req.user);
     const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
       new: true,
       runValidators: true,

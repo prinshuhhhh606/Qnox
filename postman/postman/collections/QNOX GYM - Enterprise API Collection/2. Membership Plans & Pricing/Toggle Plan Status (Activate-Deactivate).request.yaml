@@ -1,0 +1,7 @@
+$kind: http-request
+name: Toggle Plan Status (Activate/Deactivate)
+url: "{{base_url}}/membership-plans/PLAN_ID/toggle-status"
+method: PUT
+headers:
+  Authorization: Bearer {{token}}
+order: 6000

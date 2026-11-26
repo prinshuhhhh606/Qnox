@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{base_url}}/trainer/admin/applications?status=Pending"
+method: GET
+headers:
+  Authorization: Bearer {{token}}
+queryParams:
+  status: Pending
+order: 3000

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   getMyMembership,
+  startFreeTrial,
+  getTrialStatus,
   requestFreeze,
   requestCancellation,
   toggleAutoRenew,
@@ -18,6 +20,8 @@ const { protect, authorize } = require('../middlewares/auth');
 
 // Member Routes (Protected)
 router.get('/my-membership', protect, getMyMembership);
+router.post('/start-trial', protect, startFreeTrial);
+router.get('/trial-status', protect, getTrialStatus);
 router.post('/freeze-request', protect, requestFreeze);
 router.post('/cancellation-request', protect, requestCancellation);
 router.patch('/auto-renew', protect, toggleAutoRenew);

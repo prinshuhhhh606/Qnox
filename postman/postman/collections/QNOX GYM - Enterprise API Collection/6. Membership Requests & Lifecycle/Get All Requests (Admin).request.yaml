@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{base_url}}/memberships/admin/requests?status=Pending"
+method: GET
+headers:
+  Authorization: Bearer {{token}}
+queryParams:
+  status: Pending
+order: 4000

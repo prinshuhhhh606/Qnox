@@ -124,6 +124,23 @@ const UserSchema = new mongoose.Schema(
         code: { type: String, default: '' },
       },
     },
+    // 3-Day Free Trial / Demo Membership System
+    trial: {
+      isActive: { type: Boolean, default: false },
+      status: {
+        type: String,
+        enum: ['None', 'Active', 'Expired', 'Converted'],
+        default: 'None',
+      },
+      trialType: {
+        type: String,
+        default: '3-Day VIP Sanctuary Trial',
+      },
+      startDate: { type: Date },
+      endDate: { type: Date },
+      hasUsedTrial: { type: Boolean, default: false },
+      activatedAt: { type: Date },
+    },
     membershipHistory: [
       {
         planName: { type: String, required: true },

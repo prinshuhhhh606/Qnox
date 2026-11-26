@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/payments/PAYMENT_ID/refund"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+body:
+  type: text
+  content: |-
+    {
+      "amount": 5000,
+      "reason": "Customer request within 48h executive guarantee"
+    }
+order: 6000
