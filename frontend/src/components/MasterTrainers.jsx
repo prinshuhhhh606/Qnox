@@ -304,7 +304,7 @@ export default function MasterTrainers({ onOpenTourModal }) {
             className={`qnox-trainers-slider ${isDragging ? 'is-dragging' : ''}`}
           >
             {trainersList.map((t, index) => {
-              const imageSrc = t.image || t.avatar || t.photo || defaultTrainers[index % defaultTrainers.length].image;
+              const imageSrc = t.photo || t.avatar || t.image || defaultTrainers[index % defaultTrainers.length].image;
               const badgeLabel = t.badge || defaultTrainers[index % defaultTrainers.length].badge || 'MASTER COACH';
               const ratingVal = t.rating || '5.0';
               const specialtiesArr = Array.isArray(t.specialties) ? t.specialties : (t.specialties ? t.specialties.split(',') : defaultTrainers[index % defaultTrainers.length].specialties);

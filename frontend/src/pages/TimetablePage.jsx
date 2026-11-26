@@ -466,9 +466,9 @@ export default function TimetablePage(props) {
 
                   {/* Middle: Coach Info */}
                   <div className="flex items-center space-x-3 lg:border-x lg:border-white/10 lg:px-8 py-2">
-                    {cls.trainer?.avatar ? (
+                    {(cls.trainer?.photo || cls.trainer?.avatar || cls.trainer?.image) ? (
                       <img
-                        src={cls.trainer.avatar}
+                        src={cls.trainer.photo || cls.trainer.avatar || cls.trainer.image}
                         alt={cls.trainer.name}
                         className="w-11 h-11 rounded-full object-cover border border-[#c5a880]/40 shrink-0"
                       />

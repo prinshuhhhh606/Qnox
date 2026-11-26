@@ -171,11 +171,17 @@ export default function TrainersPage(props) {
       try {
         const data = await fetchTrainers();
         if (data && data.length > 0) {
-          // Merge API data with rich credentials
-          const merged = data.map((t, i) => ({
-            ...defaultTrainers[i % defaultTrainers.length],
-            ...t,
-          }));
+          // Merge API data with rich credentials, prioritizing trainer's real photo
+          const merged = data.map((t, i) => {
+            const fallback = defaultTrainers[i % defaultTrainers.length];
+            const realPhoto = t.photo || t.avatar || t.image;
+            return {
+              ...fallback,
+              ...t,
+              image: realPhoto || fallback.image,
+              photo: realPhoto || fallback.image,
+            };
+          });
           setTrainersList(merged);
         }
       } catch (err) {
@@ -346,7 +352,7 @@ export default function TrainersPage(props) {
                     {/* Photo container */}
                     <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900 select-none">
                       <img
-                        src={t.image || t.avatar}
+                        src={t.photo || t.avatar || t.image}
                         alt={t.name}
                         draggable="false"
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-108"
@@ -439,7 +445,7 @@ export default function TrainersPage(props) {
                   {/* Photo container */}
                   <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900">
                     <img
-                      src={t.image || t.avatar}
+                      src={t.photo || t.avatar || t.image}
                       alt={t.name}
                       className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
@@ -547,7 +553,7 @@ export default function TrainersPage(props) {
 
             <div className="flex items-center space-x-4 mb-6">
               <img
-                src={selectedTrainerModal.image || selectedTrainerModal.avatar}
+                src={selectedTrainerModal.photo || selectedTrainerModal.avatar || selectedTrainerModal.image}
                 alt={selectedTrainerModal.name}
                 className="w-16 h-16 rounded-full object-cover border border-[#c5a880]"
               />

@@ -255,9 +255,9 @@ export default function ScheduleSection({ classes = [], currentUser, onOpenAuth,
 
                   {/* Trainer Profile */}
                   <div className="flex items-center space-x-4">
-                    {item.trainer?.image && (
+                    {(item.trainer?.photo || item.trainer?.avatar || item.trainer?.image) && (
                       <img
-                        src={item.trainer.image}
+                        src={item.trainer.photo || item.trainer.avatar || item.trainer.image}
                         alt={item.trainer.name}
                         className="w-10 h-10 rounded-full object-cover border border-white/20"
                       />
