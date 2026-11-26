@@ -1455,6 +1455,16 @@ export const createFitnessAssessment = async (payload) => {
   return data;
 };
 
+export const deleteFitnessAssessment = async (id) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/assessments/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to delete assessment');
+  return data;
+};
+
 export const getTrainerPTSessions = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/trainer-portal/pt-sessions${query ? `?${query}` : ''}`, {

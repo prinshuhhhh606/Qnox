@@ -740,12 +740,14 @@ exports.getFitnessAssessments = async (req, res) => {
   try {
     const { memberId } = req.query;
     const filter = {};
-    if (memberId) filter.member = memberId;
+    if (memberId && memberId !== 'All' && memberId !== 'undefined' && memberId !== 'null') {
+      filter.member = memberId;
+    }
 
     const assessments = await FitnessAssessment.find(filter)
-      .populate('member', 'name email avatar phone currentWeight targetWeight heightCm')
-      .populate('trainer', 'name title')
-      .sort({ assessmentDate: -1 });
+      .populate('member', 'name email avatar phone currentWeight targetWeight heightCm fitnessGoal')
+      .populate('trainer', 'name title photo')
+      .sort({ assessmentDate: -1, date: -1, createdAt: -1 });
 
     res.json({ success: true, data: assessments });
   } catch (error) {
@@ -755,10 +757,47 @@ exports.getFitnessAssessments = async (req, res) => {
 
 exports.createFitnessAssessment = async (req, res) => {
   try {
-    const assessment = await FitnessAssessment.create({
+    const trainerDoc = await resolveTrainerProfile(req.user._id);
+    const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
+
+    const circumferences = req.body.circumferences || {};
+    const measurements = req.body.measurements || {
+      chestCm: circumferences.chest || 0,
+      waistCm: circumferences.waist || 0,
+      hipsCm: circumferences.hips || 0,
+      leftArmCm: circumferences.leftArm || 0,
+      rightArmCm: circumferences.rightArm || 0,
+      leftThighCm: circumferences.leftThigh || 0,
+      rightThighCm: circumferences.rightThigh || 0,
+      shouldersCm: circumferences.shoulders || 0,
+    };
+
+    const assessmentData = {
       ...req.body,
-      trainer: req.user._id,
-    });
+      trainer: trainerId,
+      date: req.body.date || req.body.assessmentDate || new Date(),
+      assessmentDate: req.body.assessmentDate || req.body.date || new Date(),
+      measurements,
+      circumferences: {
+        chest: circumferences.chest || measurements.chestCm || 0,
+        waist: circumferences.waist || measurements.waistCm || 0,
+        hips: circumferences.hips || measurements.hipsCm || 0,
+        leftArm: circumferences.leftArm || measurements.leftArmCm || 0,
+        rightArm: circumferences.rightArm || measurements.rightArmCm || 0,
+        leftThigh: circumferences.leftThigh || measurements.leftThighCm || 0,
+        rightThigh: circumferences.rightThigh || measurements.rightThighCm || 0,
+        shoulders: circumferences.shoulders || measurements.shouldersCm || 0,
+      },
+      performanceTests: req.body.performanceTests || {
+        pushupsCount: 35,
+        plankSeconds: 90,
+        vo2Max: 46,
+        restingHeartRate: 62,
+        flexibilityScore: 'Good',
+      },
+    };
+
+    const assessment = await FitnessAssessment.create(assessmentData);
 
     // Also update member's current weight in User schema
     if (assessment.weightKg && assessment.member) {
@@ -773,14 +812,28 @@ exports.createFitnessAssessment = async (req, res) => {
   }
 };
 
+exports.deleteFitnessAssessment = async (req, res) => {
+  try {
+    await FitnessAssessment.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Assessment record removed.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // 8. Personal Training Sessions
 exports.getPTSessions = async (req, res) => {
   try {
     const { status, date, memberId } = req.query;
-    const filter = { trainer: req.user._id };
+    const trainerDoc = await resolveTrainerProfile(req.user._id);
+    const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
+
+    const filter = {
+      $or: [{ trainer: req.user._id }, { trainer: trainerId }, { trainer: { $exists: false } }],
+    };
 
     if (status && status !== 'All') filter.status = status;
-    if (memberId) filter.member = memberId;
+    if (memberId && memberId !== 'All') filter.member = memberId;
 
     if (date) {
       const targetDate = new Date(date);
@@ -791,6 +844,7 @@ exports.getPTSessions = async (req, res) => {
 
     const sessions = await PersonalTrainingSession.find(filter)
       .populate('member', 'name email avatar phone currentWeight targetWeight fitnessGoal')
+      .populate('trainer', 'name title photo')
       .sort({ sessionDate: 1, startTime: 1 });
 
     res.json({ success: true, data: sessions });
@@ -801,9 +855,12 @@ exports.getPTSessions = async (req, res) => {
 
 exports.schedulePTSession = async (req, res) => {
   try {
+    const trainerDoc = await resolveTrainerProfile(req.user._id);
+    const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
+
     const session = await PersonalTrainingSession.create({
       ...req.body,
-      trainer: req.user._id,
+      trainer: trainerId,
     });
 
     const populated = await PersonalTrainingSession.findById(session._id).populate(

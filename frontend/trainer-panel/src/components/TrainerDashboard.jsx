@@ -22,6 +22,7 @@ import {
   generateAiDietPlan,
   getTrainerAssessments,
   createFitnessAssessment,
+  deleteFitnessAssessment,
   getTrainerPTSessions,
   schedulePTSession,
   updatePTSession,
@@ -44,7 +45,9 @@ import WorkoutsTab from './tabs/WorkoutsTab';
 import AiWorkoutsTab from './tabs/AiWorkoutsTab';
 import DietsTab from './tabs/DietsTab';
 import AssessmentsTab from './tabs/AssessmentsTab';
+import ProgressTrackingTab from './tabs/ProgressTrackingTab';
 import SessionsTab from './tabs/SessionsTab';
+import TrainingCalendarTab from './tabs/TrainingCalendarTab';
 import ExercisesTab from './tabs/ExercisesTab';
 import MessagesTab from './tabs/MessagesTab';
 import ReportsTab from './tabs/ReportsTab';
@@ -576,6 +579,17 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
     }
   };
 
+  const handleDeleteAssessment = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this fitness assessment?')) return;
+    try {
+      await deleteFitnessAssessment(id);
+      showToast('Assessment record deleted');
+      loadAssessments();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete assessment', 'error');
+    }
+  };
+
   const handleSchedulePT = async () => {
     if (!ptSessionForm.member) {
       showToast('Select a member first', 'error');
@@ -859,16 +873,36 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
             />
           )}
 
-          {(activeTab === 'assessments' || activeTab === 'measurements' || activeTab === 'progress') && (
+          {(activeTab === 'assessments' || activeTab === 'measurements') && (
             <AssessmentsTab
               assessments={assessments}
+              members={members}
               setNewAssessmentModal={setNewAssessmentModal}
+              handleDeleteAssessment={handleDeleteAssessment}
             />
           )}
 
-          {(activeTab === 'pt-sessions' || activeTab === 'calendar') && (
+          {activeTab === 'progress' && (
+            <ProgressTrackingTab
+              members={members}
+              assessments={assessments}
+              workoutPlans={workoutPlans}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'pt-sessions' && (
             <SessionsTab
               ptSessions={ptSessions}
+              setNewSessionModal={setNewSessionModal}
+              handleUpdatePTSessionStatus={handleUpdatePTSessionStatus}
+            />
+          )}
+
+          {activeTab === 'calendar' && (
+            <TrainingCalendarTab
+              ptSessions={ptSessions}
+              members={members}
               setNewSessionModal={setNewSessionModal}
               handleUpdatePTSessionStatus={handleUpdatePTSessionStatus}
             />

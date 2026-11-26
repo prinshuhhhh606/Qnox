@@ -21,6 +21,7 @@ const {
   generateAiDietPlan,
   getFitnessAssessments,
   createFitnessAssessment,
+  deleteFitnessAssessment,
   getPTSessions,
   schedulePTSession,
   updatePTSession,
@@ -69,6 +70,7 @@ router.post('/diets/ai-generate', generateAiDietPlan);
 // 6. Assessments & Measurements
 router.get('/assessments', getFitnessAssessments);
 router.post('/assessments', createFitnessAssessment);
+router.delete('/assessments/:id', deleteFitnessAssessment);
 
 // 7. Personal Training Sessions
 router.get('/pt-sessions', getPTSessions);
