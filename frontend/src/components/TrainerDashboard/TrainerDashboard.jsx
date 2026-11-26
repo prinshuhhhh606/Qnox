@@ -44,6 +44,7 @@ import AttendanceTab from './tabs/AttendanceTab';
 import WorkoutsTab from './tabs/WorkoutsTab';
 import AiWorkoutsTab from './tabs/AiWorkoutsTab';
 import DietsTab from './tabs/DietsTab';
+import BodyMeasurementsTab from './tabs/BodyMeasurementsTab';
 import AssessmentsTab from './tabs/AssessmentsTab';
 import ProgressTrackingTab from './tabs/ProgressTrackingTab';
 import SessionsTab from './tabs/SessionsTab';
@@ -147,6 +148,18 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Body Measurements & Assessments
   const [assessments, setAssessments] = useState([]);
   const [newAssessmentModal, setNewAssessmentModal] = useState(false);
+  const [assessmentModalTab, setAssessmentModalTab] = useState('circumferences');
+
+  const openMeasurementModal = () => {
+    setAssessmentModalTab('circumferences');
+    setNewAssessmentModal(true);
+  };
+
+  const openAssessmentModal = () => {
+    setAssessmentModalTab('performance');
+    setNewAssessmentModal(true);
+  };
+
   const [assessmentForm, setAssessmentForm] = useState({
     member: '',
     assessmentType: 'Monthly',
@@ -873,12 +886,23 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
             />
           )}
 
-          {(activeTab === 'assessments' || activeTab === 'measurements') && (
+          {activeTab === 'measurements' && (
+            <BodyMeasurementsTab
+              assessments={assessments}
+              members={members}
+              setNewAssessmentModal={setNewAssessmentModal}
+              handleDeleteAssessment={handleDeleteAssessment}
+              openMeasurementModal={openMeasurementModal}
+            />
+          )}
+
+          {activeTab === 'assessments' && (
             <AssessmentsTab
               assessments={assessments}
               members={members}
               setNewAssessmentModal={setNewAssessmentModal}
               handleDeleteAssessment={handleDeleteAssessment}
+              openAssessmentModal={openAssessmentModal}
             />
           )}
 
@@ -981,6 +1005,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
         assessmentForm={assessmentForm}
         setAssessmentForm={setAssessmentForm}
         handleCreateAssessment={handleCreateAssessment}
+        initialTab={assessmentModalTab}
       />
 
       <NewSessionModal

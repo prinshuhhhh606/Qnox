@@ -6,6 +6,7 @@ export default function AssessmentsTab({
   members = [],
   setNewAssessmentModal,
   handleDeleteAssessment,
+  openAssessmentModal,
 }) {
   const [selectedMemberId, setSelectedMemberId] = useState('All');
 
@@ -50,7 +51,13 @@ export default function AssessmentsTab({
           </select>
 
           <button
-            onClick={() => setNewAssessmentModal(true)}
+            onClick={() => {
+              if (openAssessmentModal) {
+                openAssessmentModal();
+              } else {
+                setNewAssessmentModal(true);
+              }
+            }}
             className="trainer-btn-primary flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
