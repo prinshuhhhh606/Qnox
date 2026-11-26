@@ -368,12 +368,16 @@ exports.getWorkoutPlans = async (req, res) => {
   try {
     const { memberId, category } = req.query;
     const filter = {};
-    if (memberId) filter.member = memberId;
-    if (category) filter.category = category;
+    if (memberId && memberId !== 'All' && memberId !== 'undefined' && memberId !== 'null') {
+      filter.member = memberId;
+    }
+    if (category && category !== 'All' && category !== 'undefined' && category !== 'null') {
+      filter.category = category;
+    }
 
     const plans = await WorkoutPlan.find(filter)
       .populate('member', 'name email avatar')
-      .populate('trainer', 'name title')
+      .populate('trainer', 'name title photo')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: plans });

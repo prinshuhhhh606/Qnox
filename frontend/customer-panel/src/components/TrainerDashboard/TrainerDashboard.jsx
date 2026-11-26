@@ -98,14 +98,17 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Workout Plans
   const [workoutPlans, setWorkoutPlans] = useState([]);
   const [newWorkoutModal, setNewWorkoutModal] = useState(false);
-  const [workoutCategoryFilter] = useState('All');
+  const [creatingWorkout, setCreatingWorkout] = useState(false);
+  const [workoutCategoryFilter, setWorkoutCategoryFilter] = useState('All');
   const [workoutForm, setWorkoutForm] = useState({
     title: '',
     category: 'Chest Workout',
     difficulty: 'Intermediate',
     targetAudience: 'Intermediate',
+    goal: 'Muscle Gain',
     durationWeeks: 4,
     description: '',
+    member: '',
     exercises: [
       { exerciseName: 'Barbell Bench Press', targetMuscle: 'Chest', equipment: 'Barbells', sets: 4, reps: '8-10 reps', restTimeSec: 90, instructions: 'Arch upper back, retract scapulae.' }
     ]
@@ -203,6 +206,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
     name: currentUser?.name || 'Marcus Vance',
     email: currentUser?.email || 'trainer@qnoxgym.com',
     phone: '+44 20 7946 0880',
+    photo: currentUser?.avatar || '',
     bio: 'Elite Athletic Conditioning Specialist focused on biomechanical efficiency.',
     workingHours: '06:00 AM - 02:00 PM',
     availableDays: 'Mon, Tue, Wed, Thu, Fri, Sat',
@@ -282,7 +286,11 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
 
   const loadWorkoutPlans = async () => {
     try {
-      const res = await getTrainerWorkoutPlans({ category: workoutCategoryFilter });
+      const params = {};
+      if (workoutCategoryFilter && workoutCategoryFilter !== 'All') {
+        params.category = workoutCategoryFilter;
+      }
+      const res = await getTrainerWorkoutPlans(params);
       if (res.success) setWorkoutPlans(res.data || []);
     } catch (err) {
       console.error(err);
@@ -356,6 +364,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
           name: u?.name || tp?.name || '',
           email: u?.email || tp?.email || '',
           phone: u?.phone || tp?.phone || '',
+          photo: tp?.photo || u?.avatar || '',
           bio: tp?.bio || '',
           workingHours: tp?.workingHours || '06:00 AM - 02:00 PM',
           availableDays: tp?.availableDays?.join(', ') || 'Mon, Tue, Wed, Thu, Fri, Sat',
@@ -441,17 +450,39 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   };
 
   const handleCreateWorkout = async () => {
-    if (!workoutForm.title) {
+    if (!workoutForm.title || !workoutForm.title.trim()) {
       showToast('Please enter workout title', 'error');
       return;
     }
+    setCreatingWorkout(true);
     try {
-      await createWorkoutPlan(workoutForm);
+      const payload = {
+        ...workoutForm,
+        member: workoutForm.member || undefined,
+        level: workoutForm.difficulty || 'Intermediate',
+        targetAudience: workoutForm.difficulty || 'Intermediate',
+      };
+      await createWorkoutPlan(payload);
       showToast('Workout plan created successfully!');
       setNewWorkoutModal(false);
+      setWorkoutForm({
+        title: '',
+        category: 'Chest Workout',
+        difficulty: 'Intermediate',
+        targetAudience: 'Intermediate',
+        goal: 'Muscle Gain',
+        durationWeeks: 4,
+        description: '',
+        member: '',
+        exercises: [
+          { exerciseName: 'Barbell Bench Press', targetMuscle: 'Chest', equipment: 'Barbells', sets: 4, reps: '8-10 reps', restTimeSec: 90, instructions: 'Arch upper back, retract scapulae.' }
+        ]
+      });
       loadWorkoutPlans();
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      setCreatingWorkout(false);
     }
   };
 
@@ -765,6 +796,9 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
               setNewWorkoutModal={setNewWorkoutModal}
               assignWorkoutPlan={assignWorkoutPlan}
               showToast={showToast}
+              workoutCategoryFilter={workoutCategoryFilter}
+              setWorkoutCategoryFilter={setWorkoutCategoryFilter}
+              loadWorkoutPlans={loadWorkoutPlans}
             />
           )}
 
@@ -897,6 +931,8 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
         workoutForm={workoutForm}
         setWorkoutForm={setWorkoutForm}
         handleCreateWorkout={handleCreateWorkout}
+        members={members}
+        creatingWorkout={creatingWorkout}
       />
 
       <NewExerciseModal

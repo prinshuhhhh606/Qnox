@@ -99,7 +99,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   const [workoutPlans, setWorkoutPlans] = useState([]);
   const [newWorkoutModal, setNewWorkoutModal] = useState(false);
   const [creatingWorkout, setCreatingWorkout] = useState(false);
-  const [workoutCategoryFilter] = useState('All');
+  const [workoutCategoryFilter, setWorkoutCategoryFilter] = useState('All');
   const [workoutForm, setWorkoutForm] = useState({
     title: '',
     category: 'Chest Workout',
@@ -286,7 +286,11 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
 
   const loadWorkoutPlans = async () => {
     try {
-      const res = await getTrainerWorkoutPlans({ category: workoutCategoryFilter });
+      const params = {};
+      if (workoutCategoryFilter && workoutCategoryFilter !== 'All') {
+        params.category = workoutCategoryFilter;
+      }
+      const res = await getTrainerWorkoutPlans(params);
       if (res.success) setWorkoutPlans(res.data || []);
     } catch (err) {
       console.error(err);
@@ -792,6 +796,9 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
               setNewWorkoutModal={setNewWorkoutModal}
               assignWorkoutPlan={assignWorkoutPlan}
               showToast={showToast}
+              workoutCategoryFilter={workoutCategoryFilter}
+              setWorkoutCategoryFilter={setWorkoutCategoryFilter}
+              loadWorkoutPlans={loadWorkoutPlans}
             />
           )}
 
