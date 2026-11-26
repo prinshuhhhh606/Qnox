@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Plus, Sparkles, RefreshCw, Dumbbell } from 'lucide-react';
 
 export default function WorkoutsTab({
@@ -22,20 +22,30 @@ export default function WorkoutsTab({
     'Combat Conditioning',
   ];
 
+  // Instant 0ms Zero-Latency In-Memory Filter
+  const displayedPlans = useMemo(() => {
+    if (!workoutCategoryFilter || workoutCategoryFilter === 'All') {
+      return workoutPlans;
+    }
+    return workoutPlans.filter(
+      (wp) => (wp.category || '').toLowerCase() === workoutCategoryFilter.toLowerCase()
+    );
+  }, [workoutPlans, workoutCategoryFilter]);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-serif text-white tracking-wide">Workout Plan Architecture</h2>
           <p className="text-xs text-neutral-400 mt-1">
-            Design and assign personalized training splits across athletic disciplines. Showing {workoutPlans.length} active routine(s).
+            Design and assign personalized training splits across athletic disciplines. Showing {displayedPlans.length} of {workoutPlans.length} routine(s).
           </p>
         </div>
         <div className="flex items-center gap-3">
           {loadWorkoutPlans && (
             <button
               onClick={() => loadWorkoutPlans()}
-              className="trainer-btn-outline flex items-center gap-2"
+              className="trainer-btn-outline flex items-center gap-2 hover:border-[#c5a880] transition"
               title="Refresh Routines"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
@@ -56,39 +66,58 @@ export default function WorkoutsTab({
         </div>
       </div>
 
-      {/* Category Filter Pills */}
+      {/* Category Filter Pills - Instantaneous Response */}
       {setWorkoutCategoryFilter && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => {
-                setWorkoutCategoryFilter(cat);
-              }}
-              className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded border transition whitespace-nowrap ${
-                workoutCategoryFilter === cat
-                  ? 'border-[#c5a880] bg-[#c5a880]/15 text-[#c5a880] font-bold'
-                  : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          {categories.map((cat) => {
+            const count =
+              cat === 'All'
+                ? workoutPlans.length
+                : workoutPlans.filter(
+                    (p) => (p.category || '').toLowerCase() === cat.toLowerCase()
+                  ).length;
+
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setWorkoutCategoryFilter(cat)}
+                className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded border transition-all duration-150 whitespace-nowrap flex items-center space-x-1.5 active:scale-95 ${
+                  workoutCategoryFilter === cat
+                    ? 'border-[#c5a880] bg-[#c5a880]/20 text-[#c5a880] font-bold shadow-sm'
+                    : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                <span>{cat}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      workoutCategoryFilter === cat
+                        ? 'bg-[#c5a880] text-black font-bold'
+                        : 'bg-white/10 text-neutral-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
       {/* Workout Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {workoutPlans.length === 0 ? (
+        {displayedPlans.length === 0 ? (
           <div className="col-span-3 py-16 text-center text-neutral-400 text-xs trainer-glass-card space-y-3">
             <Dumbbell className="w-8 h-8 text-neutral-600 mx-auto" />
-            <p className="text-sm text-neutral-300 font-serif">No routines found in this filter.</p>
+            <p className="text-sm text-neutral-300 font-serif">No routines found in "{workoutCategoryFilter}".</p>
             <p className="text-neutral-500 max-w-sm mx-auto">
-              Click "Create Routine" above to add a new workout or hit "Refresh" to sync from database.
+              Select "All" to view all routines, click "Create Routine" above to add one, or hit "Refresh".
             </p>
           </div>
         ) : (
-          workoutPlans.map((wp) => (
+          displayedPlans.map((wp) => (
             <div key={wp._id} className="trainer-glass-card p-5 flex flex-col justify-between hover:border-[#c5a880]/50 transition-all">
               <div>
                 <div className="flex items-center justify-between mb-2">

@@ -286,11 +286,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
 
   const loadWorkoutPlans = async () => {
     try {
-      const params = {};
-      if (workoutCategoryFilter && workoutCategoryFilter !== 'All') {
-        params.category = workoutCategoryFilter;
-      }
-      const res = await getTrainerWorkoutPlans(params);
+      const res = await getTrainerWorkoutPlans();
       if (res.success) setWorkoutPlans(res.data || []);
     } catch (err) {
       console.error(err);
