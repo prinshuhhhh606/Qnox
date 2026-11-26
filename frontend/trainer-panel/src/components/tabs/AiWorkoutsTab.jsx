@@ -6,6 +6,7 @@ export default function AiWorkoutsTab({
   setAiWorkoutForm,
   members,
   aiWorkoutLoading,
+  savingAiWorkout = false,
   handleGenerateAiWorkout,
   generatedAiWorkout,
   handleSaveAiWorkoutPlan,
@@ -28,11 +29,11 @@ export default function AiWorkoutsTab({
             Target Member
           </label>
           <select
-            value={aiWorkoutForm.memberId}
+            value={aiWorkoutForm.memberId || ''}
             onChange={(e) => setAiWorkoutForm({ ...aiWorkoutForm, memberId: e.target.value })}
             className="w-full bg-neutral-900 border border-neutral-800 text-xs text-neutral-200 py-2.5 px-3 rounded-lg focus:outline-none focus:border-[#c5a880]"
           >
-            <option value="">Select Athlete (Optional)</option>
+            <option value="">Select Athlete (Optional / Sanctuary Template)</option>
             {members.map((m) => (
               <option key={m._id} value={m._id}>{m.name} ({m.fitnessGoal || 'General'})</option>
             ))}
@@ -120,17 +121,28 @@ export default function AiWorkoutsTab({
       {/* Generated AI Workout Review */}
       {generatedAiWorkout && (
         <div className="trainer-glass-card p-6 border-l-4 border-l-[#c5a880] space-y-5 animate-fadeIn">
-          <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3 border-b border-neutral-800">
             <div>
               <span className="trainer-badge trainer-badge-gold">AI PROTOCOL SYNTHESIZED</span>
               <h3 className="text-xl font-serif text-white mt-1">{generatedAiWorkout.title}</h3>
               <p className="text-xs text-neutral-400 mt-1">{generatedAiWorkout.description}</p>
             </div>
             <button
+              disabled={savingAiWorkout}
               onClick={handleSaveAiWorkoutPlan}
-              className="trainer-btn-primary flex items-center gap-2"
+              className="trainer-btn-primary flex items-center justify-center gap-2 min-w-[190px] disabled:opacity-50"
             >
-              <Check className="w-4 h-4" /> Approve & Save Plan
+              {savingAiWorkout ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Approving & Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Approve & Save Plan</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -149,9 +161,13 @@ export default function AiWorkoutsTab({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {day.exercises.map((ex, exIdx) => (
                     <div key={exIdx} className="p-2.5 rounded bg-black/40 border border-neutral-800/80">
-                      <p className="font-semibold text-neutral-200">{ex.exerciseName}</p>
-                      <p className="text-[11px] text-[#c5a880]">{ex.sets} sets × {ex.reps} ({ex.restTimeSec}s rest)</p>
-                      <p className="text-[10px] text-neutral-500 mt-1">{ex.instructions}</p>
+                      <p className="font-semibold text-neutral-200">{ex.name || ex.exerciseName}</p>
+                      <p className="text-[11px] text-[#c5a880]">
+                        {ex.sets} sets × {ex.reps} ({ex.restSeconds || ex.restTimeSec || 60}s rest)
+                      </p>
+                      {ex.instructions && (
+                        <p className="text-[10px] text-neutral-500 mt-1">{ex.instructions}</p>
+                      )}
                     </div>
                   ))}
                 </div>

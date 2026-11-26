@@ -391,6 +391,39 @@ exports.createWorkoutPlan = async (req, res) => {
     const trainerDoc = await resolveTrainerProfile(req.user._id);
     const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
 
+    let weeklySchedule = req.body.weeklySchedule;
+    if (Array.isArray(weeklySchedule)) {
+      weeklySchedule = weeklySchedule.map((dayItem) => {
+        let exercises = dayItem.exercises || [];
+        if (Array.isArray(exercises)) {
+          exercises = exercises.map((ex) => {
+            const exName = ex.name || ex.exerciseName || 'Exercise';
+            return {
+              name: exName,
+              exerciseName: exName,
+              category: ex.category || 'General',
+              targetMuscle: ex.targetMuscle || 'Full Body',
+              equipment: ex.equipment || 'Dumbbells',
+              sets: Number(ex.sets) || 3,
+              reps: String(ex.reps || '10-12'),
+              weight: ex.weight || 'Progressive overload',
+              weightKg: typeof ex.weightKg === 'number' ? ex.weightKg : 0,
+              restSeconds: Number(ex.restSeconds || ex.restTimeSec) || 60,
+              restTimeSec: Number(ex.restTimeSec || ex.restSeconds) || 60,
+              instructions: ex.instructions || '',
+              isCompleted: false,
+            };
+          });
+        }
+        return {
+          day: dayItem.day,
+          focus: dayItem.focus || 'Full Body Protocol',
+          isRestDay: !!dayItem.isRestDay,
+          exercises,
+        };
+      });
+    }
+
     const planData = {
       ...req.body,
       trainer: trainerId,
@@ -398,17 +431,22 @@ exports.createWorkoutPlan = async (req, res) => {
       difficulty: req.body.difficulty || req.body.level || 'Intermediate',
       goal: req.body.goal || 'Muscle Gain',
       category: req.body.category || 'Full Body',
-      durationWeeks: req.body.durationWeeks || 4,
+      durationWeeks: Number(req.body.durationWeeks) || 4,
       targetAudience: req.body.targetAudience || req.body.difficulty || 'Intermediate',
+      weeklySchedule: weeklySchedule || [],
+      isAiGenerated: req.body.isAiGenerated !== undefined ? req.body.isAiGenerated : (req.body.aiGenerated || false),
+      aiGenerated: req.body.aiGenerated !== undefined ? req.body.aiGenerated : (req.body.isAiGenerated || false),
+      aiPromptContext: req.body.aiPromptContext || {},
     };
 
-    if (!planData.member || planData.member === '' || planData.member === 'undefined') {
+    if (!planData.member || planData.member === '' || planData.member === 'undefined' || planData.member === 'null') {
       delete planData.member;
     }
 
     const plan = await WorkoutPlan.create(planData);
     res.status(201).json({ success: true, data: plan });
   } catch (error) {
+    console.error('Error creating workout plan:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -506,12 +544,14 @@ exports.generateAiWorkoutPlan = async (req, res) => {
     const weeklySchedule = chosenDays.map((splitItem, idx) => {
       // Pick 4-5 relevant exercises
       const dayExercises = exerciseCatalog.slice(idx * 2, idx * 2 + 4).map(ex => ({
+        name: ex.name,
         exerciseName: ex.name,
         targetMuscle: ex.muscle,
         equipment: ex.equipment,
         sets: ex.sets,
         reps: ex.reps,
         weight: 'Progressive overload',
+        restSeconds: ex.rest,
         restTimeSec: ex.rest,
         instructions: `Maintain strict tempo (2-0-1-0). Focus on peak contraction. Limitations considered: ${limitations}`,
       }));

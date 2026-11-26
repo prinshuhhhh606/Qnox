@@ -126,6 +126,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
     focus: 'Hypertrophy & Strength'
   });
   const [generatedAiWorkout, setGeneratedAiWorkout] = useState(null);
+  const [savingAiWorkout, setSavingAiWorkout] = useState(false);
 
   // Diet Plans
   const [dietPlans, setDietPlans] = useState([]);
@@ -432,18 +433,26 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   };
 
   const handleSaveAiWorkoutPlan = async () => {
-    if (!generatedAiWorkout) return;
+    if (!generatedAiWorkout || savingAiWorkout) return;
     try {
-      await createWorkoutPlan({
+      setSavingAiWorkout(true);
+      const payload = {
         ...generatedAiWorkout,
-        member: aiWorkoutForm.memberId || undefined
-      });
+      };
+      if (aiWorkoutForm.memberId && aiWorkoutForm.memberId !== 'All') {
+        payload.member = aiWorkoutForm.memberId;
+      } else {
+        delete payload.member;
+      }
+      await createWorkoutPlan(payload);
       showToast('AI Workout plan approved and added to library!');
       setGeneratedAiWorkout(null);
       loadWorkoutPlans();
       setActiveTab('workouts');
     } catch (err) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Failed to approve workout plan', 'error');
+    } finally {
+      setSavingAiWorkout(false);
     }
   };
 
@@ -828,6 +837,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
               setAiWorkoutForm={setAiWorkoutForm}
               members={members}
               aiWorkoutLoading={aiWorkoutLoading}
+              savingAiWorkout={savingAiWorkout}
               handleGenerateAiWorkout={handleGenerateAiWorkout}
               generatedAiWorkout={generatedAiWorkout}
               handleSaveAiWorkoutPlan={handleSaveAiWorkoutPlan}

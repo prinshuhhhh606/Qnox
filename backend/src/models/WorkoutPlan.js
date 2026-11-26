@@ -30,7 +30,6 @@ const WorkoutPlanSchema = new mongoose.Schema(
     },
     difficulty: {
       type: String,
-      enum: ['Beginner', 'Intermediate', 'Advanced', 'Elite'],
       default: 'Intermediate',
     },
     targetAudience: {
@@ -39,12 +38,10 @@ const WorkoutPlanSchema = new mongoose.Schema(
     },
     goal: {
       type: String,
-      enum: ['Fat Loss', 'Muscle Gain', 'Strength Training', 'General Fitness', 'Athletic Performance', 'Recovery & Mobility'],
       default: 'Muscle Gain',
     },
     level: {
       type: String,
-      enum: ['Beginner', 'Intermediate', 'Advanced', 'Elite'],
       default: 'Intermediate',
     },
     durationWeeks: {
@@ -54,11 +51,15 @@ const WorkoutPlanSchema = new mongoose.Schema(
     exercises: [
       {
         exerciseName: { type: String, default: '' },
+        name: { type: String, default: '' },
         targetMuscle: { type: String, default: 'General' },
         equipment: { type: String, default: 'Dumbbells' },
         sets: { type: Number, default: 3 },
         reps: { type: String, default: '10-12 reps' },
         restTimeSec: { type: Number, default: 60 },
+        restSeconds: { type: Number, default: 60 },
+        weight: { type: mongoose.Schema.Types.Mixed, default: '' },
+        weightKg: { type: mongoose.Schema.Types.Mixed, default: 0 },
         instructions: { type: String, default: '' },
       },
     ],
@@ -66,7 +67,6 @@ const WorkoutPlanSchema = new mongoose.Schema(
       {
         day: {
           type: String,
-          enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
           required: true,
         },
         focus: {
@@ -79,14 +79,17 @@ const WorkoutPlanSchema = new mongoose.Schema(
         },
         exercises: [
           {
-            name: { type: String, required: true },
+            name: { type: String, default: '' },
+            exerciseName: { type: String, default: '' },
             category: { type: String, default: 'General' },
             targetMuscle: { type: String, default: 'Full Body' },
             equipment: { type: String, default: 'Dumbbells' },
             sets: { type: Number, default: 3 },
             reps: { type: String, default: '10-12' },
-            weightKg: { type: Number, default: 0 },
+            weight: { type: mongoose.Schema.Types.Mixed, default: '' },
+            weightKg: { type: mongoose.Schema.Types.Mixed, default: 0 },
             restSeconds: { type: Number, default: 60 },
+            restTimeSec: { type: Number, default: 60 },
             instructions: { type: String, default: '' },
             isCompleted: { type: Boolean, default: false },
           },
@@ -96,6 +99,14 @@ const WorkoutPlanSchema = new mongoose.Schema(
     isAiGenerated: {
       type: Boolean,
       default: false,
+    },
+    aiGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    aiPromptContext: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
     status: {
       type: String,
