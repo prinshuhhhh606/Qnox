@@ -384,10 +384,24 @@ exports.getWorkoutPlans = async (req, res) => {
 
 exports.createWorkoutPlan = async (req, res) => {
   try {
+    const trainerDoc = await resolveTrainerProfile(req.user._id);
+    const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
+
     const planData = {
       ...req.body,
-      trainer: req.user._id,
+      trainer: trainerId,
+      level: req.body.level || req.body.difficulty || 'Intermediate',
+      difficulty: req.body.difficulty || req.body.level || 'Intermediate',
+      goal: req.body.goal || 'Muscle Gain',
+      category: req.body.category || 'Full Body',
+      durationWeeks: req.body.durationWeeks || 4,
+      targetAudience: req.body.targetAudience || req.body.difficulty || 'Intermediate',
     };
+
+    if (!planData.member || planData.member === '' || planData.member === 'undefined') {
+      delete planData.member;
+    }
+
     const plan = await WorkoutPlan.create(planData);
     res.status(201).json({ success: true, data: plan });
   } catch (error) {
@@ -554,10 +568,19 @@ exports.getDietPlans = async (req, res) => {
 
 exports.createDietPlan = async (req, res) => {
   try {
-    const plan = await DietPlan.create({
+    const trainerDoc = await resolveTrainerProfile(req.user._id);
+    const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
+
+    const planData = {
       ...req.body,
-      trainer: req.user._id,
-    });
+      trainer: trainerId,
+    };
+
+    if (!planData.member || planData.member === '' || planData.member === 'undefined') {
+      delete planData.member;
+    }
+
+    const plan = await DietPlan.create(planData);
     res.status(201).json({ success: true, data: plan });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

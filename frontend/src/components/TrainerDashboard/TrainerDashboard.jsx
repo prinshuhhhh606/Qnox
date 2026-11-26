@@ -98,14 +98,17 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Workout Plans
   const [workoutPlans, setWorkoutPlans] = useState([]);
   const [newWorkoutModal, setNewWorkoutModal] = useState(false);
+  const [creatingWorkout, setCreatingWorkout] = useState(false);
   const [workoutCategoryFilter] = useState('All');
   const [workoutForm, setWorkoutForm] = useState({
     title: '',
     category: 'Chest Workout',
     difficulty: 'Intermediate',
     targetAudience: 'Intermediate',
+    goal: 'Muscle Gain',
     durationWeeks: 4,
     description: '',
+    member: '',
     exercises: [
       { exerciseName: 'Barbell Bench Press', targetMuscle: 'Chest', equipment: 'Barbells', sets: 4, reps: '8-10 reps', restTimeSec: 90, instructions: 'Arch upper back, retract scapulae.' }
     ]
@@ -443,17 +446,39 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   };
 
   const handleCreateWorkout = async () => {
-    if (!workoutForm.title) {
+    if (!workoutForm.title || !workoutForm.title.trim()) {
       showToast('Please enter workout title', 'error');
       return;
     }
+    setCreatingWorkout(true);
     try {
-      await createWorkoutPlan(workoutForm);
+      const payload = {
+        ...workoutForm,
+        member: workoutForm.member || undefined,
+        level: workoutForm.difficulty || 'Intermediate',
+        targetAudience: workoutForm.difficulty || 'Intermediate',
+      };
+      await createWorkoutPlan(payload);
       showToast('Workout plan created successfully!');
       setNewWorkoutModal(false);
+      setWorkoutForm({
+        title: '',
+        category: 'Chest Workout',
+        difficulty: 'Intermediate',
+        targetAudience: 'Intermediate',
+        goal: 'Muscle Gain',
+        durationWeeks: 4,
+        description: '',
+        member: '',
+        exercises: [
+          { exerciseName: 'Barbell Bench Press', targetMuscle: 'Chest', equipment: 'Barbells', sets: 4, reps: '8-10 reps', restTimeSec: 90, instructions: 'Arch upper back, retract scapulae.' }
+        ]
+      });
       loadWorkoutPlans();
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      setCreatingWorkout(false);
     }
   };
 
@@ -899,6 +924,8 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
         workoutForm={workoutForm}
         setWorkoutForm={setWorkoutForm}
         handleCreateWorkout={handleCreateWorkout}
+        members={members}
+        creatingWorkout={creatingWorkout}
       />
 
       <NewExerciseModal

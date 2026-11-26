@@ -5,13 +5,13 @@ const DietPlanSchema = new mongoose.Schema(
     trainer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Trainer',
-      required: true,
+      required: false,
       index: true,
     },
     member: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
     },
     title: {

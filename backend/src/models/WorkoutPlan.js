@@ -5,19 +5,37 @@ const WorkoutPlanSchema = new mongoose.Schema(
     trainer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Trainer',
-      required: true,
+      required: false,
       index: true,
     },
     member: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
     },
     title: {
       type: String,
       required: true,
       trim: true,
+    },
+    category: {
+      type: String,
+      default: 'Full Body',
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: '',
+    },
+    difficulty: {
+      type: String,
+      enum: ['Beginner', 'Intermediate', 'Advanced', 'Elite'],
+      default: 'Intermediate',
+    },
+    targetAudience: {
+      type: String,
+      default: 'Intermediate',
     },
     goal: {
       type: String,
@@ -26,13 +44,24 @@ const WorkoutPlanSchema = new mongoose.Schema(
     },
     level: {
       type: String,
-      enum: ['Beginner', 'Intermediate', 'Advanced'],
+      enum: ['Beginner', 'Intermediate', 'Advanced', 'Elite'],
       default: 'Intermediate',
     },
     durationWeeks: {
       type: Number,
-      default: 8,
+      default: 4,
     },
+    exercises: [
+      {
+        exerciseName: { type: String, default: '' },
+        targetMuscle: { type: String, default: 'General' },
+        equipment: { type: String, default: 'Dumbbells' },
+        sets: { type: Number, default: 3 },
+        reps: { type: String, default: '10-12 reps' },
+        restTimeSec: { type: Number, default: 60 },
+        instructions: { type: String, default: '' },
+      },
+    ],
     weeklySchedule: [
       {
         day: {
