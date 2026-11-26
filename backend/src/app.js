@@ -23,6 +23,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const membershipRoutes = require('./routes/membershipRoutes');
 const trainerDashboardRoutes = require('./routes/trainerDashboardRoutes');
 const trainerApplicationRoutes = require('./routes/trainerApplicationRoutes');
+const userWorkoutRoutes = require('./routes/userWorkoutRoutes');
 
 const app = express();
 
@@ -111,6 +112,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use(['/api/trainer-portal', '/api/trainer-port', '/api/bookingsal'], trainerDashboardRoutes);
 app.use('/api/trainer', trainerApplicationRoutes);
+app.use('/api/workouts', userWorkoutRoutes);
 
 // Root greeting
 app.get('/', (req, res) => {

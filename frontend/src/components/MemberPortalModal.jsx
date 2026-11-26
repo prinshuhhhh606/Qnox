@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power, Zap } from 'lucide-react';
+import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power, Zap, Dumbbell } from 'lucide-react';
 import {
   fetchMyBookings,
   cancelClassBooking,
@@ -16,6 +16,7 @@ import {
   startFreeTrial,
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
+import AiWorkoutModule from './WorkoutModule/AiWorkoutModule';
 import './MemberPortalModal.css';
 
 export default function MemberPortalModal({ isOpen, onClose, user, onRenewMembership, onShowToast }) {
@@ -336,6 +337,13 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
               className={`qnox-portal-tab ${activeTab === 'residency' ? 'active' : ''}`}
             >
               MY RESIDENCY
+            </button>
+            <button
+              onClick={() => setActiveTab('workouts')}
+              className={`qnox-portal-tab relative flex items-center space-x-1.5 ${activeTab === 'workouts' ? 'active' : ''}`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 text-[#c5a880]" />
+              <span>AI WORKOUTS & TRACKER</span>
             </button>
             <button
               onClick={() => setActiveTab('bookings')}
@@ -1017,6 +1025,16 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                   </div>
                 )}
               </div>
+            )}
+
+            {/* TAB 5: AI WORKOUT ASSISTANT & LIVE TRACKER */}
+            {activeTab === 'workouts' && (
+              <AiWorkoutModule
+                user={user}
+                showToast={(msg, type) => {
+                  if (onShowToast) onShowToast({ message: msg, type: type || 'success' });
+                }}
+              />
             )}
 
           </div>

@@ -15,7 +15,7 @@
 .qnox-portal-dialog {
   position: relative;
   width: 100%;
-  max-width: 820px;
+  max-width: 960px;
   max-height: 90vh;
   background-color: #080808;
   border: 1px solid rgba(197, 168, 128, 0.4);

@@ -1994,3 +1994,138 @@ export const rejectAdminTrainerApplication = async (id, adminRemarks = '') => {
     data: { id, status: 'Rejected' },
   };
 };
+
+// ==========================================
+// QNOX USER AI WORKOUT ASSISTANCE & LIVE SESSION ENGINE
+// ==========================================
+
+export const generateUserAiWorkout = async (payload) => {
+  const res = await fetch(`${API_BASE}/workouts/ai-generate`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to generate AI workout plan');
+  return data;
+};
+
+export const saveUserWorkoutPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/workouts/save`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to save workout plan');
+  return data;
+};
+
+export const approveUserWorkoutPlan = async (payload) => {
+  const res = await fetch(`${API_BASE}/workouts/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to approve workout plan');
+  return data;
+};
+
+export const getUserActiveWorkoutPlan = async () => {
+  const res = await fetch(`${API_BASE}/workouts/active`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch active workout plan');
+  return data;
+};
+
+export const getUserSavedWorkoutPlans = async () => {
+  const res = await fetch(`${API_BASE}/workouts/saved`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch saved workout plans');
+  return data;
+};
+
+export const getUserWorkoutPlanById = async (id) => {
+  const res = await fetch(`${API_BASE}/workouts/${id}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch workout plan details');
+  return data;
+};
+
+export const deleteUserSavedWorkoutPlan = async (id) => {
+  const res = await fetch(`${API_BASE}/workouts/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to delete saved workout plan');
+  return data;
+};
+
+export const startUserWorkoutSession = async (payload = {}) => {
+  const res = await fetch(`${API_BASE}/workouts/session/start`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to start workout session');
+  return data;
+};
+
+export const getCurrentUserWorkoutSession = async () => {
+  const res = await fetch(`${API_BASE}/workouts/session/current`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch current workout session');
+  return data;
+};
+
+export const logUserSessionSet = async (sessionId, payload) => {
+  const res = await fetch(`${API_BASE}/workouts/session/${sessionId}/log-set`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to log set');
+  return data;
+};
+
+export const completeUserWorkoutSession = async (sessionId, payload = {}) => {
+  const res = await fetch(`${API_BASE}/workouts/session/${sessionId}/complete`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to complete workout session');
+  return data;
+};
+
+export const cancelUserWorkoutSession = async (sessionId) => {
+  const res = await fetch(`${API_BASE}/workouts/session/${sessionId}/cancel`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to cancel workout session');
+  return data;
+};
+
+export const getUserWorkoutProgressDashboard = async () => {
+  const res = await fetch(`${API_BASE}/workouts/progress/dashboard`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch workout progress dashboard');
+  return data;
+};

@@ -215,6 +215,11 @@ const UserSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    activeWorkoutPlan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'WorkoutPlan',
+      default: null,
+    },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },

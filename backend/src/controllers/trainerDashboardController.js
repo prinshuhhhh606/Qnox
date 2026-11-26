@@ -8,6 +8,7 @@ const PersonalTrainingSession = require('../models/PersonalTrainingSession');
 const Exercise = require('../models/Exercise');
 const ChatMessage = require('../models/ChatMessage');
 const TrainerNotification = require('../models/TrainerNotification');
+const { generateAiWorkoutProtocol } = require('../services/aiWorkoutService');
 
 // Helper to resolve linked Trainer document for authenticated user
 async function resolveTrainerProfile(userId) {
@@ -489,7 +490,7 @@ exports.generateAiWorkoutPlan = async (req, res) => {
       goal = 'Muscle Gain',
       experienceLevel = 'Intermediate',
       daysPerWeek = 4,
-      availableEquipment = ['Dumbbells', 'Barbells', 'Cable Machines'],
+      availableEquipment = 'Full Sanctuary Athletic Gym',
       limitations = 'None',
       focus = 'Hypertrophy & Strength',
     } = req.body;
@@ -500,87 +501,15 @@ exports.generateAiWorkoutPlan = async (req, res) => {
       if (member) memberName = member.name;
     }
 
-    // Smart algorithmic workout generator considering user parameters
-    const splitTemplates = {
-      3: [
-        { day: 'Monday', focus: 'Push (Chest, Shoulders, Triceps)' },
-        { day: 'Wednesday', focus: 'Pull (Back, Biceps, Rear Delts)' },
-        { day: 'Friday', focus: 'Legs & Core' },
-      ],
-      4: [
-        { day: 'Monday', focus: 'Chest + Triceps Hypertrophy' },
-        { day: 'Tuesday', focus: 'Back + Biceps Thickness' },
-        { day: 'Thursday', focus: 'Legs Quad & Hamstring Dominant' },
-        { day: 'Friday', focus: 'Shoulders, Traps & Core' },
-      ],
-      5: [
-        { day: 'Monday', focus: 'Chest Power & Upper Pecs' },
-        { day: 'Tuesday', focus: 'Back Width & Lat Activation' },
-        { day: 'Wednesday', focus: 'Legs & Calves Heavy Day' },
-        { day: 'Thursday', focus: 'Shoulders & Arms Sculpting' },
-        { day: 'Friday', focus: 'High Intensity Athletic Conditioning' },
-      ],
-    };
-
-    const chosenDays = splitTemplates[daysPerWeek] || splitTemplates[4];
-
-    const exerciseCatalog = [
-      { name: 'Incline Dumbbell Press', muscle: 'Chest', equipment: 'Dumbbells', sets: 4, reps: '8-10 reps', rest: 90 },
-      { name: 'Barbell Bench Press', muscle: 'Chest', equipment: 'Barbells', sets: 4, reps: '6-8 reps', rest: 120 },
-      { name: 'Cable Chest Flyes', muscle: 'Chest', equipment: 'Cable Machines', sets: 3, reps: '12-15 reps', rest: 60 },
-      { name: 'Lat Pulldown (Neutral Grip)', muscle: 'Back', equipment: 'Cable Machines', sets: 4, reps: '10-12 reps', rest: 75 },
-      { name: 'Barbell Bent-Over Row', muscle: 'Back', equipment: 'Barbells', sets: 4, reps: '8-10 reps', rest: 90 },
-      { name: 'Seated Cable Row', muscle: 'Back', equipment: 'Cable Machines', sets: 3, reps: '10-12 reps', rest: 60 },
-      { name: 'Overhead Barbell Military Press', muscle: 'Shoulders', equipment: 'Barbells', sets: 4, reps: '8 reps', rest: 90 },
-      { name: 'Dumbbell Lateral Raises', muscle: 'Shoulders', equipment: 'Dumbbells', sets: 4, reps: '15 reps', rest: 45 },
-      { name: 'Barbell Back Squats', muscle: 'Legs', equipment: 'Barbells', sets: 4, reps: '6-8 reps', rest: 120 },
-      { name: 'Romanian Deadlifts (RDL)', muscle: 'Hamstrings', equipment: 'Barbells', sets: 4, reps: '8-10 reps', rest: 90 },
-      { name: 'Leg Press (Quad Focus)', muscle: 'Legs', equipment: 'Leg Press', sets: 3, reps: '12 reps', rest: 90 },
-      { name: 'Incline Dumbbell Curl', muscle: 'Biceps', equipment: 'Dumbbells', sets: 3, reps: '10-12 reps', rest: 60 },
-      { name: 'Triceps Rope Pushdown', muscle: 'Triceps', equipment: 'Cable Machines', sets: 3, reps: '12-15 reps', rest: 45 },
-      { name: 'Hanging Leg Raises', muscle: 'Abs', equipment: 'Bodyweight Exercises', sets: 3, reps: '15 reps', rest: 45 },
-    ];
-
-    const weeklySchedule = chosenDays.map((splitItem, idx) => {
-      // Pick 4-5 relevant exercises
-      const dayExercises = exerciseCatalog.slice(idx * 2, idx * 2 + 4).map(ex => ({
-        name: ex.name,
-        exerciseName: ex.name,
-        targetMuscle: ex.muscle,
-        equipment: ex.equipment,
-        sets: ex.sets,
-        reps: ex.reps,
-        weight: 'Progressive overload',
-        restSeconds: ex.rest,
-        restTimeSec: ex.rest,
-        instructions: `Maintain strict tempo (2-0-1-0). Focus on peak contraction. Limitations considered: ${limitations}`,
-      }));
-
-      return {
-        day: splitItem.day,
-        focus: splitItem.focus,
-        isRestDay: false,
-        exercises: dayExercises,
-      };
+    const aiPlan = generateAiWorkoutProtocol({
+      goal,
+      experienceLevel,
+      daysPerWeek,
+      limitations,
+      focus,
+      availableEquipment,
+      memberName,
     });
-
-    const aiPlan = {
-      title: `AI Hyper-Personalized Protocol: ${goal} (${experienceLevel})`,
-      description: `Tailored for ${memberName}. Optimized for ${focus} with a ${daysPerWeek}-day split. Injury constraints accounted: ${limitations}.`,
-      category: goal === 'Fat Loss' ? 'Fat Loss Workout' : goal === 'Strength Training' ? 'Strength Training' : 'Muscle Gain Workout',
-      targetAudience: experienceLevel,
-      difficulty: experienceLevel,
-      durationWeeks: 8,
-      weeklySchedule,
-      aiGenerated: true,
-      aiPromptContext: {
-        goal,
-        experienceLevel,
-        daysPerWeek,
-        availableEquipment,
-        limitations,
-      },
-    };
 
     res.json({
       success: true,

@@ -2,15 +2,19 @@ const mongoose = require('mongoose');
 
 const WorkoutPlanSchema = new mongoose.Schema(
   {
-    trainer: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Trainer',
-      required: false,
+      ref: 'User',
       index: true,
     },
     member: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      index: true,
+    },
+    trainer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Trainer',
       required: false,
       index: true,
     },
@@ -43,6 +47,11 @@ const WorkoutPlanSchema = new mongoose.Schema(
     level: {
       type: String,
       default: 'Intermediate',
+    },
+    targetMuscles: [{ type: String }],
+    estimatedDurationMinutes: {
+      type: Number,
+      default: 45,
     },
     durationWeeks: {
       type: Number,
@@ -77,6 +86,10 @@ const WorkoutPlanSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        estimatedMinutes: {
+          type: Number,
+          default: 45,
+        },
         exercises: [
           {
             name: { type: String, default: '' },
@@ -96,6 +109,29 @@ const WorkoutPlanSchema = new mongoose.Schema(
         ],
       },
     ],
+    approvalStatus: {
+      type: String,
+      enum: ['generated', 'approved', 'active', 'completed', 'draft'],
+      default: 'generated',
+      index: true,
+    },
+    isSaved: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    savedAt: {
+      type: Date,
+    },
+    approvedAt: {
+      type: Date,
+    },
+    activatedAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
     isAiGenerated: {
       type: Boolean,
       default: false,

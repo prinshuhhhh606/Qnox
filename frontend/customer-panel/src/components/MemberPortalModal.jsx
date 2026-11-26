@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power } from 'lucide-react';
+import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power, Zap, Dumbbell } from 'lucide-react';
 import {
   fetchMyBookings,
   cancelClassBooking,
@@ -13,8 +13,10 @@ import {
   submitFreezeRequest,
   submitCancellationRequest,
   toggleAutoRenew,
+  startFreeTrial,
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
+import AiWorkoutModule from './WorkoutModule/AiWorkoutModule';
 import './MemberPortalModal.css';
 
 export default function MemberPortalModal({ isOpen, onClose, user, onRenewMembership, onShowToast }) {
@@ -39,6 +41,20 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
   const [cancelReason, setCancelReason] = useState('');
   const [submittingLifecycle, setSubmittingLifecycle] = useState(false);
   const [autoRenewEnabled, setAutoRenewEnabled] = useState(true);
+  const [startingTrial, setStartingTrial] = useState(false);
+
+  const handleStartTrialFromPortal = async () => {
+    setStartingTrial(true);
+    try {
+      const res = await startFreeTrial();
+      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      await loadMembershipDetails();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setStartingTrial(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -227,6 +243,12 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
   const isExpiringSoon = !isExpired && !isFrozen && !isSuspended && (currentStatus === 'Expiring Soon' || (daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 7));
   const isActive = !isExpired && !isFrozen && !isSuspended && (currentStatus === 'Active' || isExpiringSoon);
 
+  // 3-Day Free Trial calculations
+  const trial = membershipData?.trial || user.trial || {};
+  const isTrialActive = !isActive && trial.status === 'Active' && (trial.remainingMs > 0 || (trial.endDate && new Date(trial.endDate) > now));
+  const isTrialExpired = !isActive && (trial.status === 'Expired' || (trial.endDate && new Date(trial.endDate) <= now));
+  const canStartTrial = !isActive && !isTrialActive && !isTrialExpired && !trial.hasUsedTrial;
+
   return (
     <>
       <div className="qnox-portal-backdrop">
@@ -261,7 +283,11 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                   <h3 className="font-serif text-xl sm:text-2xl text-white">{user.name}</h3>
                   <span
                     className={`text-[9px] font-mono font-bold px-2.5 py-0.5 uppercase tracking-widest border ${
-                      isExpired
+                      isTrialActive
+                        ? 'border-emerald-400 bg-emerald-950/70 text-emerald-300 animate-pulse'
+                        : isTrialExpired
+                        ? 'border-rose-500 bg-rose-950/60 text-rose-300'
+                        : isExpired
                         ? 'border-rose-500 bg-rose-950/60 text-rose-300'
                         : isExpiringSoon
                         ? 'border-amber-500 bg-amber-950/60 text-amber-300'
@@ -270,7 +296,11 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                         : 'border-white/20 bg-neutral-900 text-neutral-400'
                     }`}
                   >
-                    {isExpired
+                    {isTrialActive
+                      ? 'FREE TRIAL ACTIVE'
+                      : isTrialExpired
+                      ? 'FREE TRIAL EXPIRED'
+                      : isExpired
                       ? 'EXPIRED'
                       : isExpiringSoon
                       ? 'EXPIRING SOON'
@@ -307,6 +337,13 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
               className={`qnox-portal-tab ${activeTab === 'residency' ? 'active' : ''}`}
             >
               MY RESIDENCY
+            </button>
+            <button
+              onClick={() => setActiveTab('workouts')}
+              className={`qnox-portal-tab relative flex items-center space-x-1.5 ${activeTab === 'workouts' ? 'active' : ''}`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 text-[#c5a880]" />
+              <span>AI WORKOUTS & TRACKER</span>
             </button>
             <button
               onClick={() => setActiveTab('bookings')}
@@ -448,6 +485,87 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                   </div>
                 )}
 
+                {/* Active 3-Day Free Trial Banner */}
+                {isTrialActive && (
+                  <div className="bg-gradient-to-r from-emerald-950/60 via-[#0a1a12] to-emerald-950/60 border border-emerald-500/70 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start space-x-3.5">
+                      <Sparkles className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5 animate-pulse" />
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h5 className="font-serif text-sm text-emerald-300 font-semibold">
+                            Free Trial Active &bull; {trial.remainingHours || 0}h {trial.remainingMinutes || 0}m Remaining
+                          </h5>
+                          <span className="text-[9px] font-mono font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase">
+                            VIP PASS
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-300 font-light leading-relaxed mt-1">
+                          Your 72-hour trial is active until {trial.endDate ? new Date(trial.endDate).toLocaleString('en-GB') : '72 hours'}. You have full access to class reservations, hydrotherapy spa, and sanctuary facilities.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onRenewMembership('THE METROPOLITAN');
+                      }}
+                      className="px-5 py-2.5 bg-[#c5a880] hover:bg-white text-black text-xs font-mono font-bold uppercase tracking-wider transition whitespace-nowrap flex-shrink-0 shadow-lg"
+                    >
+                      UPGRADE MEMBERSHIP
+                    </button>
+                  </div>
+                )}
+
+                {/* Expired Free Trial Banner */}
+                {isTrialExpired && !isActive && (
+                  <div className="bg-gradient-to-r from-rose-950/60 via-[#1a0a0a] to-rose-950/60 border border-rose-500/70 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start space-x-3.5">
+                      <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="font-serif text-sm text-rose-300 font-semibold mb-1">
+                          Free Trial Expired
+                        </h5>
+                        <p className="text-xs text-neutral-300 font-light leading-relaxed">
+                          Your 3-Day Free Trial has expired. Choose a membership plan to continue enjoying unrestricted access to our luxury London sanctuaries.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onRenewMembership('THE METROPOLITAN');
+                      }}
+                      className="px-5 py-2.5 bg-[#c5a880] hover:bg-white text-black text-xs font-mono font-bold uppercase tracking-wider transition whitespace-nowrap flex-shrink-0"
+                    >
+                      UPGRADE MEMBERSHIP
+                    </button>
+                  </div>
+                )}
+
+                {/* Eligible For Trial Banner (No Membership & Never Used Trial) */}
+                {canStartTrial && (
+                  <div className="bg-[#121212] border border-[#c5a880]/50 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start space-x-3.5">
+                      <Zap className="w-5 h-5 text-[#c5a880] flex-shrink-0 mt-0.5 animate-bounce" />
+                      <div>
+                        <h5 className="font-serif text-sm text-[#c5a880] font-semibold mb-1">
+                          Complimentary 3-Day Free Trial Available
+                        </h5>
+                        <p className="text-xs text-neutral-300 font-light leading-relaxed">
+                          Activate your 72-hour all-access sanctuary pass now with zero payment required.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleStartTrialFromPortal}
+                      disabled={startingTrial}
+                      className="px-5 py-2.5 bg-[#c5a880] hover:bg-white text-black text-xs font-mono font-bold uppercase tracking-wider transition whitespace-nowrap flex-shrink-0 disabled:opacity-50"
+                    >
+                      {startingTrial ? 'ACTIVATING...' : 'START 3-DAY FREE TRIAL'}
+                    </button>
+                  </div>
+                )}
+
                 {/* Main Residency Tier Dossier Card */}
                 <div className="bg-[#101010] border border-white/10 p-6 sm:p-8 space-y-6">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -456,18 +574,28 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                         CURRENT RESIDENCY TIER
                       </span>
                       <h4 className="font-serif text-3xl text-white mb-2">
-                        {membership.planName || 'No Active Membership'}
+                        {isActive
+                          ? (membership.planName || 'Active Membership')
+                          : isTrialActive
+                          ? '3-Day VIP Sanctuary Trial'
+                          : isTrialExpired
+                          ? 'Free Trial (Expired)'
+                          : (membership.planName && membership.planName !== 'None' ? membership.planName : 'No Active Membership')}
                       </h4>
                       <p className="text-xs text-neutral-400 font-light leading-relaxed max-w-md">
                         {isActive
                           ? `Valid until ${endDate ? endDate.toLocaleDateString('en-GB') : 'Ongoing'}. Includes unlimited slate pool, altitude access, cryotherapy and concierge laundry.`
+                          : isTrialActive
+                          ? `Complimentary VIP sanctuary access active until ${trial.endDate ? new Date(trial.endDate).toLocaleString('en-GB') : '72 hours'}. Upgrade anytime to an annual or monthly plan.`
+                          : isTrialExpired
+                          ? 'Your 3-day sanctuary trial has concluded. Please select an official residency tier to restore master privileges.'
                           : isFrozen
                           ? 'Residency paused. Your remaining days will resume upon activation.'
                           : isSuspended
                           ? 'Residency currently suspended.'
                           : isExpired
                           ? `Residency ended on ${endDate ? endDate.toLocaleDateString('en-GB') : 'recently'}. Please renew your plan to restore full privileges.`
-                          : 'You do not have an active membership residency. Select a tier to gain unrestricted access to our London sanctuaries.'}
+                          : 'You do not have an active membership residency. Start your 3-day trial or select a tier to gain access.'}
                       </p>
                     </div>
 
@@ -491,6 +619,21 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                             RENEW MEMBERSHIP
                           </button>
                         </div>
+                      ) : isTrialActive || isTrialExpired ? (
+                        <div className="text-right">
+                          <span className="text-[10px] text-[#c5a880] uppercase tracking-widest block mb-2">
+                            {isTrialActive ? 'ACTIVE TRIAL' : 'UPGRADE REQUIRED'}
+                          </span>
+                          <button
+                            onClick={() => {
+                              onClose();
+                              onRenewMembership('THE METROPOLITAN');
+                            }}
+                            className="px-6 py-3 bg-[#c5a880] text-black hover:bg-white text-xs font-bold tracking-widest uppercase transition-colors shadow-lg"
+                          >
+                            UPGRADE MEMBERSHIP
+                          </button>
+                        </div>
                       ) : isExpired ? (
                         <div className="text-right">
                           <span className="text-[10px] text-rose-400 uppercase tracking-widest block mb-2">STATUS: EXPIRED</span>
@@ -505,15 +648,26 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => {
-                            onClose();
-                            onRenewMembership('THE METROPOLITAN');
-                          }}
-                          className="px-6 py-3 bg-[#c5a880] text-black text-xs font-bold tracking-widest uppercase hover:bg-white transition-colors"
-                        >
-                          EXPLORE TIERS
-                        </button>
+                        <div className="flex items-center space-x-3">
+                          {canStartTrial && (
+                            <button
+                              onClick={handleStartTrialFromPortal}
+                              disabled={startingTrial}
+                              className="px-5 py-3 border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black text-xs font-bold tracking-widest uppercase transition-colors"
+                            >
+                              START 3-DAY TRIAL
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              onClose();
+                              onRenewMembership('THE METROPOLITAN');
+                            }}
+                            className="px-6 py-3 bg-[#c5a880] text-black text-xs font-bold tracking-widest uppercase hover:bg-white transition-colors"
+                          >
+                            UPGRADE MEMBERSHIP
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -871,6 +1025,16 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                   </div>
                 )}
               </div>
+            )}
+
+            {/* TAB 5: AI WORKOUT ASSISTANT & LIVE TRACKER */}
+            {activeTab === 'workouts' && (
+              <AiWorkoutModule
+                user={user}
+                showToast={(msg, type) => {
+                  if (onShowToast) onShowToast({ message: msg, type: type || 'success' });
+                }}
+              />
             )}
 
           </div>
