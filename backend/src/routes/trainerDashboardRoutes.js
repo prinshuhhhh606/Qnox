@@ -17,6 +17,7 @@ const {
   generateAiWorkoutPlan,
   getDietPlans,
   createDietPlan,
+  deleteDietPlan,
   generateAiDietPlan,
   getFitnessAssessments,
   createFitnessAssessment,
@@ -62,6 +63,7 @@ router.post('/workouts/ai-generate', generateAiWorkoutPlan);
 // 5. Diet Plans & AI Nutrition
 router.get('/diets', getDietPlans);
 router.post('/diets', createDietPlan);
+router.delete('/diets/:id', deleteDietPlan);
 router.post('/diets/ai-generate', generateAiDietPlan);
 
 // 6. Assessments & Measurements

@@ -1436,6 +1436,16 @@ export const createDietPlan = async (payload) => {
   return data;
 };
 
+export const deleteDietPlan = async (id) => {
+  const res = await fetch(`${API_BASE}/trainer-portal/diets/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to delete diet plan');
+  return data;
+};
+
 export const generateAiDietPlan = async (payload) => {
   const res = await fetch(`${API_BASE}/trainer-portal/diets/ai-generate`, {
     method: 'POST',

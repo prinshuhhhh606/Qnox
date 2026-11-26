@@ -557,14 +557,25 @@ exports.getDietPlans = async (req, res) => {
   try {
     const { memberId } = req.query;
     const filter = {};
-    if (memberId) filter.member = memberId;
+    if (memberId && memberId !== 'All' && memberId !== 'undefined' && memberId !== 'null') {
+      filter.member = memberId;
+    }
 
     const plans = await DietPlan.find(filter)
       .populate('member', 'name email avatar')
-      .populate('trainer', 'name title')
+      .populate('trainer', 'name title photo')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: plans });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deleteDietPlan = async (req, res) => {
+  try {
+    await DietPlan.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Diet plan removed' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -575,18 +586,46 @@ exports.createDietPlan = async (req, res) => {
     const trainerDoc = await resolveTrainerProfile(req.user._id);
     const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
 
+    const targetCalories = Number(req.body.dailyCalorieTarget || req.body.targetCalories) || 2400;
+
+    let meals = req.body.meals;
+    if (Array.isArray(meals)) {
+      meals = meals.map((m) => {
+        const cat = m.mealCategory || m.category || 'Lunch';
+        return {
+          mealCategory: cat,
+          category: cat,
+          name: m.name || cat,
+          time: m.time || '08:00 AM',
+          items: Array.isArray(m.items) ? m.items.join(', ') : (m.items || ''),
+          calories: Number(m.calories) || 0,
+          protein: Number(m.protein) || 0,
+          carbs: Number(m.carbs) || 0,
+          fats: Number(m.fats) || 0,
+          instructions: m.instructions || '',
+        };
+      });
+    }
+
     const planData = {
       ...req.body,
       trainer: trainerId,
+      dailyCalorieTarget: targetCalories,
+      targetCalories: targetCalories,
+      meals: meals || [],
+      isAiGenerated: req.body.isAiGenerated !== undefined ? req.body.isAiGenerated : (req.body.aiGenerated || false),
+      aiGenerated: req.body.aiGenerated !== undefined ? req.body.aiGenerated : (req.body.isAiGenerated || false),
+      guidelines: req.body.guidelines || [],
     };
 
-    if (!planData.member || planData.member === '' || planData.member === 'undefined') {
+    if (!planData.member || planData.member === '' || planData.member === 'undefined' || planData.member === 'null') {
       delete planData.member;
     }
 
     const plan = await DietPlan.create(planData);
     res.status(201).json({ success: true, data: plan });
   } catch (error) {
+    console.error('Error creating diet plan:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

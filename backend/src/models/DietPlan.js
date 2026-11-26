@@ -21,12 +21,19 @@ const DietPlanSchema = new mongoose.Schema(
     },
     dietaryPreference: {
       type: String,
-      enum: ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'Keto', 'High Protein', 'Custom'],
       default: 'High Protein',
+    },
+    goal: {
+      type: String,
+      default: 'Muscle Gain',
     },
     dailyCalorieTarget: {
       type: Number,
-      required: true,
+      default: 2400,
+    },
+    targetCalories: {
+      type: Number,
+      default: 2400,
     },
     macros: {
       proteinGrams: { type: Number, default: 150 },
@@ -38,11 +45,15 @@ const DietPlanSchema = new mongoose.Schema(
       {
         mealCategory: {
           type: String,
-          enum: ['Early Morning', 'Breakfast', 'Mid-Morning', 'Lunch', 'Evening Snacks', 'Pre-Workout', 'Post-Workout', 'Dinner'],
-          required: true,
+          default: 'Lunch',
         },
+        category: {
+          type: String,
+          default: 'Lunch',
+        },
+        name: { type: String, default: '' },
         time: { type: String, default: '08:00 AM' },
-        items: { type: String, required: true },
+        items: { type: mongoose.Schema.Types.Mixed, default: '' },
         calories: { type: Number, default: 0 },
         protein: { type: Number, default: 0 },
         carbs: { type: Number, default: 0 },
@@ -50,7 +61,12 @@ const DietPlanSchema = new mongoose.Schema(
         instructions: { type: String, default: '' },
       },
     ],
+    guidelines: [{ type: String }],
     isAiGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    aiGenerated: {
       type: Boolean,
       default: false,
     },

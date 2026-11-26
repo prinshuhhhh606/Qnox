@@ -18,6 +18,7 @@ import {
   generateAiWorkoutPlan,
   getTrainerDietPlans,
   createDietPlan,
+  deleteDietPlan,
   generateAiDietPlan,
   getTrainerAssessments,
   createFitnessAssessment,
@@ -129,6 +130,7 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   // Diet Plans
   const [dietPlans, setDietPlans] = useState([]);
   const [aiDietLoading, setAiDietLoading] = useState(false);
+  const [savingDiet, setSavingDiet] = useState(false);
   const [aiDietForm, setAiDietForm] = useState({
     memberId: '',
     dietaryPreference: 'Non-Vegetarian',
@@ -513,18 +515,40 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
   };
 
   const handleSaveAiDietPlan = async () => {
-    if (!generatedAiDiet) return;
+    if (!generatedAiDiet || savingDiet) return;
     try {
-      await createDietPlan({
+      setSavingDiet(true);
+      const targetCalories = Number(generatedAiDiet.targetCalories || generatedAiDiet.dailyCalorieTarget) || 2400;
+      const payload = {
         ...generatedAiDiet,
-        member: aiDietForm.memberId || undefined
-      });
+        dailyCalorieTarget: targetCalories,
+        targetCalories: targetCalories,
+      };
+      if (aiDietForm.memberId && aiDietForm.memberId !== 'All') {
+        payload.member = aiDietForm.memberId;
+      } else {
+        delete payload.member;
+      }
+      await createDietPlan(payload);
       showToast('AI Diet plan saved & assigned successfully!');
       setGeneratedAiDiet(null);
       loadDietPlans();
       setActiveTab('diets');
     } catch (err) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Failed to save diet plan', 'error');
+    } finally {
+      setSavingDiet(false);
+    }
+  };
+
+  const handleDeleteDietPlan = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this diet plan?')) return;
+    try {
+      await deleteDietPlan(id);
+      showToast('Diet plan deleted successfully');
+      loadDietPlans();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete plan', 'error');
     }
   };
 
@@ -815,10 +839,13 @@ export default function TrainerDashboard({ currentUser, onBackToSite, onLogout, 
               aiDietForm={aiDietForm}
               setAiDietForm={setAiDietForm}
               aiDietLoading={aiDietLoading}
+              savingDiet={savingDiet}
               handleGenerateAiDiet={handleGenerateAiDiet}
               generatedAiDiet={generatedAiDiet}
               handleSaveAiDietPlan={handleSaveAiDietPlan}
+              handleDeleteDietPlan={handleDeleteDietPlan}
               dietPlans={dietPlans}
+              members={members}
             />
           )}
 
