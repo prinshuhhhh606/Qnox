@@ -228,7 +228,7 @@ export default function Navbar({
 
           {/* ==================================================== */}
           {/* RIGHT: 1. GYM OWNER SIGNUP (Dropdown)               */}
-          {/*        2. CUSTOMER SIGN IN (Direct Link)             */}
+          {/*        2. SIGN IN (Direct Link)                      */}
           {/* ==================================================== */}
           <div className="hidden sm:flex items-center space-x-3 flex-shrink-0">
             
@@ -376,15 +376,15 @@ export default function Navbar({
                   )}
                 </div>
 
-                {/* 2. CUSTOMER SIGN IN (Separate, Directly Accessible, No Dropdown) */}
+                {/* 2. SIGN IN (Separate, Directly Accessible, No Dropdown) */}
                 <button
                   type="button"
                   onClick={() => onOpenAuth && onOpenAuth('member')}
                   className="qnox-customer-signin-btn px-4 py-2 border border-white/20 hover:border-white text-neutral-200 hover:text-white text-[11px] font-mono tracking-wider uppercase transition-all whitespace-nowrap cursor-pointer flex items-center space-x-1.5"
-                  title="Member / Customer Access"
+                  title="Member Access"
                 >
                   <User className="w-3.5 h-3.5 text-neutral-400" />
-                  <span className="tracking-[0.12em]">CUSTOMER SIGN IN</span>
+                  <span className="tracking-[0.12em]">SIGN IN</span>
                 </button>
               </div>
             )}
@@ -548,7 +548,7 @@ export default function Navbar({
                 }}
                 className="w-full py-3.5 border border-white/30 hover:border-white text-white text-center text-xs font-bold tracking-[0.2em] uppercase transition-colors"
               >
-                CUSTOMER SIGN IN
+                SIGN IN
               </button>
               <button
                 onClick={() => {
