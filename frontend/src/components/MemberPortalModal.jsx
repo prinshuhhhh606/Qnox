@@ -835,9 +835,18 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                     <div className="flex items-center space-x-3">
                       {isActive && !isFrozen && (
                         <button
-                          onClick={() => setShowFreezeModal(true)}
-                          disabled={Boolean(pendingRequest)}
-                          className="px-3.5 py-2 border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 text-xs font-semibold tracking-wider uppercase transition flex items-center space-x-1.5 disabled:opacity-40"
+                          type="button"
+                          onClick={() => {
+                            if (membershipData?.activeFreezeRequest?.status === 'Pending') {
+                              if (onShowToast) onShowToast({
+                                type: 'info',
+                                message: `Freeze request #${membershipData.activeFreezeRequest.requestId || ''} is already pending concierge review.`
+                              });
+                              return;
+                            }
+                            setShowFreezeModal(true);
+                          }}
+                          className="px-3.5 py-2 border border-sky-500/40 text-sky-400 hover:bg-sky-950/40 hover:border-sky-400 text-xs font-semibold tracking-wider uppercase transition flex items-center space-x-1.5 cursor-pointer shadow-md"
                         >
                           <Pause className="w-3.5 h-3.5" />
                           <span>REQUEST FREEZE</span>
@@ -846,9 +855,18 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
 
                       {(isActive || isFrozen) && (
                         <button
-                          onClick={() => setShowCancelModal(true)}
-                          disabled={Boolean(pendingRequest)}
-                          className="px-3.5 py-2 border border-rose-500/40 text-rose-400 hover:bg-rose-950/40 text-xs font-semibold tracking-wider uppercase transition flex items-center space-x-1.5 disabled:opacity-40"
+                          type="button"
+                          onClick={() => {
+                            if (membershipData?.pendingRequest && membershipData.pendingRequest.type === 'Cancellation') {
+                              if (onShowToast) onShowToast({
+                                type: 'info',
+                                message: 'A cancellation request is already pending concierge review.'
+                              });
+                              return;
+                            }
+                            setShowCancelModal(true);
+                          }}
+                          className="px-3.5 py-2 border border-rose-500/40 text-rose-400 hover:bg-rose-950/40 hover:border-rose-400 text-xs font-semibold tracking-wider uppercase transition flex items-center space-x-1.5 cursor-pointer shadow-md"
                         >
                           <Power className="w-3.5 h-3.5" />
                           <span>REQUEST CANCELLATION</span>
@@ -1235,7 +1253,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
 
       {/* Freeze Request Modal */}
       {showFreezeModal && (
-        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-[2000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-[#0e0e0e] border border-[#c5a880]/40 w-full max-w-xl p-6 sm:p-7 space-y-5 shadow-2xl my-8">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
@@ -1407,7 +1425,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
 
       {/* Cancellation Request Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[2000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0e0e0e] border border-rose-500/30 w-full max-w-md p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
