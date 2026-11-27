@@ -47,5 +47,13 @@ const gracefulShutdown = (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+process.on('unhandledRejection', (err) => {
+  console.error('[QNOX Unhandled Rejection]:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[QNOX Uncaught Exception]:', err);
+});
+
 module.exports = server;
 
