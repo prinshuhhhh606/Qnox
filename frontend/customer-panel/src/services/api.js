@@ -2212,6 +2212,7 @@ export const registerGymOwnerOnboarding = async (payload) => {
   if (!res.ok) throw new Error(data.message || 'Gym owner onboarding failed');
   return data;
 };
+export const registerGymOwner = registerGymOwnerOnboarding;
 
 export const verifySaaSPayment = async (payload) => {
   const res = await fetch(`${API_BASE}/saas/verify-payment`, {

@@ -6,6 +6,7 @@ import TourModal from '../components/TourModal';
 import AuthModal from '../components/AuthModal';
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal';
 import MemberPortalModal from '../components/MemberPortalModal';
+import GymOwnerRegisterModal from '../components/GymOwnerRegisterModal';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -22,6 +23,7 @@ export default function PublicLayout() {
   const [authModalRole, setAuthModalRole] = useState('member');
   const [isMemberPortalOpen, setIsMemberPortalOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState(null);
+  const [isGymOwnerRegisterOpen, setIsGymOwnerRegisterOpen] = useState(false);
 
   const handleOpenTourModal = (clubName = '', tierName = '') => {
     setSelectedClubForTour(clubName);
@@ -55,6 +57,7 @@ export default function PublicLayout() {
         onOpenMemberPortal={() => setIsMemberPortalOpen(true)}
         onOpenAdmin={handleOpenAdmin}
         onLogout={handleLogout}
+        onOpenGymOwnerRegister={() => setIsGymOwnerRegisterOpen(true)}
       />
 
       <main className="flex-grow">
@@ -142,6 +145,16 @@ export default function PublicLayout() {
           onShowToast={showToast}
         />
       )}
+
+      {/* Gym Owner SaaS Onboarding & Registration Modal */}
+      <GymOwnerRegisterModal
+        isOpen={isGymOwnerRegisterOpen}
+        onClose={() => setIsGymOwnerRegisterOpen(false)}
+        onShowToast={showToast}
+        onAuthSuccess={(user) => {
+          if (setCurrentUser) setCurrentUser(user);
+        }}
+      />
     </div>
   );
 }

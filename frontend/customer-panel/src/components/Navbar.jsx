@@ -4,7 +4,7 @@ import { Menu, X, ArrowUpRight, User, Shield, LogOut, Bell } from 'lucide-react'
 import { fetchNotificationUnreadCount } from '../services/api';
 import './Navbar.css';
 
-export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpenMemberPortal, onOpenAdmin, onLogout }) {
+export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpenMemberPortal, onOpenAdmin, onLogout, onOpenGymOwnerRegister }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -97,6 +97,18 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
                 {link.label}
               </NavLink>
             ))}
+
+            {/* FOR GYM OWNERS SaaS Link */}
+            <button
+              type="button"
+              onClick={onOpenGymOwnerRegister}
+              className="qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px] pb-1 border-b-2 border-transparent text-[#c5a880] hover:text-white hover:border-[#c5a880] transition-all flex items-center gap-1 font-semibold cursor-pointer"
+            >
+              <span>FOR GYM OWNERS</span>
+              <span className="text-[8px] font-mono px-1 py-0.2 bg-[#c5a880]/20 text-[#c5a880] border border-[#c5a880]/40 rounded">
+                SAAS
+              </span>
+            </button>
           </nav>
 
           {/* Right Action Buttons */}
@@ -229,6 +241,17 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
               <span className="text-xs font-sans tracking-widest text-neutral-600 group-hover:text-[#c5a880]">0{idx + 1}</span>
             </NavLink>
           ))}
+
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              if (onOpenGymOwnerRegister) onOpenGymOwnerRegister();
+            }}
+            className="text-left text-2xl font-serif tracking-[0.15em] text-[#c5a880] hover:text-white transition-colors flex items-center justify-between"
+          >
+            <span>FOR GYM OWNERS</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 bg-[#c5a880]/20 rounded border border-[#c5a880]/40">SAAS</span>
+          </button>
           {isAdmin && (
             <button
               onClick={() => { setMobileMenuOpen(false); onOpenAdmin(); }}
