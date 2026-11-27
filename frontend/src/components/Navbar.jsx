@@ -48,6 +48,7 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
 
   const isAdmin = currentUser && ['Admin', 'Super Admin'].includes(currentUser.role);
   const isTrainer = currentUser?.role === 'Trainer';
+  const isGymOwner = currentUser && ['Gym Owner', 'Company Admin'].includes(currentUser.role);
 
   return (
     <>
@@ -136,6 +137,16 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
               </button>
             )}
 
+            {isGymOwner && (
+              <a
+                href="/gym-owner"
+                className="px-3.5 py-2 bg-[#121212] border border-[#c5a880] text-[#c5a880] hover:bg-[#c5a880] hover:text-black transition-all text-[11px] font-semibold tracking-wider uppercase flex items-center space-x-1.5 whitespace-nowrap flex-shrink-0 shadow-[0_0_15px_rgba(197,168,128,0.2)]"
+              >
+                <Shield className="w-3.5 h-3.5 text-[#c5a880] flex-shrink-0" />
+                <span>GYM COMMAND</span>
+              </a>
+            )}
+
             {currentUser ? (
               <div className="flex items-center space-x-1.5 flex-shrink-0">
                 <button
@@ -151,7 +162,7 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
                   )}
                 </button>
                 <button
-                  onClick={onOpenMemberPortal}
+                  onClick={isGymOwner ? () => { window.location.href = '/gym-owner'; } : (isAdmin ? onOpenAdmin : onOpenMemberPortal)}
                   className="px-3.5 py-2 bg-transparent border border-white/20 hover:border-white text-white text-[11px] font-semibold tracking-wider uppercase flex items-center space-x-1.5 transition-colors whitespace-nowrap"
                 >
                   <User className="w-3.5 h-3.5 text-[#c5a880] flex-shrink-0" />
@@ -259,6 +270,15 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
             >
               ADMIN DASHBOARD
             </button>
+          )}
+          {isGymOwner && (
+            <a
+              href="/gym-owner"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-left text-xl font-serif text-[#c5a880] tracking-wider block"
+            >
+              GYM OWNER COMMAND
+            </a>
           )}
         </nav>
 

@@ -11,6 +11,8 @@ import {
   disbursePartnerSettlement,
   verifyMemberCheckIn,
   fetchClubs,
+  fetchAdminTenants,
+  updateAdminTenantStatus,
 } from '../../../services/api';
 
 export default function NetworkTab({ onShowToast }) {
@@ -21,6 +23,8 @@ export default function NetworkTab({ onShowToast }) {
   const [settlements, setSettlements] = useState([]);
   const [loadingSettlements, setLoadingSettlements] = useState(false);
   const [clubs, setClubs] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
 
   // QR Scanner verification state
   const [qrInputToken, setQrInputToken] = useState('');
@@ -37,12 +41,14 @@ export default function NetworkTab({ onShowToast }) {
     setLoadingAnalytics(true);
     setLoadingApps(true);
     setLoadingSettlements(true);
+    setLoadingTenants(true);
     try {
-      const [analyticsData, appsData, settlementsData, clubsData] = await Promise.allSettled([
+      const [analyticsData, appsData, settlementsData, clubsData, tenantsData] = await Promise.allSettled([
         fetchMultiGymAnalytics(),
         fetchPartnershipApplications(),
         fetchPartnerSettlements(),
         fetchClubs(),
+        fetchAdminTenants(),
       ]);
 
       if (analyticsData.status === 'fulfilled' && analyticsData.value) {
@@ -53,6 +59,9 @@ export default function NetworkTab({ onShowToast }) {
       }
       if (settlementsData.status === 'fulfilled' && settlementsData.value) {
         setSettlements(settlementsData.value);
+      }
+      if (tenantsData.status === 'fulfilled' && tenantsData.value?.data) {
+        setTenants(tenantsData.value.data);
       }
       if (clubsData.status === 'fulfilled' && clubsData.value) {
         const list = Array.isArray(clubsData.value) ? clubsData.value : clubsData.value.data || [];
@@ -67,6 +76,7 @@ export default function NetworkTab({ onShowToast }) {
       setLoadingAnalytics(false);
       setLoadingApps(false);
       setLoadingSettlements(false);
+      setLoadingTenants(false);
     }
   };
 
@@ -121,6 +131,17 @@ export default function NetworkTab({ onShowToast }) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     } finally {
       setProcessingSettlementId(null);
+    }
+  };
+
+  const handleToggleTenantStatus = async (tenantId, currentStatus) => {
+    const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
+    try {
+      await updateAdminTenantStatus(tenantId, { status: newStatus });
+      if (onShowToast) onShowToast({ type: 'success', message: `Tenant status changed to ${newStatus}.` });
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
     }
   };
 
@@ -219,6 +240,97 @@ export default function NetworkTab({ onShowToast }) {
             ₹{analytics?.settlements?.disbursedPayouts?.toLocaleString('en-IN') || 0} disbursed to date
           </div>
         </div>
+      </div>
+
+      {/* Multi-Tenant B2B SaaS Partner Gyms Ecosystem */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div>
+            <span className="text-[10px] tracking-[0.2em] uppercase text-[#c5a880] font-semibold block">
+              B2B MULTI-TENANT ECOSYSTEM
+            </span>
+            <h3 className="font-serif text-xl text-white">SaaS Partner Gyms & Tenant Quotas</h3>
+          </div>
+          <span className="text-xs font-mono text-neutral-400">
+            {tenants.filter(t => t.type === 'SaaS-Partner').length} Independent SaaS Tenants
+          </span>
+        </div>
+
+        {loadingTenants ? (
+          <div className="py-8 text-center text-xs font-mono text-neutral-500 uppercase tracking-widest">
+            Loading tenant organizations...
+          </div>
+        ) : tenants.length === 0 ? (
+          <div className="p-8 text-center border border-white/10 bg-[#0e0e0e] text-xs text-neutral-500">
+            No SaaS partner gyms registered yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-white/10 bg-[#0c0c0c]">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="text-[9px] uppercase tracking-wider text-[#c5a880] bg-[#141414] border-b border-white/10">
+                <tr>
+                  <th className="p-3.5">Gym / Brand</th>
+                  <th className="p-3.5">Owner / Contact</th>
+                  <th className="p-3.5">Plan / Cycle</th>
+                  <th className="p-3.5 text-center">Branches</th>
+                  <th className="p-3.5 text-center">Coaches</th>
+                  <th className="p-3.5 text-center">Members</th>
+                  <th className="p-3.5 text-center">Status</th>
+                  <th className="p-3.5 text-right">Access Control</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-neutral-300">
+                {tenants.map((t) => (
+                  <tr key={t._id} className="hover:bg-white/[0.02]">
+                    <td className="p-3.5">
+                      <div className="font-bold text-white">{t.name}</div>
+                      <div className="text-[10px] text-neutral-500">{t.city || 'Metro'} • {t.type}</div>
+                    </td>
+                    <td className="p-3.5">
+                      <div>{t.ownerName || t.owner?.name || 'Owner'}</div>
+                      <div className="text-[10px] text-neutral-500">{t.ownerEmail || t.contactEmail}</div>
+                    </td>
+                    <td className="p-3.5 uppercase text-[#c5a880]">
+                      {t.subscription?.planName || t.subscription?.planCode || 'STARTER'}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      {t.liveStats?.branches || 0} / {t.branchesLimit}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      {t.liveStats?.trainers || 0} / {t.trainersLimit}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      {t.liveStats?.members || 0} / {t.membersLimit}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <span className={`px-2 py-0.5 text-[9px] uppercase font-bold ${
+                        t.status === 'Active'
+                          ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
+                          : 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                      }`}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right">
+                      {t.type === 'SaaS-Partner' && (
+                        <button
+                          onClick={() => handleToggleTenantStatus(t._id, t.status)}
+                          className={`px-2.5 py-1 text-[10px] font-bold uppercase transition ${
+                            t.status === 'Active'
+                              ? 'border border-amber-500/40 text-amber-400 hover:bg-amber-950/40'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-black'
+                          }`}
+                        >
+                          {t.status === 'Active' ? 'SUSPEND' : 'ACTIVATE'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Staff Universal QR Check-In Scanner Engine */}

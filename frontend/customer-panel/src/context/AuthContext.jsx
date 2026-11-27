@@ -57,6 +57,7 @@ export function AuthProvider({ children }) {
   const isAdmin = currentUser && ['Admin', 'Super Admin'].includes(currentUser.role);
   const isTrainer = currentUser && currentUser.role === 'Trainer';
   const isCustomer = currentUser && ['Member', 'Gym Member'].includes(currentUser.role);
+  const isGymOwner = currentUser && ['Gym Owner', 'Company Admin'].includes(currentUser.role);
 
   return (
     <AuthContext.Provider
@@ -70,6 +71,7 @@ export function AuthProvider({ children }) {
         isAdmin,
         isTrainer,
         isCustomer,
+        isGymOwner,
       }}
     >
       {children}

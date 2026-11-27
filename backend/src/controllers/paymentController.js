@@ -4,6 +4,7 @@ const MembershipPlan = require('../models/MembershipPlan');
 const { createRazorpayOrder, verifyRazorpaySignature } = require('../services/paymentService');
 const { sendPaymentReceiptEmail } = require('../services/emailService');
 const { createRenewalNotifications } = require('../services/cronService');
+const invoiceService = require('../services/invoiceService');
 
 // @desc    Initiate Membership Checkout Order
 // @route   POST /api/payments/create-order
@@ -36,7 +37,7 @@ exports.createOrder = async (req, res, next) => {
     }
 
     const receipt = `qnx_rec_${Date.now()}`;
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const invoiceNumber = await invoiceService.generateNextInvoiceNumber();
 
     const order = await createRazorpayOrder({
       amount: price,

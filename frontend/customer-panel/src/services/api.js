@@ -2364,3 +2364,150 @@ export const fetchMultiGymAnalytics = async () => {
   if (!res.ok) throw new Error(data.message || 'Failed to fetch multi-gym analytics');
   return data.data;
 };
+
+// ==========================================
+// GYM OWNER TENANT MANAGEMENT & BILLING APIS
+// ==========================================
+
+export const updateMyOrganization = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/my-organization`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update organization');
+  return data.data;
+};
+
+export const updateTenantBranch = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update branch');
+  return data.data;
+};
+
+export const deleteTenantBranch = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to delete branch');
+  return data;
+};
+
+export const fetchMyTenantTrainers = async () => {
+  const res = await fetch(`${API_BASE}/saas/my-trainers`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch trainers');
+  return data.data;
+};
+
+export const createTenantTrainer = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/trainers`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to add coach');
+  return data.data;
+};
+
+export const deleteTenantTrainer = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/trainers/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to remove coach');
+  return data;
+};
+
+export const fetchMyTenantMembers = async () => {
+  const res = await fetch(`${API_BASE}/saas/my-members`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch members');
+  return data.data;
+};
+
+export const createTenantMember = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/members`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to register member');
+  return data.data;
+};
+
+export const fetchMyTenantInvoices = async () => {
+  const res = await fetch(`${API_BASE}/saas/my-invoices`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch invoices');
+  return data.data;
+};
+
+export const fetchTenantInvoiceByNumber = async (invoiceNumber) => {
+  const res = await fetch(`${API_BASE}/saas/invoices/${encodeURIComponent(invoiceNumber)}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch invoice details');
+  return data.data;
+};
+
+export const upgradeSaaSSubscription = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/upgrade-subscription`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to initiate plan upgrade');
+  return data.data;
+};
+
+export const fetchAdminTenants = async () => {
+  const res = await fetch(`${API_BASE}/saas/admin/tenants`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch tenants');
+  return data;
+};
+
+export const updateAdminTenantStatus = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/tenants/${id}/status`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update tenant status');
+  return data.data;
+};
+
+export const updateAdminTenantPlan = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/tenants/${id}/plan`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update tenant quotas');
+  return data.data;
+};
+

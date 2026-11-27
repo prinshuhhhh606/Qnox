@@ -8,6 +8,7 @@ import CustomerLayout from '../layouts/CustomerLayout';
 // Route Guards
 import CustomerRoute from './CustomerRoute';
 import TrainerRoute from './TrainerRoute';
+import GymOwnerRoute from './GymOwnerRoute';
 
 // Public & Customer Pages
 import Home from '../pages/Home';
@@ -21,6 +22,7 @@ import JoinAsTrainerPage from '../pages/JoinAsTrainerPage';
 import ApplicationStatusPage from '../pages/ApplicationStatusPage';
 import CustomerDashboardPage from '../pages/CustomerDashboardPage';
 import TrainerDashboardPage from '../pages/TrainerDashboardPage';
+import GymOwnerDashboardPage from '../pages/GymOwnerDashboardPage';
 
 export default function AppRoutes() {
   return (
@@ -73,6 +75,19 @@ export default function AppRoutes() {
       >
         <Route index element={<TrainerDashboardPage />} />
         <Route path="dashboard" element={<TrainerDashboardPage />} />
+      </Route>
+
+      {/* 4. GYM OWNER PANEL (Protected SaaS Partner Suite) */}
+      <Route
+        path="/gym-owner"
+        element={
+          <GymOwnerRoute>
+            <PublicLayout />
+          </GymOwnerRoute>
+        }
+      >
+        <Route index element={<GymOwnerDashboardPage />} />
+        <Route path="dashboard" element={<GymOwnerDashboardPage />} />
       </Route>
 
       {/* Fallback */}

@@ -291,3 +291,49 @@ exports.sendMembershipRenewalSuccessEmail = async ({
   });
 };
 
+exports.sendSaaSRegistrationConfirmationEmail = async ({ user, organization, invoice }) => {
+  const content = `
+    <p class="text">Dear <strong>${user.name}</strong>,</p>
+    <p class="text">Welcome to the QNOX B2B Multi-Gym Network! Your gym enterprise <strong>${organization.name}</strong> has been registered on our cloud platform.</p>
+    <div class="highlight-box">
+      <div class="code-label">PROFORMA INVOICE</div>
+      <div class="code-val">${invoice.invoiceNumber}</div>
+      <p style="color:#c5a880; font-size:13px; margin-top:8px;">Plan: ${invoice.subscriptionDetails.planName} (${invoice.subscriptionDetails.billingCycle.toUpperCase()})</p>
+      <p style="color:#ffffff; font-size:15px; margin-top:4px;">Total Payable: ₹${Number(invoice.pricing.totalPayable).toLocaleString('en-IN')}</p>
+    </div>
+    <p class="text">Please complete your subscription payment to unlock your dedicated gym owner dashboard, branch management, trainer roster, and biometric turnstile integration.</p>
+  `;
+
+  return sendEmail({
+    to: user.email,
+    subject: `Welcome to QNOX SaaS Network — Invoice ${invoice.invoiceNumber}`,
+    html: getLuxuryTemplate('SaaS Registration Initiated', 'B2B SANCTUARY NETWORK', content),
+  });
+};
+
+exports.sendSaaSSubscriptionActivatedEmail = async ({ user, organization, invoice, subscription }) => {
+  const expiryDate = new Date(subscription.currentPeriodEnd).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const content = `
+    <p class="text">Dear <strong>${user.name}</strong>,</p>
+    <p class="text">Congratulations! Your payment for <strong>${organization.name}</strong> has been verified and your QNOX SaaS subscription is now <strong>ACTIVE</strong>.</p>
+    <div class="highlight-box">
+      <div class="code-label">PAID TAX INVOICE</div>
+      <div class="code-val">${invoice.invoiceNumber}</div>
+      <p style="color:#10b981; font-weight:bold; font-size:13px; margin-top:6px;">STATUS: ACTIVE &bull; VALID UNTIL ${expiryDate}</p>
+      <p style="color:#c5a880; font-size:13px; margin-top:4px;">Amount Paid: ₹${Number(invoice.pricing.totalPayable).toLocaleString('en-IN')}</p>
+    </div>
+    <p class="text">You now have full access to your Gym Owner Dashboard. You can provision branches, assign master coaches, enroll gym members, and monitor live attendance.</p>
+  `;
+
+  return sendEmail({
+    to: user.email,
+    subject: `Subscription Activated! Welcome to QNOX Network [${invoice.invoiceNumber}]`,
+    html: getLuxuryTemplate('Subscription Activated', 'TENANT PROVISIONED', content),
+  });
+};
+

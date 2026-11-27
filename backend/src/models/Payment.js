@@ -84,6 +84,11 @@ const PaymentSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      index: true,
+    },
     billingDetails: {
       name: String,
       phone: String,

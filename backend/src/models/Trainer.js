@@ -59,6 +59,15 @@ const TrainerSchema = new mongoose.Schema(
         type: String,
       },
     ],
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      index: true,
+    },
+    branch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Club',
+    },
     isActive: {
       type: Boolean,
       default: true,

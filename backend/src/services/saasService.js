@@ -7,6 +7,9 @@ const Organization = require('../models/Organization');
 const SaaSSubscriptionPlan = require('../models/SaaSSubscriptionPlan');
 const OrganizationSubscription = require('../models/OrganizationSubscription');
 const Payment = require('../models/Payment');
+const Invoice = require('../models/Invoice');
+const invoiceService = require('./invoiceService');
+const emailService = require('./emailService');
 
 const razorpayInstance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_qnox_luxury_key',
@@ -23,13 +26,13 @@ exports.seedDefaultSaaSPlans = async () => {
       code: 'starter',
       tagline: 'Single Facility & Boutique Studios',
       description: 'Ideal for independent boutique gyms and single-studio owners beginning their digital journey.',
-      monthlyPrice: 2999,
-      yearlyPrice: 29990,
+      monthlyPrice: 4999,
+      yearlyPrice: 47990, // 20% discount on yearly
       maxBranches: 1,
       maxTrainers: 5,
-      maxMembers: 150,
+      maxMembers: 100,
       modules: {
-        aiWorkout: true,
+        aiWorkout: false,
         ptBooking: true,
         biometrics: false,
         analytics: true,
@@ -44,12 +47,12 @@ exports.seedDefaultSaaSPlans = async () => {
       name: 'Professional',
       code: 'professional',
       tagline: 'Multi-Branch & Fast Growing Clubs',
-      description: 'Complete management with expanded capacity, advanced analytics, and PT scheduling.',
-      monthlyPrice: 6999,
-      yearlyPrice: 69990,
+      description: 'Complete management with expanded capacity, AI biomechanics, advanced analytics, and PT scheduling.',
+      monthlyPrice: 11999,
+      yearlyPrice: 115190, // 20% discount on yearly
       maxBranches: 3,
       maxTrainers: 15,
-      maxMembers: 600,
+      maxMembers: 500,
       modules: {
         aiWorkout: true,
         ptBooking: true,
@@ -66,12 +69,12 @@ exports.seedDefaultSaaSPlans = async () => {
       name: 'Enterprise',
       code: 'enterprise',
       tagline: 'Gym Franchises & Luxury Networks',
-      description: 'Unlimited scalability, dedicated multi-branch reporting, custom branding, and All-Access eligibility.',
-      monthlyPrice: 14999,
-      yearlyPrice: 149990,
-      maxBranches: 10,
-      maxTrainers: 50,
-      maxMembers: 2500,
+      description: 'Unlimited scalability, dedicated multi-branch reporting, All-Access eligibility, and VIP concierge manager.',
+      monthlyPrice: 24999,
+      yearlyPrice: 239990, // 20% discount on yearly
+      maxBranches: 999,
+      maxTrainers: 999,
+      maxMembers: 99999,
       modules: {
         aiWorkout: true,
         ptBooking: true,
@@ -89,7 +92,7 @@ exports.seedDefaultSaaSPlans = async () => {
   for (const plan of defaultPlans) {
     await SaaSSubscriptionPlan.findOneAndUpdate(
       { code: plan.code },
-      { $setOnInsert: plan },
+      { $set: plan },
       { upsert: true, new: true }
     );
   }
@@ -182,15 +185,26 @@ exports.registerGymOwnerAndOrg = async ({ ownerName, email, phone, password, gym
   // Calculate price based on billing cycle
   const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
 
+  // Generate Proforma Invoice with unique QNOX-INV-YYYY-XXXXXX number
+  const invoice = await invoiceService.createSaaSInvoice({
+    organization,
+    user: owner,
+    plan,
+    billingCycle,
+    startDate: new Date(),
+    endDate: new Date(Date.now() + (billingCycle === 'yearly' ? 365 : 30) * 86400000),
+  });
+
   // Generate Razorpay Order
   let razorpayOrder = null;
   try {
     razorpayOrder = await razorpayInstance.orders.create({
-      amount: Math.round(price * 100), // in paise
+      amount: Math.round(invoice.pricing.totalPayable * 100), // in paise
       currency: 'INR',
       receipt: `saas_${organization._id.toString().slice(-8)}_${Date.now().toString().slice(-6)}`,
       notes: {
         organizationId: organization._id.toString(),
+        invoiceNumber: invoice.invoiceNumber,
         planCode: plan.code,
         billingCycle,
       },
@@ -199,9 +213,20 @@ exports.registerGymOwnerAndOrg = async ({ ownerName, email, phone, password, gym
     console.warn('[Razorpay Order Fallback]:', err.message);
     razorpayOrder = {
       id: `order_saas_${Date.now()}`,
-      amount: Math.round(price * 100),
+      amount: Math.round(invoice.pricing.totalPayable * 100),
       currency: 'INR',
     };
+  }
+
+  // Trigger registration confirmation email
+  try {
+    await emailService.sendSaaSRegistrationConfirmationEmail({
+      user: owner,
+      organization,
+      invoice,
+    });
+  } catch (mailErr) {
+    console.warn('[Email Notice]:', mailErr.message);
   }
 
   return {
@@ -214,6 +239,7 @@ exports.registerGymOwnerAndOrg = async ({ ownerName, email, phone, password, gym
     },
     organization,
     plan,
+    invoice,
     price,
     billingCycle,
     razorpayOrder,
@@ -259,13 +285,33 @@ exports.verifyAndActivateSaaSSubscription = async ({
   const gracePeriodEnd = new Date(currentPeriodEnd.getTime() + 7 * 24 * 60 * 60 * 1000); // 7-day grace period
   const amount = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
 
+  // Find or create pending invoice for this organization
+  let invoice = await Invoice.findOne({ organization: organization._id, status: 'Unpaid' }).sort({ createdAt: -1 });
+  if (!invoice) {
+    invoice = await invoiceService.createSaaSInvoice({
+      organization,
+      user: organization.owner,
+      plan,
+      billingCycle,
+      startDate: now,
+      endDate: currentPeriodEnd,
+    });
+  }
+
+  // Mark invoice as Paid
+  await invoiceService.markInvoicePaid(invoice._id, {
+    orderId: razorpayOrderId,
+    paymentId: razorpayPaymentId || `pay_saas_${Date.now()}`,
+    paymentMethod: 'Razorpay',
+  });
+
   // Create or Update OrganizationSubscription
   const subscription = await OrganizationSubscription.create({
     organization: organization._id,
     plan: plan._id,
     planName: plan.name,
     billingCycle,
-    amount,
+    amount: invoice.pricing.totalPayable,
     status: 'Active',
     currentPeriodStart: now,
     currentPeriodEnd,
@@ -277,11 +323,11 @@ exports.verifyAndActivateSaaSSubscription = async ({
       {
         action: 'Activation',
         planName: plan.name,
-        amount,
+        amount: invoice.pricing.totalPayable,
         billingCycle,
         date: now,
         performedBy: organization.ownerName || 'Gym Owner',
-        notes: `Subscription activated via verified Razorpay transaction.`,
+        notes: `Subscription activated via verified Razorpay transaction. Invoice: ${invoice.invoiceNumber}`,
       },
     ],
   });
@@ -294,19 +340,18 @@ exports.verifyAndActivateSaaSSubscription = async ({
   organization.membersLimit = plan.maxMembers;
   await organization.save();
 
-  // Create an official Payment ledger record
-  const invoiceNumber = `INV-SAAS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  // Create an official Payment ledger record with strict unique QNOX-INV invoiceNumber
   const ownerId = (organization.owner && organization.owner._id) || organization.owner;
 
-  await Payment.create({
+  const payment = await Payment.create({
     user: ownerId,
     userName: organization.ownerName || 'Gym Owner',
     userEmail: organization.ownerEmail || organization.contactEmail,
-    orderId: razorpayOrderId,
-    paymentId: razorpayPaymentId || `pay_saas_${Date.now()}`,
-    amount,
+    orderId: razorpayOrderId || (invoice.paymentDetails && invoice.paymentDetails.orderId) || `order_saas_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    paymentId: razorpayPaymentId || (invoice.paymentDetails && invoice.paymentDetails.paymentId) || `pay_saas_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    amount: invoice.pricing.totalPayable,
     currency: 'INR',
-    invoiceNumber,
+    invoiceNumber: invoice.invoiceNumber,
     planName: `QNOX SaaS ${plan.name} (${billingCycle.toUpperCase()})`,
     duration: billingCycle === 'yearly' ? 'yearly' : 'monthly',
     status: 'Completed',
@@ -314,9 +359,23 @@ exports.verifyAndActivateSaaSSubscription = async ({
     organization: organization._id,
   });
 
+  // Send subscription activation confirmation email
+  try {
+    await emailService.sendSaaSSubscriptionActivatedEmail({
+      user: organization.owner,
+      organization,
+      invoice,
+      subscription,
+    });
+  } catch (mailErr) {
+    console.warn('[Activation Email Notice]:', mailErr.message);
+  }
+
   return {
     organization,
     subscription,
+    invoice,
+    payment,
     plan,
   };
 };
