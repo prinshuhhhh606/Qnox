@@ -111,6 +111,12 @@ export default function PublicLayout() {
               type: 'success',
               message: `Welcome to Coach Command Center, ${user.name}.`,
             });
+          } else if (['Gym Owner', 'Company Admin'].includes(user?.role)) {
+            navigate('/gym-owner/dashboard');
+            showToast({
+              type: 'success',
+              message: `Welcome to Gym Command Suite, ${user.name}.`,
+            });
           } else {
             showToast({ type: 'success', message: `Welcome to QNOX, ${user?.name}.` });
           }
