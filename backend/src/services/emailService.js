@@ -337,3 +337,75 @@ exports.sendSaaSSubscriptionActivatedEmail = async ({ user, organization, invoic
   });
 };
 
+exports.sendGymOwnerApplicationSubmittedEmail = async ({ application }) => {
+  const content = `
+    <p class="text">Dear <strong>${application.ownerName}</strong>,</p>
+    <p class="text">Thank you for submitting your partnership application for <strong>${application.gymName}</strong> to the QNOX Luxury Gym Network.</p>
+    <div class="highlight-box">
+      <div class="code-label">APPLICATION ID</div>
+      <div class="code-val">${application.applicationId}</div>
+      <p style="color:#c5a880; font-size:13px; margin-top:8px;">Location: ${application.city}, ${application.state}</p>
+      <p style="color:#ffffff; font-size:13px; margin-top:4px;">Status: PENDING SUPER ADMIN APPROVAL</p>
+    </div>
+    <p class="text">Our Super Admin and luxury concierge team will evaluate your business credentials. Once approved, you will receive a secure one-time invitation link to complete your account registration and choose your SaaS subscription tier.</p>
+  `;
+
+  return sendEmail({
+    to: application.email,
+    subject: `Application Received: ${application.gymName} [${application.applicationId}]`,
+    html: getLuxuryTemplate('Partnership Application Received', 'PRE-APPROVAL AUDIT', content),
+  });
+};
+
+exports.sendGymOwnerApplicationApprovedEmail = async ({ application, invitationUrl, expiresAt }) => {
+  const expiryStr = new Date(expiresAt).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const content = `
+    <p class="text">Dear <strong>${application.ownerName}</strong>,</p>
+    <p class="text">Congratulations! Your gym partnership application for <strong>${application.gymName}</strong> has been <strong>OFFICIALLY APPROVED</strong> by the QNOX Executive Board.</p>
+    <div class="highlight-box">
+      <div class="code-label">APPLICATION VERIFIED</div>
+      <div class="code-val">${application.applicationId}</div>
+      <p style="color:#10b981; font-weight:bold; font-size:13px; margin-top:6px;">STATUS: APPROVED &bull; INVITATION ACTIVE</p>
+      <p style="color:#ef4444; font-size:12px; margin-top:4px;">Link valid until: ${expiryStr}</p>
+    </div>
+    <p class="text">Please click the secure link below to set your password, provision your tenant account, and select your subscription plan:</p>
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${invitationUrl}" style="background-color: #c5a880; color: #000000; padding: 14px 32px; font-weight: bold; text-decoration: none; text-transform: uppercase; letter-spacing: 2px; font-size: 13px; display: inline-block;">Complete Gym Registration &rarr;</a>
+    </div>
+    <p style="font-size: 11px; color: #777;">If the button does not work, copy and paste this URL into your browser:<br/><span style="color:#c5a880;">${invitationUrl}</span></p>
+  `;
+
+  return sendEmail({
+    to: application.email,
+    subject: `Application Approved! Complete Your QNOX Gym Registration [${application.applicationId}]`,
+    html: getLuxuryTemplate('Application Approved', 'CONCIERGE INVITATION', content),
+  });
+};
+
+exports.sendGymOwnerApplicationRejectedEmail = async ({ application, rejectionReason }) => {
+  const content = `
+    <p class="text">Dear <strong>${application.ownerName}</strong>,</p>
+    <p class="text">Thank you for your interest in joining the QNOX Luxury Gym Network. After reviewing your partnership application for <strong>${application.gymName}</strong> [${application.applicationId}], we regret to inform you that we cannot approve your onboarding at this time.</p>
+    <div class="highlight-box">
+      <div class="code-label">DECISION DETAILS</div>
+      <div class="code-val" style="color: #ef4444;">REJECTED</div>
+      <p style="color:#e5e5e5; font-size:13px; margin-top:8px;">Reason: ${rejectionReason || 'Does not meet current network luxury tier specifications or regional capacity requirements.'}</p>
+    </div>
+    <p class="text">If you have questions or would like to submit updated credentials for future consideration, please contact our support concierge.</p>
+  `;
+
+  return sendEmail({
+    to: application.email,
+    subject: `Update on Your QNOX Partnership Application [${application.applicationId}]`,
+    html: getLuxuryTemplate('Application Review Notice', 'BOARD EVALUATION', content),
+  });
+};
+
+

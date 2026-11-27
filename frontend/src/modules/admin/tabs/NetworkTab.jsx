@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Globe, Shield, CheckCircle, XCircle, Clock, DollarSign,
-  QrCode, RefreshCw, Building, Award, AlertTriangle, ArrowRight, UserCheck
+  QrCode, RefreshCw, Building, Award, AlertTriangle, ArrowRight, UserCheck,
+  Copy, ExternalLink, Mail, Phone, MapPin, Building2, Eye, Filter, Search, X
 } from 'lucide-react';
 import {
   fetchMultiGymAnalytics,
@@ -13,6 +14,9 @@ import {
   fetchClubs,
   fetchAdminTenants,
   updateAdminTenantStatus,
+  fetchAdminGymOwnerApplications,
+  approveAdminGymOwnerApplication,
+  rejectAdminGymOwnerApplication,
 } from '../../../services/api';
 
 export default function NetworkTab({ onShowToast }) {
@@ -25,6 +29,21 @@ export default function NetworkTab({ onShowToast }) {
   const [clubs, setClubs] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loadingTenants, setLoadingTenants] = useState(false);
+
+  // Gym Owner Applications Pre-Approval Pipeline state
+  const [gymApplications, setGymApplications] = useState([]);
+  const [loadingGymApps, setLoadingGymApps] = useState(false);
+  const [gymAppFilter, setGymAppFilter] = useState('All');
+  const [gymAppSearch, setGymAppSearch] = useState('');
+  const [selectedGymApp, setSelectedGymApp] = useState(null);
+  const [showGymAppModal, setShowGymAppModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [adminNotesInput, setAdminNotesInput] = useState('');
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [activeAppActionId, setActiveAppActionId] = useState(null);
+  const [processingGymAppId, setProcessingGymAppId] = useState(null);
+  const [invitationResult, setInvitationResult] = useState(null);
 
   // QR Scanner verification state
   const [qrInputToken, setQrInputToken] = useState('');
@@ -42,13 +61,15 @@ export default function NetworkTab({ onShowToast }) {
     setLoadingApps(true);
     setLoadingSettlements(true);
     setLoadingTenants(true);
+    setLoadingGymApps(true);
     try {
-      const [analyticsData, appsData, settlementsData, clubsData, tenantsData] = await Promise.allSettled([
+      const [analyticsData, appsData, settlementsData, clubsData, tenantsData, gymAppsData] = await Promise.allSettled([
         fetchMultiGymAnalytics(),
         fetchPartnershipApplications(),
         fetchPartnerSettlements(),
         fetchClubs(),
         fetchAdminTenants(),
+        fetchAdminGymOwnerApplications(),
       ]);
 
       if (analyticsData.status === 'fulfilled' && analyticsData.value) {
@@ -62,6 +83,9 @@ export default function NetworkTab({ onShowToast }) {
       }
       if (tenantsData.status === 'fulfilled' && tenantsData.value?.data) {
         setTenants(tenantsData.value.data);
+      }
+      if (gymAppsData.status === 'fulfilled' && gymAppsData.value?.data) {
+        setGymApplications(gymAppsData.value.data);
       }
       if (clubsData.status === 'fulfilled' && clubsData.value) {
         const list = Array.isArray(clubsData.value) ? clubsData.value : clubsData.value.data || [];
@@ -77,12 +101,62 @@ export default function NetworkTab({ onShowToast }) {
       setLoadingApps(false);
       setLoadingSettlements(false);
       setLoadingTenants(false);
+      setLoadingGymApps(false);
     }
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleOpenApproveGymModal = (app) => {
+    setActiveAppActionId(app._id);
+    setSelectedGymApp(app);
+    setAdminNotesInput(app.adminNotes || '');
+    setInvitationResult(null);
+    setShowApproveModal(true);
+  };
+
+  const handleConfirmApproveGym = async () => {
+    if (!activeAppActionId) return;
+    setProcessingGymAppId(activeAppActionId);
+    try {
+      const res = await approveAdminGymOwnerApplication(activeAppActionId, { adminNotes: adminNotesInput });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Application approved and invitation dispatched!' });
+      setInvitationResult(res.data);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingGymAppId(null);
+    }
+  };
+
+  const handleOpenRejectGymModal = (app) => {
+    setActiveAppActionId(app._id);
+    setSelectedGymApp(app);
+    setRejectionReasonInput('');
+    setShowRejectModal(true);
+  };
+
+  const handleConfirmRejectGym = async () => {
+    if (!activeAppActionId) return;
+    if (!rejectionReasonInput.trim()) {
+      if (onShowToast) onShowToast({ type: 'error', message: 'Rejection reason is required.' });
+      return;
+    }
+    setProcessingGymAppId(activeAppActionId);
+    try {
+      const res = await rejectAdminGymOwnerApplication(activeAppActionId, { rejectionReason: rejectionReasonInput });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Application rejected and applicant notified.' });
+      setShowRejectModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingGymAppId(null);
+    }
+  };
 
   const handleApproveApp = async (id, agreedRate = 250) => {
     setProcessingAppId(id);
@@ -240,6 +314,225 @@ export default function NetworkTab({ onShowToast }) {
             ₹{analytics?.settlements?.disbursedPayouts?.toLocaleString('en-IN') || 0} disbursed to date
           </div>
         </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 1. GYM OWNER APPLICATIONS (PRE-APPROVAL PIPELINE)       */}
+      {/* ======================================================== */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/10 pb-3">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] tracking-[0.2em] uppercase text-[#c5a880] font-semibold block">
+                PRE-APPROVAL ONBOARDING AUDIT
+              </span>
+              <span className="px-2 py-0.5 text-[9px] font-mono bg-[#c5a880]/20 text-[#c5a880] border border-[#c5a880]/40 rounded-full">
+                GATEWAY 1
+              </span>
+            </div>
+            <h3 className="font-serif text-xl text-white">Gym Owner Partnership Applications</h3>
+            <p className="text-xs text-neutral-400 font-light mt-0.5">
+              Review B2B gym partnership requests, audit credentials, and grant single-use invitation links.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input
+                type="text"
+                placeholder="Search by ID, name, city..."
+                value={gymAppSearch}
+                onChange={(e) => setGymAppSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 bg-[#121212] border border-white/10 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#c5a880] w-48 sm:w-60 font-mono"
+              />
+            </div>
+            <button
+              onClick={loadData}
+              className="p-2 bg-[#121212] border border-white/10 hover:border-[#c5a880] text-neutral-300 hover:text-white transition"
+              title="Refresh applications"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingGymApps ? 'animate-spin text-[#c5a880]' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { key: 'All', label: 'All Applications', count: gymApplications.length },
+            { key: 'PENDING_APPROVAL', label: 'Pending Approval', count: gymApplications.filter(a => a.status === 'PENDING_APPROVAL').length, highlight: true },
+            { key: 'APPROVED', label: 'Approved', count: gymApplications.filter(a => a.status === 'APPROVED').length },
+            { key: 'REGISTERED', label: 'Registered', count: gymApplications.filter(a => a.status === 'REGISTERED').length },
+            { key: 'REJECTED', label: 'Rejected', count: gymApplications.filter(a => a.status === 'REJECTED').length },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setGymAppFilter(f.key)}
+              className={`px-3 py-1 text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1.5 border ${
+                gymAppFilter === f.key
+                  ? 'bg-[#c5a880] text-black border-[#c5a880] font-bold shadow-[0_0_10px_rgba(197,168,128,0.2)]'
+                  : 'bg-[#0e0e0e] text-neutral-400 border-white/10 hover:border-white/30 hover:text-white'
+              }`}
+            >
+              <span>{f.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                gymAppFilter === f.key
+                  ? 'bg-black text-[#c5a880]'
+                  : f.highlight && f.count > 0
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-white/10 text-neutral-400'
+              }`}>
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Applications Table */}
+        {loadingGymApps ? (
+          <div className="py-8 text-center text-xs font-mono text-neutral-500 uppercase tracking-widest bg-[#0c0c0c] border border-white/10">
+            <RefreshCw className="w-4 h-4 animate-spin inline-block mr-2 text-[#c5a880]" />
+            Auditing Gym Owner Applications Pipeline...
+          </div>
+        ) : (
+          (() => {
+            const filtered = gymApplications.filter((app) => {
+              if (gymAppFilter !== 'All' && app.status !== gymAppFilter) return false;
+              if (gymAppSearch.trim()) {
+                const q = gymAppSearch.toLowerCase();
+                return (
+                  app.applicationId?.toLowerCase().includes(q) ||
+                  app.ownerName?.toLowerCase().includes(q) ||
+                  app.gymName?.toLowerCase().includes(q) ||
+                  app.email?.toLowerCase().includes(q) ||
+                  app.city?.toLowerCase().includes(q)
+                );
+              }
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="p-8 text-center border border-white/10 bg-[#0e0e0e] text-xs text-neutral-500 font-mono">
+                  No gym owner applications match current filter criteria.
+                </div>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto border border-white/10 bg-[#0c0c0c]">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="text-[9px] uppercase tracking-wider text-[#c5a880] bg-[#141414] border-b border-white/10">
+                    <tr>
+                      <th className="p-3.5">Application ID</th>
+                      <th className="p-3.5">Gym / Brand Name</th>
+                      <th className="p-3.5">Applicant / Owner</th>
+                      <th className="p-3.5">Location</th>
+                      <th className="p-3.5 text-center">Scale</th>
+                      <th className="p-3.5 text-center">Applied Date</th>
+                      <th className="p-3.5 text-center">Status</th>
+                      <th className="p-3.5 text-right">Pre-Approval Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-neutral-300">
+                    {filtered.map((app) => {
+                      const isPending = app.status === 'PENDING_APPROVAL';
+                      const isApproved = app.status === 'APPROVED';
+                      const isRegistered = app.status === 'REGISTERED';
+                      const isRejected = app.status === 'REJECTED';
+
+                      return (
+                        <tr key={app._id} className="hover:bg-white/[0.02]">
+                          <td className="p-3.5 font-bold text-white">
+                            <span className="text-[#c5a880]">{app.applicationId}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-white flex items-center space-x-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-neutral-400" />
+                              <span>{app.gymName}</span>
+                            </div>
+                            <div className="text-[10px] text-neutral-500 truncate max-w-xs">{app.gymAddress}</div>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="text-white font-medium">{app.ownerName}</div>
+                            <div className="text-[10px] text-neutral-400">{app.email}</div>
+                            <div className="text-[10px] text-neutral-500">{app.phone}</div>
+                          </td>
+                          <td className="p-3.5">
+                            <div>{app.city}, {app.state}</div>
+                            <div className="text-[10px] text-neutral-500">{app.country || 'India'}</div>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className="text-white font-bold">{app.branchCount || 1} Br</span>
+                            <div className="text-[10px] text-neutral-500">~{app.expectedMembers || 100} mbrs</div>
+                          </td>
+                          <td className="p-3.5 text-center text-neutral-400 whitespace-nowrap">
+                            {new Date(app.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span
+                              className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded ${
+                                isApproved
+                                  ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                  : isRegistered
+                                  ? 'bg-sky-950/70 text-sky-400 border border-sky-500/40'
+                                  : isRejected
+                                  ? 'bg-rose-950/70 text-rose-400 border border-rose-500/40'
+                                  : 'bg-amber-950/70 text-amber-400 border border-amber-500/40 animate-pulse'
+                              }`}
+                            >
+                              {app.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end space-x-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedGymApp(app);
+                                  setShowGymAppModal(true);
+                                }}
+                                className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-[10px] uppercase font-bold tracking-wider transition border border-white/10 flex items-center space-x-1"
+                                title="View Application Dossier"
+                              >
+                                <Eye className="w-3 h-3 text-[#c5a880]" />
+                                <span>VIEW</span>
+                              </button>
+
+                              {isPending && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenApproveGymModal(app)}
+                                    disabled={processingGymAppId === app._id}
+                                    className="px-2.5 py-1 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-[10px] uppercase font-bold tracking-wider transition border border-emerald-500/40 flex items-center space-x-1 disabled:opacity-50"
+                                    title="Approve and dispatch invitation"
+                                  >
+                                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                                    <span>APPROVE</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleOpenRejectGymModal(app)}
+                                    disabled={processingGymAppId === app._id}
+                                    className="px-2.5 py-1 bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] uppercase font-bold tracking-wider transition border border-rose-500/40 flex items-center space-x-1 disabled:opacity-50"
+                                    title="Reject application"
+                                  >
+                                    <XCircle className="w-3 h-3 text-rose-400" />
+                                    <span>REJECT</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()
+        )}
       </div>
 
       {/* Multi-Tenant B2B SaaS Partner Gyms Ecosystem */}
@@ -607,6 +900,314 @@ export default function NetworkTab({ onShowToast }) {
           </div>
         )}
       </div>
+
+      {/* ======================================================== */}
+      {/* MODAL 1: VIEW APPLICATION DOSSIER                       */}
+      {/* ======================================================== */}
+      {showGymAppModal && selectedGymApp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-white/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-[#c5a880] font-mono block">
+                  PARTNERSHIP APPLICATION DOSSIER
+                </span>
+                <h3 className="text-xl font-serif text-white">{selectedGymApp.gymName}</h3>
+                <span className="text-xs font-mono text-neutral-400">ID: {selectedGymApp.applicationId}</span>
+              </div>
+              <button
+                onClick={() => setShowGymAppModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white border border-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+              <div className="p-3 bg-[#141414] border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase text-neutral-500 block">Owner / Applicant</span>
+                <span className="text-white font-bold">{selectedGymApp.ownerName}</span>
+                <div className="text-neutral-400">{selectedGymApp.email}</div>
+                <div className="text-neutral-400">{selectedGymApp.phone}</div>
+              </div>
+
+              <div className="p-3 bg-[#141414] border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase text-neutral-500 block">Location & Address</span>
+                <span className="text-white">{selectedGymApp.city}, {selectedGymApp.state}</span>
+                <div className="text-neutral-400">{selectedGymApp.country || 'India'}</div>
+                <div className="text-[11px] text-neutral-500">{selectedGymApp.gymAddress}</div>
+              </div>
+
+              <div className="p-3 bg-[#141414] border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase text-neutral-500 block">Projected Scale</span>
+                <span className="text-white font-bold">{selectedGymApp.branchCount || 1} Branches</span>
+                <div className="text-neutral-400">Expected Members: {selectedGymApp.expectedMembers || 100}</div>
+              </div>
+
+              <div className="p-3 bg-[#141414] border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase text-neutral-500 block">Status & Audit</span>
+                <span className="font-bold text-[#c5a880]">{selectedGymApp.status}</span>
+                <div className="text-neutral-500">
+                  Applied: {new Date(selectedGymApp.createdAt).toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            {selectedGymApp.businessDescription && (
+              <div className="p-3 bg-[#141414] border border-white/5 text-xs font-mono space-y-1">
+                <span className="text-[10px] uppercase text-neutral-500 block">Business & Facility Description</span>
+                <p className="text-neutral-300 leading-relaxed">{selectedGymApp.businessDescription}</p>
+              </div>
+            )}
+
+            {selectedGymApp.adminNotes && (
+              <div className="p-3 bg-amber-950/20 border border-amber-500/20 text-xs font-mono space-y-1">
+                <span className="text-[10px] uppercase text-amber-400 block font-bold">Admin Audit Notes</span>
+                <p className="text-neutral-300">{selectedGymApp.adminNotes}</p>
+              </div>
+            )}
+
+            {selectedGymApp.rejectionReason && (
+              <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-xs font-mono space-y-1">
+                <span className="text-[10px] uppercase text-rose-400 block font-bold">Rejection Reason</span>
+                <p className="text-rose-200">{selectedGymApp.rejectionReason}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
+              {selectedGymApp.status === 'PENDING_APPROVAL' && (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowGymAppModal(false);
+                      handleOpenApproveGymModal(selectedGymApp);
+                    }}
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-mono uppercase tracking-wider font-bold transition flex items-center space-x-1"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                    <span>APPROVE APPLICATION</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowGymAppModal(false);
+                      handleOpenRejectGymModal(selectedGymApp);
+                    }}
+                    className="px-4 py-2 bg-rose-800 hover:bg-rose-700 text-white text-xs font-mono uppercase tracking-wider font-bold transition flex items-center space-x-1"
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1" />
+                    <span>REJECT APPLICATION</span>
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setShowGymAppModal(false)}
+                className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#252525] text-white text-xs font-mono uppercase tracking-wider transition border border-white/10"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 2: APPROVE APPLICATION & DISPATCH INVITATION       */}
+      {/* ======================================================== */}
+      {showApproveModal && selectedGymApp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-emerald-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-emerald-400 font-mono block">
+                  OFFICIAL PRE-APPROVAL CLEARANCE
+                </span>
+                <h3 className="text-lg font-serif text-white">Approve {selectedGymApp.gymName}</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setInvitationResult(null);
+                }}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {!invitationResult ? (
+              <div className="space-y-4 text-xs font-mono">
+                <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 space-y-1">
+                  <p className="text-emerald-300 font-medium">
+                    Approving this application will:
+                  </p>
+                  <ul className="list-disc list-inside text-neutral-300 space-y-0.5 text-[11px]">
+                    <li>Mark application status as <strong>APPROVED</strong>.</li>
+                    <li>Generate a cryptographically secure, single-use token valid for 7 days.</li>
+                    <li>Send an official registration invitation email to <strong>{selectedGymApp.email}</strong>.</li>
+                    <li>Allow the applicant to set their password and choose a SaaS subscription.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                    Internal Admin Notes (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={adminNotesInput}
+                    onChange={(e) => setAdminNotesInput(e.target.value)}
+                    placeholder="e.g. Credentials and facility photos verified. Approved for Starter/Professional onboarding."
+                    className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-[#c5a880]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => setShowApproveModal(false)}
+                    className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={handleConfirmApproveGym}
+                    disabled={processingGymAppId === activeAppActionId}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {processingGymAppId === activeAppActionId ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>ISSUING INVITATION...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>CONFIRM & DISPATCH INVITATION</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs font-mono">
+                <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 space-y-1">
+                  <div className="font-bold flex items-center space-x-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span>Application Approved & Invitation Created!</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-300">
+                    An email with the one-time registration link has been dispatched to <strong>{selectedGymApp.email}</strong>.
+                  </p>
+                </div>
+
+                {invitationResult.invitationUrl && (
+                  <div className="p-3 bg-[#141414] border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400 uppercase">Direct Invitation Link:</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(invitationResult.invitationUrl);
+                          if (onShowToast) onShowToast({ type: 'success', message: 'Invitation link copied to clipboard!' });
+                        }}
+                        className="px-2 py-0.5 bg-[#c5a880] text-black text-[10px] font-bold uppercase tracking-wider hover:bg-white transition flex items-center space-x-1"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>COPY LINK</span>
+                      </button>
+                    </div>
+                    <div className="p-2 bg-black text-[11px] text-[#c5a880] break-all border border-white/5 select-all">
+                      {invitationResult.invitationUrl}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => {
+                      setShowApproveModal(false);
+                      setInvitationResult(null);
+                    }}
+                    className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black text-xs uppercase tracking-wider font-bold transition"
+                  >
+                    DONE
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: REJECT APPLICATION                             */}
+      {/* ======================================================== */}
+      {showRejectModal && selectedGymApp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-rose-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-rose-400 font-mono block">
+                  APPLICATION REJECTION NOTICE
+                </span>
+                <h3 className="text-lg font-serif text-white">Reject {selectedGymApp.gymName}</h3>
+              </div>
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-neutral-300 space-y-1">
+                <p className="text-rose-300 font-medium">Rejection Compliance Protocol:</p>
+                <p className="text-[11px]">
+                  Please state a professional reason for rejection. This will be recorded in the audit log and emailed to <strong>{selectedGymApp.email}</strong>.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Rejection Reason <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="e.g. Does not meet current luxury tier specifications or regional capacity requirements for QNOX Network."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowRejectModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmRejectGym}
+                  disabled={processingGymAppId === activeAppActionId || !rejectionReasonInput.trim()}
+                  className="px-5 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingGymAppId === activeAppActionId ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>DISPATCHING NOTICE...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>CONFIRM REJECTION</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

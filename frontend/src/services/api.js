@@ -2595,3 +2595,85 @@ export const updateAdminTenantPlan = async (id, payload) => {
   return data.data;
 };
 
+export const applyGymOwner = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit gym owner application');
+  return data;
+};
+
+export const fetchAdminGymOwnerApplications = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/saas/admin/applications${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch gym owner applications');
+  return data;
+};
+
+export const fetchAdminGymOwnerApplicationById = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/admin/applications/${id}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch application details');
+  return data.data;
+};
+
+export const approveAdminGymOwnerApplication = async (id, payload = {}) => {
+  const res = await fetch(`${API_BASE}/saas/admin/applications/${id}/approve`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to approve application');
+  return data;
+};
+
+export const rejectAdminGymOwnerApplication = async (id, payload = {}) => {
+  const res = await fetch(`${API_BASE}/saas/admin/applications/${id}/reject`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reject application');
+  return data;
+};
+
+export const verifyGymOwnerInvitation = async (token) => {
+  const res = await fetch(`${API_BASE}/saas/verify-invitation/${encodeURIComponent(token)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Invalid or expired invitation link');
+  return data.data;
+};
+
+export const registerApprovedGymOwner = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/register-approved`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to complete registration');
+  return data;
+};
+
+export const initiateSaaSCheckout = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/initiate-checkout`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to initiate SaaS checkout');
+  return data.data;
+};
+
+

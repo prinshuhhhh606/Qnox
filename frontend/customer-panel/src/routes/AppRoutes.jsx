@@ -24,6 +24,7 @@ import ApplicationStatusPage from '../pages/ApplicationStatusPage';
 import CustomerDashboardPage from '../pages/CustomerDashboardPage';
 import TrainerDashboardPage from '../pages/TrainerDashboardPage';
 import GymOwnerDashboardPage from '../pages/GymOwnerDashboardPage';
+import GymOwnerOnboardPage from '../pages/GymOwnerOnboardPage';
 
 export default function AppRoutes() {
   return (
@@ -77,6 +78,9 @@ export default function AppRoutes() {
         <Route index element={<TrainerDashboardPage />} />
         <Route path="dashboard" element={<TrainerDashboardPage />} />
       </Route>
+
+      {/* Public Onboarding with Pre-Approval Invitation Token */}
+      <Route path="/gym-owner/onboard" element={<GymOwnerOnboardPage />} />
 
       {/* 4. GYM OWNER PANEL (Protected SaaS Partner Suite) */}
       <Route

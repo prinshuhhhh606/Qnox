@@ -37,7 +37,7 @@ const OrganizationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Active', 'Pending-Approval', 'Suspended', 'Cancelled'],
+      enum: ['Active', 'Pending-Approval', 'Pending-Payment', 'Suspended', 'Cancelled'],
       default: 'Active',
     },
     contactEmail: {

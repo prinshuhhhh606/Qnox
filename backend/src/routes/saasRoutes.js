@@ -30,16 +30,28 @@ const {
   getAdminTenants,
   updateAdminTenantStatus,
   updateAdminTenantPlan,
+  applyGymOwner,
+  getAdminGymOwnerApplications,
+  getAdminGymOwnerApplicationById,
+  approveGymOwnerApplication,
+  rejectGymOwnerApplication,
+  verifyInvitationToken,
+  registerApprovedGymOwner,
+  initiateSaaSCheckout,
 } = require('../controllers/saasController');
 const { protect, authorize } = require('../middlewares/auth');
 const { verifyTenant } = require('../middlewares/tenant');
 
-// Public SaaS Onboarding Routes
+// Public SaaS Pre-Approval Application & Onboarding Routes
 router.get('/plans', getSaaSPlans);
-router.post('/register-owner', registerGymOwner);
+router.post('/apply', applyGymOwner);
+router.get('/verify-invitation/:token', verifyInvitationToken);
+router.post('/register-approved', registerApprovedGymOwner);
+router.post('/register-owner', registerGymOwner); // Backward compatibility
 router.post('/verify-payment', verifySaaSPayment);
 
 // Private Gym Owner Tenant Routes
+router.post('/initiate-checkout', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, initiateSaaSCheckout);
 router.get('/my-organization', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyOrganization);
 router.put('/my-organization', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateMyOrganization);
 router.put('/change-password', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), changeOwnerPassword);
@@ -78,5 +90,11 @@ router.get('/analytics', protect, authorize('Gym Owner', 'Company Admin', 'Super
 router.get('/admin/tenants', protect, authorize('Super Admin'), getAdminTenants);
 router.put('/admin/tenants/:id/status', protect, authorize('Super Admin'), updateAdminTenantStatus);
 router.put('/admin/tenants/:id/plan', protect, authorize('Super Admin'), updateAdminTenantPlan);
+
+// Super Admin Gym Owner Pre-Approval Pipeline
+router.get('/admin/applications', protect, authorize('Super Admin'), getAdminGymOwnerApplications);
+router.get('/admin/applications/:id', protect, authorize('Super Admin'), getAdminGymOwnerApplicationById);
+router.put('/admin/applications/:id/approve', protect, authorize('Super Admin'), approveGymOwnerApplication);
+router.put('/admin/applications/:id/reject', protect, authorize('Super Admin'), rejectGymOwnerApplication);
 
 module.exports = router;

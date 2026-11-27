@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const Razorpay = require('razorpay');
 const SaaSSubscriptionPlan = require('../models/SaaSSubscriptionPlan');
 const Organization = require('../models/Organization');
@@ -10,6 +11,9 @@ const User = require('../models/User');
 const Attendance = require('../models/Attendance');
 const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
+const Counter = require('../models/Counter');
+const GymOwnerApplication = require('../models/GymOwnerApplication');
+const emailService = require('../services/emailService');
 const invoiceService = require('../services/invoiceService');
 const {
   registerGymOwnerAndOrg,
@@ -944,3 +948,558 @@ exports.updateAdminTenantPlan = async (req, res, next) => {
     next(err);
   }
 };
+
+// ==========================================
+// PRE-APPROVAL GYM OWNER ONBOARDING WORKFLOW
+// ==========================================
+
+// @desc    Submit Public Gym Owner Partnership Application (Pre-Approval)
+// @route   POST /api/saas/apply
+// @access  Public
+exports.applyGymOwner = async (req, res, next) => {
+  try {
+    const {
+      ownerName,
+      email,
+      phone,
+      gymName,
+      gymAddress,
+      city,
+      state,
+      country = 'India',
+      branchCount = 1,
+      expectedMembers = 100,
+      businessDescription = '',
+    } = req.body;
+
+    if (!ownerName || !email || !phone || !gymName || !gymAddress || !city || !state) {
+      return res.status(400).json({
+        success: false,
+        message: 'Owner name, email, phone, gym name, facility address, city, and state are required.',
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email address already exists. Please sign in or use another email.',
+      });
+    }
+
+    // Check for existing pending application
+    const existingApp = await GymOwnerApplication.findOne({
+      email: email.toLowerCase().trim(),
+      status: 'PENDING_APPROVAL',
+    });
+    if (existingApp) {
+      return res.status(400).json({
+        success: false,
+        message: `An application (${existingApp.applicationId}) with this email is already under Super Admin review.`,
+      });
+    }
+
+    // Generate unique sequential application ID (e.g. QNOX-APP-2026-000001)
+    const currentYear = new Date().getFullYear();
+    const counter = await Counter.findByIdAndUpdate(
+      `gym_app_${currentYear}`,
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const formattedSeq = String(counter.seq).padStart(6, '0');
+    const applicationId = `QNOX-APP-${currentYear}-${formattedSeq}`;
+
+    const application = await GymOwnerApplication.create({
+      applicationId,
+      ownerName: ownerName.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
+      gymName: gymName.trim(),
+      gymAddress: gymAddress.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      country: country.trim(),
+      branchCount: Math.max(1, Number(branchCount) || 1),
+      expectedMembers: Math.max(1, Number(expectedMembers) || 100),
+      businessDescription: (businessDescription || '').trim(),
+      status: 'PENDING_APPROVAL',
+    });
+
+    // Send confirmation email
+    try {
+      await emailService.sendGymOwnerApplicationSubmittedEmail({ application });
+    } catch (mailErr) {
+      console.warn('[Application Submitted Email Notice]:', mailErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Partnership application submitted successfully. Our executive board will review your credentials and issue a private invitation link.',
+      data: {
+        applicationId: application.applicationId,
+        ownerName: application.ownerName,
+        gymName: application.gymName,
+        email: application.email,
+        status: application.status,
+        createdAt: application.createdAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get All Gym Owner Applications (Super Admin)
+// @route   GET /api/saas/admin/applications
+// @access  Private (Super Admin)
+exports.getAdminGymOwnerApplications = async (req, res, next) => {
+  try {
+    const { status, search } = req.query;
+    let query = {};
+
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { applicationId: regex },
+        { ownerName: regex },
+        { email: regex },
+        { gymName: regex },
+        { phone: regex },
+        { city: regex },
+      ];
+    }
+
+    const applications = await GymOwnerApplication.find(query)
+      .sort({ createdAt: -1 })
+      .populate('reviewedBy', 'name email');
+
+    const counts = {
+      total: await GymOwnerApplication.countDocuments(),
+      pending: await GymOwnerApplication.countDocuments({ status: 'PENDING_APPROVAL' }),
+      approved: await GymOwnerApplication.countDocuments({ status: 'APPROVED' }),
+      rejected: await GymOwnerApplication.countDocuments({ status: 'REJECTED' }),
+      registered: await GymOwnerApplication.countDocuments({ status: 'REGISTERED' }),
+    };
+
+    res.status(200).json({
+      success: true,
+      count: applications.length,
+      counts,
+      data: applications,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get Gym Owner Application Details by ID (Super Admin)
+// @route   GET /api/saas/admin/applications/:id
+// @access  Private (Super Admin)
+exports.getAdminGymOwnerApplicationById = async (req, res, next) => {
+  try {
+    const application = await GymOwnerApplication.findById(req.params.id)
+      .populate('reviewedBy', 'name email')
+      .populate('registeredUser', 'name email')
+      .populate('registeredOrganization', 'name status');
+
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    res.status(200).json({ success: true, data: application });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Approve Gym Owner Application & Issue Secure Invitation Token
+// @route   PUT /api/saas/admin/applications/:id/approve
+// @access  Private (Super Admin)
+exports.approveGymOwnerApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
+
+    const application = await GymOwnerApplication.findById(id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    // Generate random 32-byte secure invitation token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days expiration
+
+    application.status = 'APPROVED';
+    application.invitationToken = hashedToken;
+    application.invitationExpiresAt = expiresAt;
+    application.invitationUsed = false;
+    if (adminNotes) application.adminNotes = adminNotes.trim();
+    application.reviewedBy = req.user._id;
+    application.reviewedAt = new Date();
+    await application.save();
+
+    // Construct invitation link
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const invitationUrl = `${clientUrl}/gym-owner/onboard?token=${rawToken}`;
+
+    // Send Approval Email
+    try {
+      await emailService.sendGymOwnerApplicationApprovedEmail({
+        application,
+        invitationUrl,
+        expiresAt,
+      });
+    } catch (mailErr) {
+      console.warn('[Approval Email Notice]:', mailErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Application ${application.applicationId} approved. Invitation dispatched to ${application.email}.`,
+      data: {
+        applicationId: application.applicationId,
+        status: application.status,
+        expiresAt,
+        invitationUrl,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Reject Gym Owner Application
+// @route   PUT /api/saas/admin/applications/:id/reject
+// @access  Private (Super Admin)
+exports.rejectGymOwnerApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason, adminNotes } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A rejection reason is required for professional compliance.',
+      });
+    }
+
+    const application = await GymOwnerApplication.findById(id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    application.status = 'REJECTED';
+    application.rejectionReason = rejectionReason.trim();
+    if (adminNotes) application.adminNotes = adminNotes.trim();
+    application.reviewedBy = req.user._id;
+    application.reviewedAt = new Date();
+    application.invitationToken = undefined;
+    application.invitationExpiresAt = undefined;
+    await application.save();
+
+    // Send Rejection Notice Email
+    try {
+      await emailService.sendGymOwnerApplicationRejectedEmail({
+        application,
+        rejectionReason: application.rejectionReason,
+      });
+    } catch (mailErr) {
+      console.warn('[Rejection Email Notice]:', mailErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Application ${application.applicationId} rejected. Notification dispatched.`,
+      data: application,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Verify Invitation Token & Fetch Pre-Approved Application Details
+// @route   GET /api/saas/verify-invitation/:token
+// @access  Public
+exports.verifyInvitationToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Invitation token is missing.' });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const application = await GymOwnerApplication.findOne({
+      invitationToken: hashedToken,
+    });
+
+    if (!application) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid invitation link. Please request a valid invitation or contact support.',
+      });
+    }
+
+    if (application.status !== 'APPROVED') {
+      return res.status(400).json({
+        success: false,
+        message: `This application is in ${application.status} status. Registration not permitted.`,
+      });
+    }
+
+    if (application.invitationUsed) {
+      return res.status(400).json({
+        success: false,
+        message: 'This invitation link has already been used to register an account. Please sign in.',
+      });
+    }
+
+    if (application.invitationExpiresAt && application.invitationExpiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'This invitation link has expired. Please contact Super Admin for a fresh invitation.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        applicationId: application.applicationId,
+        ownerName: application.ownerName,
+        email: application.email,
+        phone: application.phone,
+        gymName: application.gymName,
+        gymAddress: application.gymAddress,
+        city: application.city,
+        state: application.state,
+        country: application.country,
+        branchCount: application.branchCount,
+        expectedMembers: application.expectedMembers,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Complete Registration for Approved Gym Owner
+// @route   POST /api/saas/register-approved
+// @access  Public
+exports.registerApprovedGymOwner = async (req, res, next) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: 'Invitation token and password are required.' });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long.' });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const application = await GymOwnerApplication.findOne({ invitationToken: hashedToken });
+
+    if (!application) {
+      return res.status(400).json({ success: false, message: 'Invalid invitation link.' });
+    }
+
+    if (application.status !== 'APPROVED') {
+      return res.status(400).json({ success: false, message: 'This application is not approved.' });
+    }
+
+    if (application.invitationUsed) {
+      return res.status(400).json({ success: false, message: 'This invitation has already been used.' });
+    }
+
+    if (application.invitationExpiresAt && application.invitationExpiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'This invitation link has expired.' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: application.email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email is already registered. Please sign in.',
+      });
+    }
+
+    // Slug for organization
+    const slug = (application.gymName || 'gym')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 30) + '-' + Math.random().toString(36).substring(2, 6);
+
+    // Create Organization in 'Pending-Payment' state
+    const organization = await Organization.create({
+      name: application.gymName,
+      slug,
+      type: 'SaaS-Partner',
+      status: 'Pending-Payment',
+      contactEmail: application.email,
+      phone: application.phone,
+      address: application.gymAddress,
+      city: application.city,
+      state: application.state,
+      branchesLimit: Math.max(1, application.branchCount || 1),
+      trainersLimit: 5,
+      membersLimit: Math.max(100, application.expectedMembers || 100),
+    });
+
+    // Create User (role: Gym Owner)
+    const user = await User.create({
+      name: application.ownerName,
+      email: application.email,
+      phone: application.phone,
+      password,
+      role: 'Gym Owner',
+      organization: organization._id,
+    });
+
+    organization.owner = user._id;
+    organization.ownerName = user.name;
+    organization.ownerEmail = user.email;
+    await organization.save();
+
+    // Mark application as REGISTERED
+    application.status = 'REGISTERED';
+    application.invitationUsed = true;
+    application.invitationUsedAt = new Date();
+    application.registeredUser = user._id;
+    application.registeredOrganization = organization._id;
+    await application.save();
+
+    // Create initial primary branch for the gym
+    await Club.create({
+      name: `${application.gymName} (Main Branch)`,
+      slug: `${slug}-main`,
+      organization: organization._id,
+      address: application.gymAddress,
+      city: application.city,
+      state: application.state,
+      location: `${application.city}, ${application.state}`,
+      phone: application.phone,
+      email: application.email,
+      branchCode: 'BR-01',
+      tagline: `Flagship Sanctuary of ${application.gymName}`,
+      description: application.businessDescription || `Premier athletic sanctuary branch of ${application.gymName}.`,
+      heroImage: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80',
+      isActive: true,
+      operatingHours: { open: '06:00', close: '22:00' },
+    });
+
+    // Generate JWT token
+    const jwtToken = jwt.sign(
+      { id: user._id, role: user.role, organization: organization._id },
+      process.env.JWT_SECRET || 'qnox_luxury_jwt_secret_key_2026',
+      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Account provisioned successfully. Please select your SaaS subscription plan to activate your dashboard.',
+      data: {
+        token: jwtToken,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organization: organization._id,
+        },
+        organization,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Initiate SaaS Checkout & Generate Razorpay Order
+// @route   POST /api/saas/initiate-checkout
+// @access  Private (Gym Owner)
+exports.initiateSaaSCheckout = async (req, res, next) => {
+  try {
+    const { planCode, billingCycle = 'monthly' } = req.body;
+    const orgId = req.user.organization || req.tenantOrgId;
+
+    if (!orgId) {
+      return res.status(400).json({ success: false, message: 'Tenant organization not found in session.' });
+    }
+
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ success: false, message: 'Organization record not found.' });
+    }
+
+    const plan = await SaaSSubscriptionPlan.findOne({ code: (planCode || 'starter').toLowerCase(), isActive: true });
+    if (!plan) {
+      return res.status(404).json({ success: false, message: `Plan '${planCode}' not found or inactive.` });
+    }
+
+    const now = new Date();
+    const periodDays = billingCycle === 'yearly' ? 365 : 30;
+    const currentPeriodEnd = new Date(now.getTime() + periodDays * 86400000);
+
+    // Create proforma Invoice
+    const invoice = await invoiceService.createSaaSInvoice({
+      organization: org,
+      user: req.user,
+      plan,
+      billingCycle,
+      startDate: now,
+      endDate: currentPeriodEnd,
+    });
+
+    // Create Razorpay Order
+    let razorpayOrder = null;
+    try {
+      razorpayOrder = await razorpayInstance.orders.create({
+        amount: Math.round(invoice.pricing.totalPayable * 100),
+        currency: 'INR',
+        receipt: `saas_${org._id.toString().slice(-8)}_${Date.now().toString().slice(-6)}`,
+        notes: {
+          organizationId: org._id.toString(),
+          invoiceNumber: invoice.invoiceNumber,
+          planCode: plan.code,
+          billingCycle,
+        },
+      });
+    } catch (rzpErr) {
+      console.warn('[Razorpay Order Fallback]:', rzpErr.message);
+      razorpayOrder = {
+        id: `order_saas_${Date.now()}`,
+        amount: Math.round(invoice.pricing.totalPayable * 100),
+        currency: 'INR',
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        organization: org,
+        plan,
+        invoice,
+        billingCycle,
+        razorpayOrder,
+        key: process.env.RAZORPAY_KEY_ID || 'rzp_test_qnox_luxury_key',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
