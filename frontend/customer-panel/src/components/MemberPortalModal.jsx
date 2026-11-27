@@ -255,7 +255,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
         <div className="qnox-portal-dialog">
           
           {/* Top Header Bar */}
-          <div className="p-6 md:p-8 border-b border-white/10 flex items-center justify-between bg-[#0a0a0a]">
+          <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-[#0a0a0a] flex-shrink-0">
             <div className="flex items-center space-x-4">
               <input
                 type="file"
@@ -331,7 +331,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex border-b border-white/10 px-8 bg-[#070707] overflow-x-auto scrollbar-none">
+          <div className="flex items-center border-b border-white/10 px-4 sm:px-8 bg-[#070707] overflow-x-auto scrollbar-none flex-shrink-0">
             <button
               onClick={() => setActiveTab('residency')}
               className={`qnox-portal-tab ${activeTab === 'residency' ? 'active' : ''}`}
@@ -340,9 +340,9 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
             </button>
             <button
               onClick={() => setActiveTab('workouts')}
-              className={`qnox-portal-tab relative flex items-center space-x-1.5 ${activeTab === 'workouts' ? 'active' : ''}`}
+              className={`qnox-portal-tab ${activeTab === 'workouts' ? 'active' : ''}`}
             >
-              <Dumbbell className="w-3.5 h-3.5 text-[#c5a880]" />
+              <Dumbbell className="w-3.5 h-3.5 text-[#c5a880] mr-2 flex-shrink-0" />
               <span>AI WORKOUTS & TRACKER</span>
             </button>
             <button
@@ -359,12 +359,12 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`qnox-portal-tab relative flex items-center space-x-1.5 ${activeTab === 'notifications' ? 'active' : ''}`}
+              className={`qnox-portal-tab ${activeTab === 'notifications' ? 'active' : ''}`}
             >
-              <Bell className="w-3.5 h-3.5 text-[#c5a880]" />
+              <Bell className="w-3.5 h-3.5 text-[#c5a880] mr-2 flex-shrink-0" />
               <span>NOTIFICATIONS</span>
               {notifUnreadCount > 0 && (
-                <span className="px-1.5 py-0.2 text-[9px] bg-rose-600 text-white font-bold rounded-full animate-pulse">
+                <span className="ml-2 px-1.5 py-0.5 text-[9px] bg-rose-600 text-white font-bold rounded-full animate-pulse">
                   {notifUnreadCount}
                 </span>
               )}
