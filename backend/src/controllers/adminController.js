@@ -1216,3 +1216,108 @@ exports.triggerManualExpiryCheck = async (req, res, next) => {
   }
 };
 
+// @desc    Get Centralized Super Admin Multi-Gym SaaS & All-Access Analytics
+// @route   GET /api/admin/multi-gym-analytics
+// @access  Private (Super Admin)
+exports.getMultiGymOverviewAnalytics = async (req, res, next) => {
+  try {
+    const Organization = require('../models/Organization');
+    const Club = require('../models/Club');
+    const OrganizationSubscription = require('../models/OrganizationSubscription');
+    const PartnershipApplication = require('../models/PartnershipApplication');
+    const PartnerSettlement = require('../models/PartnerSettlement');
+
+    const [
+      totalOrganizations,
+      companyOwnedClubs,
+      saasPartnerClubs,
+      allAccessPartnerClubs,
+      activeSaaSSubs,
+      expiredSaaSSubs,
+      pendingGymApprovals,
+      pendingPartnershipApps,
+      activeMembers,
+      allAccessMembers,
+      saasPayments,
+      membershipPayments,
+      settlementsPending,
+      settlementsDisbursed,
+    ] = await Promise.all([
+      Organization.countDocuments(),
+      Club.countDocuments({ gymType: 'Company-Owned' }),
+      Club.countDocuments({ gymType: 'SaaS-Partner' }),
+      Club.countDocuments({ isNetworkPartner: true }),
+      OrganizationSubscription.countDocuments({ status: 'Active' }),
+      OrganizationSubscription.countDocuments({ status: { $in: ['Expired', 'Suspended', 'Cancelled'] } }),
+      Organization.countDocuments({ status: 'Pending-Approval' }),
+      PartnershipApplication.countDocuments({ status: { $in: ['Pending', 'Under-Review'] } }),
+      User.countDocuments({ role: 'Gym Member', 'membership.status': 'Active' }),
+      User.countDocuments({
+        role: 'Gym Member',
+        'membership.status': 'Active',
+        'membership.planName': { $regex: /All-Access|Black|Metropolitan/i },
+      }),
+      Payment.find({
+        status: { $in: ['Completed', 'Paid'] },
+        $or: [
+          { planName: { $regex: /SaaS/i } },
+          { orderId: { $regex: /saas_/i } },
+        ],
+      }),
+      Payment.find({
+        status: { $in: ['Completed', 'Paid'] },
+        planName: { $not: { $regex: /SaaS/i } },
+      }),
+      PartnerSettlement.aggregate([
+        { $match: { status: 'Pending' } },
+        { $group: { _id: null, total: { $sum: '$netPayoutAmount' } } },
+      ]),
+      PartnerSettlement.aggregate([
+        { $match: { status: 'Disbursed' } },
+        { $group: { _id: null, total: { $sum: '$netPayoutAmount' } } },
+      ]),
+    ]);
+
+    const saasMRR = saasPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const membershipTotal = membershipPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const totalPendingPayouts = settlementsPending.length > 0 ? settlementsPending[0].total : 0;
+    const totalDisbursedPayouts = settlementsDisbursed.length > 0 ? settlementsDisbursed[0].total : 0;
+
+    const branches = await Club.find()
+      .select('name slug gymType location capacity currentOccupancy isNetworkPartner')
+      .sort({ currentOccupancy: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        networkOverview: {
+          totalOrganizations,
+          totalBranches: companyOwnedClubs + saasPartnerClubs,
+          companyOwnedGyms: companyOwnedClubs,
+          saasPartnerGyms: saasPartnerClubs,
+          allAccessPartnerGyms: allAccessPartnerClubs,
+        },
+        saasEcosystem: {
+          activeSubscriptions: activeSaaSSubs,
+          expiredSubscriptions: expiredSaaSSubs,
+          pendingGymApprovals,
+          pendingPartnershipApps,
+          mrrSaaS: saasMRR,
+        },
+        memberships: {
+          activeMembers,
+          allAccessMembers,
+          membershipRevenue: membershipTotal,
+        },
+        settlements: {
+          pendingPayouts: totalPendingPayouts,
+          disbursedPayouts: totalDisbursedPayouts,
+        },
+        branches,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

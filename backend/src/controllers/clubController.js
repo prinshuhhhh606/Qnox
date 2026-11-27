@@ -117,3 +117,83 @@ exports.deleteClub = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get Branch Manager's Assigned Branch & Operational Stats
+// @route   GET /api/clubs/my-branch
+// @access  Private (Branch Manager, Receptionist, Admin)
+exports.getMyBranch = async (req, res, next) => {
+  try {
+    const branchId = req.user.assignedBranch || req.user.homeClub;
+    if (!branchId) {
+      return res.status(404).json({
+        success: false,
+        message: 'No branch is currently assigned to your account.',
+      });
+    }
+
+    const club = await Club.findById(branchId).populate('assignedManager organization');
+    if (!club) {
+      return res.status(404).json({ success: false, message: 'Assigned branch not found.' });
+    }
+
+    const User = require('../models/User');
+    const Attendance = require('../models/Attendance');
+
+    const [membersCount, todayAttendance] = await Promise.all([
+      User.countDocuments({ homeClub: club._id, role: 'Gym Member' }),
+      Attendance.countDocuments({
+        club: club._id,
+        status: 'Approved',
+        createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        branch: club,
+        stats: {
+          membersCount,
+          todayAttendance,
+          currentOccupancy: club.currentOccupancy || 0,
+          capacity: club.capacity || 150,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Assign Branch Manager to a Branch
+// @route   POST /api/clubs/assign-manager
+// @access  Private (Super Admin)
+exports.assignBranchManager = async (req, res, next) => {
+  try {
+    const { branchId, managerId } = req.body;
+    const club = await Club.findById(branchId);
+    if (!club) return res.status(404).json({ success: false, message: 'Branch not found.' });
+
+    const User = require('../models/User');
+    const manager = await User.findById(managerId);
+    if (!manager) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    manager.role = 'Branch Manager';
+    manager.assignedBranch = club._id;
+    manager.assignedBranchName = club.name;
+    await manager.save();
+
+    club.assignedManager = manager._id;
+    club.assignedManagerName = manager.name;
+    club.assignedManagerEmail = manager.email;
+    await club.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `${manager.name} successfully appointed as Branch Manager for ${club.name}.`,
+      data: { club, manager },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

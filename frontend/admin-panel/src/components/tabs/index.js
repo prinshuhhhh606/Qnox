@@ -10,3 +10,4 @@ export { default as NewsletterTab } from './NewsletterTab';
 export { default as InquiriesTab } from './InquiriesTab';
 export { default as NotificationsTab } from './NotificationsTab';
 export { default as RequestsTab } from './RequestsTab';
+export { default as NetworkTab } from './NetworkTab';

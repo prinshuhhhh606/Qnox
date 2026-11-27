@@ -2190,3 +2190,176 @@ export const getUserWorkoutProgressDashboard = async () => {
   if (!res.ok) throw new Error(data.message || 'Failed to fetch workout progress dashboard');
   return data;
 };
+
+// ==========================================
+// MULTI-GYM SAAS & ALL-ACCESS NETWORK APIS
+// ==========================================
+
+export const fetchSaaSPlans = async () => {
+  const res = await fetch(`${API_BASE}/saas/plans`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch SaaS plans');
+  return data.data;
+};
+
+export const registerGymOwnerOnboarding = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/register-owner`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Gym owner onboarding failed');
+  return data;
+};
+
+export const verifySaaSPayment = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/verify-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to verify SaaS subscription payment');
+  return data;
+};
+
+export const fetchMyOrganization = async () => {
+  const res = await fetch(`${API_BASE}/saas/my-organization`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch gym organization');
+  return data.data;
+};
+
+export const fetchMyTenantBranches = async () => {
+  const res = await fetch(`${API_BASE}/saas/my-branches`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch branches');
+  return data.data;
+};
+
+export const createTenantBranch = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/branches`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to create branch');
+  return data;
+};
+
+export const fetchTenantAnalytics = async () => {
+  const res = await fetch(`${API_BASE}/saas/analytics`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch tenant analytics');
+  return data.data;
+};
+
+export const generateMyQRAccessPass = async () => {
+  const res = await fetch(`${API_BASE}/all-access/my-pass`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to generate access pass');
+  return data.data;
+};
+
+export const verifyMemberCheckIn = async (payload) => {
+  const res = await fetch(`${API_BASE}/all-access/verify-check-in`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Check-in verification rejected');
+  return data;
+};
+
+export const applyForNetworkPartnership = async (payload) => {
+  const res = await fetch(`${API_BASE}/all-access/partner-application`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit partnership application');
+  return data;
+};
+
+export const fetchPartnershipApplications = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/all-access/partner-applications?${query}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch partner applications');
+  return data.data;
+};
+
+export const reviewPartnershipApplication = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/all-access/partner-applications/${id}/review`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to review partnership application');
+  return data;
+};
+
+export const fetchPartnerSettlements = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/all-access/settlements?${query}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch partner settlements');
+  return data.data;
+};
+
+export const disbursePartnerSettlement = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/all-access/settlements/${id}/disburse`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to disburse settlement');
+  return data;
+};
+
+export const fetchMyAssignedBranch = async () => {
+  const res = await fetch(`${API_BASE}/clubs/my-branch`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch assigned branch');
+  return data.data;
+};
+
+export const assignBranchManager = async (payload) => {
+  const res = await fetch(`${API_BASE}/clubs/assign-manager`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to assign branch manager');
+  return data;
+};
+
+export const fetchMultiGymAnalytics = async () => {
+  const res = await fetch(`${API_BASE}/admin/multi-gym-analytics`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch multi-gym analytics');
+  return data.data;
+};

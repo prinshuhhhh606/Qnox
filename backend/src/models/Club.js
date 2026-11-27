@@ -63,8 +63,54 @@ const ClubSchema = new mongoose.Schema(
       spaAndRecovery: { type: Boolean, default: true },
       valet: { type: Boolean, default: true },
     },
+    // Multi-Branch / Multi-Gym Architecture
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+    },
+    gymType: {
+      type: String,
+      enum: ['Company-Owned', 'SaaS-Partner', 'All-Access-Partner'],
+      default: 'Company-Owned',
+    },
+    assignedManager: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    assignedManagerName: {
+      type: String,
+      default: '',
+    },
+    assignedManagerEmail: {
+      type: String,
+      default: '',
+    },
+    capacity: {
+      type: Number,
+      default: 150,
+    },
+    currentOccupancy: {
+      type: Number,
+      default: 0,
+    },
+    // All-Access Network Eligibility & Settlement
+    isNetworkPartner: {
+      type: Boolean,
+      default: true,
+    },
+    networkAccessHours: {
+      type: String,
+      default: 'All Day Access',
+    },
+    settlementRatePerVisit: {
+      type: Number,
+      default: 250,
+    },
   },
   { timestamps: true }
 );
+
+ClubSchema.index({ organization: 1, gymType: 1 });
+ClubSchema.index({ isNetworkPartner: 1 });
 
 module.exports = mongoose.model('Club', ClubSchema);

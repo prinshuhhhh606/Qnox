@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power, Zap, Dumbbell } from 'lucide-react';
+import { X, User, Crown, Calendar, CreditCard, Clock, FileText, CheckCircle, AlertTriangle, ArrowRight, Shield, Camera, Bell, Check, Sparkles, Pause, Play, RefreshCw, Power, Zap, Dumbbell, QrCode } from 'lucide-react';
 import {
   fetchMyBookings,
   cancelClassBooking,
@@ -17,6 +17,7 @@ import {
   fetchMyFreezeHistory,
   cancelMyFreezeRequest,
   fetchFreezePolicy,
+  generateMyQRAccessPass,
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
 import AiWorkoutModule from './WorkoutModule/AiWorkoutModule';
@@ -48,6 +49,44 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
   const [freezeDocUrl, setFreezeDocUrl] = useState('');
   const [freezeHistory, setFreezeHistory] = useState([]);
   const [loadingFreezeHistory, setLoadingFreezeHistory] = useState(false);
+
+  // Digital Dynamic QR Access Pass State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrPassData, setQrPassData] = useState(null);
+  const [loadingQrPass, setLoadingQrPass] = useState(false);
+  const [qrTimeLeft, setQrTimeLeft] = useState(90);
+
+  const handleOpenQrPass = async () => {
+    setShowQrModal(true);
+    setLoadingQrPass(true);
+    try {
+      const res = await generateMyQRAccessPass();
+      if (res && res.success && res.data) {
+        setQrPassData(res.data);
+        setQrTimeLeft(res.data.expiresInSeconds || 90);
+      }
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setLoadingQrPass(false);
+    }
+  };
+
+  useEffect(() => {
+    let timer = null;
+    if (showQrModal && qrTimeLeft > 0) {
+      timer = setInterval(() => {
+        setQrTimeLeft((prev) => {
+          if (prev <= 1) {
+            handleOpenQrPass();
+            return 90;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showQrModal, qrTimeLeft]);
   const [freezePolicy, setFreezePolicy] = useState({
     minDays: 7,
     maxDays: 30,
@@ -397,37 +436,47 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
           </div>
 
           {/* Navigation Tabs */}
-          <div className="qnox-portal-tabs-nav">
+          <div className="qnox-portal-tabs-nav flex items-center border-b border-white/10 px-4 sm:px-6 bg-[#070707] overflow-x-auto overflow-y-hidden flex-shrink-0 h-14 min-h-[56px] scrollbar-none">
             <button
               onClick={() => setActiveTab('residency')}
-              className={`qnox-portal-tab ${activeTab === 'residency' ? 'active' : ''}`}
+              className={`qnox-portal-tab whitespace-nowrap flex-shrink-0 h-full flex items-center justify-center px-4 sm:px-5 text-xs font-semibold tracking-wider uppercase transition-all border-b-2 ${
+                activeTab === 'residency' ? 'active' : ''
+              }`}
             >
-              MY RESIDENCY
+              <span>MY RESIDENCY</span>
             </button>
             <button
               onClick={() => setActiveTab('workouts')}
-              className={`qnox-portal-tab ${activeTab === 'workouts' ? 'active' : ''}`}
+              className={`qnox-portal-tab whitespace-nowrap flex-shrink-0 h-full flex items-center justify-center px-4 sm:px-5 text-xs font-semibold tracking-wider uppercase transition-all border-b-2 ${
+                activeTab === 'workouts' ? 'active' : ''
+              }`}
             >
-              <Dumbbell className="w-3.5 h-3.5 text-[#c5a880] mr-2 flex-shrink-0" />
+              <Dumbbell className="w-4 h-4 text-[#c5a880] mr-2 flex-shrink-0" />
               <span>AI WORKOUTS & TRACKER</span>
             </button>
             <button
               onClick={() => setActiveTab('bookings')}
-              className={`qnox-portal-tab ${activeTab === 'bookings' ? 'active' : ''}`}
+              className={`qnox-portal-tab whitespace-nowrap flex-shrink-0 h-full flex items-center justify-center px-4 sm:px-5 text-xs font-semibold tracking-wider uppercase transition-all border-b-2 ${
+                activeTab === 'bookings' ? 'active' : ''
+              }`}
             >
-              BOOKED SESSIONS ({bookings.filter(b => b.status === 'Confirmed').length})
+              <span>BOOKED SESSIONS ({bookings.filter(b => b.status === 'Confirmed').length})</span>
             </button>
             <button
               onClick={() => setActiveTab('payments')}
-              className={`qnox-portal-tab ${activeTab === 'payments' ? 'active' : ''}`}
+              className={`qnox-portal-tab whitespace-nowrap flex-shrink-0 h-full flex items-center justify-center px-4 sm:px-5 text-xs font-semibold tracking-wider uppercase transition-all border-b-2 ${
+                activeTab === 'payments' ? 'active' : ''
+              }`}
             >
-              INVOICES & RECEIPTS ({payments.length})
+              <span>INVOICES & RECEIPTS ({payments.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`qnox-portal-tab ${activeTab === 'notifications' ? 'active' : ''}`}
+              className={`qnox-portal-tab whitespace-nowrap flex-shrink-0 h-full flex items-center justify-center px-4 sm:px-5 text-xs font-semibold tracking-wider uppercase transition-all border-b-2 ${
+                activeTab === 'notifications' ? 'active' : ''
+              }`}
             >
-              <Bell className="w-3.5 h-3.5 text-[#c5a880] mr-2 flex-shrink-0" />
+              <Bell className="w-4 h-4 text-[#c5a880] mr-2 flex-shrink-0" />
               <span>NOTIFICATIONS</span>
               {notifUnreadCount > 0 && (
                 <span className="ml-2 px-1.5 py-0.5 text-[9px] bg-rose-600 text-white font-bold rounded-full animate-pulse">
@@ -438,7 +487,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
           </div>
 
           {/* Tab Content */}
-          <div className="qnox-portal-content">
+          <div className="qnox-portal-content flex-1 min-h-0 overflow-y-auto p-5 sm:p-7">
             
             {/* TAB 1: RESIDENCY */}
             {activeTab === 'residency' && (
@@ -870,6 +919,17 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                         >
                           <Power className="w-3.5 h-3.5" />
                           <span>REQUEST CANCELLATION</span>
+                        </button>
+                      )}
+
+                      {(isActive || isTrialActive) && (
+                        <button
+                          type="button"
+                          onClick={handleOpenQrPass}
+                          className="px-3.5 py-2 border border-[#c5a880]/50 text-[#c5a880] hover:bg-[#c5a880]/10 hover:border-[#c5a880] text-xs font-semibold tracking-wider uppercase transition flex items-center space-x-1.5 cursor-pointer shadow-md"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>DIGITAL ACCESS PASS</span>
                         </button>
                       )}
                     </div>
@@ -1494,6 +1554,78 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
           onClose={() => setSelectedReceipt(null)}
           payment={selectedReceipt}
         />
+      )}
+
+      {/* Dynamic Digital QR Access Pass Modal (Phase 3: All-Access Network) */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-[2500] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0b0b0b] border border-[#c5a880]/60 max-w-sm w-full p-6 text-white text-center shadow-2xl relative rounded-xl animate-fadeIn">
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-neutral-400 hover:text-white border border-white/10 rounded-full"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="inline-block px-3 py-1 bg-[#c5a880]/10 border border-[#c5a880]/40 text-[#c5a880] text-[10px] font-mono uppercase tracking-widest rounded-full mb-3">
+              Dynamic Anti-Replay Token
+            </div>
+
+            <h3 className="font-serif text-xl font-bold mb-1">{user?.name}</h3>
+            <p className="text-xs text-neutral-400 font-mono mb-4">
+              ID: QNX-{user?.id ? user.id.slice(-6).toUpperCase() : 'MEMBER'} &bull; {qrPassData?.membershipTier || 'RESIDENCY'}
+            </p>
+
+            {/* QR Code Container */}
+            <div className="bg-white p-4 rounded-xl mx-auto w-56 h-56 flex items-center justify-center shadow-inner">
+              {loadingQrPass ? (
+                <div className="text-black text-xs font-mono animate-pulse flex flex-col items-center gap-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#c5a880]" />
+                  <span>Generating Secure Pass...</span>
+                </div>
+              ) : qrPassData?.qrCodeUrl ? (
+                <img
+                  src={qrPassData.qrCodeUrl}
+                  alt="Access QR Pass"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrPassData?.qrToken || 'QNOX-MEMBER-PASS')}`}
+                  alt="Dynamic QR Code"
+                  className="w-full h-full object-contain"
+                />
+              )}
+            </div>
+
+            {/* Countdown timer */}
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs font-mono">
+              <Clock className="w-4 h-4 text-[#c5a880]" />
+              <span className="text-neutral-300">
+                Auto-rotates in: <strong className="text-amber-400">{qrTimeLeft}s</strong>
+              </span>
+            </div>
+
+            <div className="mt-4 p-3 bg-neutral-900/80 border border-neutral-800 rounded-lg text-left text-[11px] text-neutral-400 space-y-1">
+              <div className="flex justify-between">
+                <span>Access Scope:</span>
+                <strong className="text-white">{qrPassData?.accessType || 'All-Access Network'}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Home Club:</span>
+                <strong className="text-white">{qrPassData?.homeClub || 'Mayfair Sanctuary'}</strong>
+              </div>
+            </div>
+
+            <button
+              onClick={handleOpenQrPass}
+              className="mt-4 w-full py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-mono text-neutral-300 uppercase tracking-wider flex items-center justify-center gap-2 rounded-lg transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#c5a880]" />
+              <span>Regenerate Pass Now</span>
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

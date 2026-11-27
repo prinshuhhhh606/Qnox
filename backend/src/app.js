@@ -24,6 +24,8 @@ const membershipRoutes = require('./routes/membershipRoutes');
 const trainerDashboardRoutes = require('./routes/trainerDashboardRoutes');
 const trainerApplicationRoutes = require('./routes/trainerApplicationRoutes');
 const userWorkoutRoutes = require('./routes/userWorkoutRoutes');
+const saasRoutes = require('./routes/saasRoutes');
+const allAccessRoutes = require('./routes/allAccessRoutes');
 
 const app = express();
 
@@ -113,6 +115,8 @@ app.use('/api/memberships', membershipRoutes);
 app.use(['/api/trainer-portal', '/api/trainer-port', '/api/bookingsal'], trainerDashboardRoutes);
 app.use('/api/trainer', trainerApplicationRoutes);
 app.use('/api/workouts', userWorkoutRoutes);
+app.use('/api/saas', saasRoutes);
+app.use('/api/all-access', allAccessRoutes);
 
 // Root greeting
 app.get('/', (req, res) => {

@@ -28,6 +28,35 @@ const AttendanceSchema = new mongoose.Schema(
       type: String,
       default: 'Mayfair Sanctuary',
     },
+    club: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Club',
+      index: true,
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      index: true,
+    },
+    passType: {
+      type: String,
+      enum: ['Home-Club', 'All-Access-Network', 'Day-Pass', 'Guest'],
+      default: 'Home-Club',
+    },
+    verificationMethod: {
+      type: String,
+      enum: ['QR-Dynamic', 'Biometric', 'Desk-Manual', 'NFC'],
+      default: 'QR-Dynamic',
+    },
+    status: {
+      type: String,
+      enum: ['Approved', 'Denied', 'Flagged'],
+      default: 'Approved',
+    },
+    denialReason: {
+      type: String,
+      default: '',
+    },
     activityType: {
       type: String,
       enum: ['Workout', 'Class', 'Spa', 'Private Training'],

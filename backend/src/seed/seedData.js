@@ -566,6 +566,19 @@ const seedDatabase = async () => {
       await ClassSchedule.insertMany(sampleClasses);
       console.log('[QNOX Seed] Preloaded Master Schedule.');
     }
+
+    // 6. Seed SaaS Multi-Tenant Plans & Link Default HQ Organization
+    const { seedDefaultSaaSPlans, getOrCreateHQOrganization } = require('../services/saasService');
+    await seedDefaultSaaSPlans();
+    const hqOrg = await getOrCreateHQOrganization();
+
+    // Ensure all existing company-owned clubs link to QNOX HQ organization
+    if (hqOrg) {
+      await Club.updateMany(
+        { organization: { $exists: false } },
+        { $set: { organization: hqOrg._id, gymType: 'Company-Owned', isNetworkPartner: true } }
+      );
+    }
   } catch (err) {
     console.warn('[QNOX Seed] MongoDB seeding skipped:', err.message);
   }

@@ -6,8 +6,13 @@ const {
   createClub,
   updateClub,
   deleteClub,
+  getMyBranch,
+  assignBranchManager,
 } = require('../controllers/clubController');
 const { protect, authorize } = require('../middlewares/auth');
+
+router.get('/my-branch', protect, authorize('Branch Manager', 'Receptionist', 'Admin', 'Super Admin'), getMyBranch);
+router.post('/assign-manager', protect, authorize('Super Admin'), assignBranchManager);
 
 router.route('/')
   .get(getAllClubs)

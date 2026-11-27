@@ -32,8 +32,29 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['Super Admin', 'Admin', 'Trainer', 'Gym Member'],
+      enum: [
+        'Super Admin',
+        'Admin',
+        'Company Admin',
+        'Gym Owner',
+        'Branch Manager',
+        'Trainer',
+        'Receptionist',
+        'Gym Member',
+      ],
       default: 'Gym Member',
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+    },
+    assignedBranch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Club',
+    },
+    assignedBranchName: {
+      type: String,
+      default: '',
     },
     avatar: {
       type: String,

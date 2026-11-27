@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Users, Crown, Calendar, MessageSquare, LogOut,
   MapPin, Bell, Clock, Shield, Sparkles, LayoutDashboard,
-  Menu, CreditCard, Mail
+  Menu, CreditCard, Mail, Globe
 } from 'lucide-react';
 import {
   fetchAdminOverview, fetchRevenueAnalytics, fetchAdminMembers, exportMembersCsv, deleteMemberRecord,
@@ -33,6 +33,7 @@ import {
   InquiriesTab,
   NotificationsTab,
   RequestsTab,
+  NetworkTab,
 } from './tabs';
 
 // Modals
@@ -731,6 +732,12 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
         { id: 'newsletter', label: 'Inner Circle Letters', icon: Mail },
       ],
     },
+    {
+      title: 'MULTI-GYM SAAS & NETWORK',
+      items: [
+        { id: 'network', label: 'Multi-Gym & Network', icon: Globe },
+      ],
+    },
   ];
 
   const currentNav = navSections.flatMap((s) => s.items).find((i) => i.id === activeTab);
@@ -1043,6 +1050,10 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
               loadMembershipRequests={loadMembershipRequests}
               setSelectedRequestAction={setSelectedRequestAction}
             />
+          )}
+
+          {activeTab === 'network' && (
+            <NetworkTab onShowToast={onShowToast} />
           )}
         </main>
       </div>

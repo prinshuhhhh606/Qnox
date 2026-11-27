@@ -24,6 +24,7 @@ const {
   getMemberAuditLogs,
   deleteMember,
   triggerManualExpiryCheck,
+  getMultiGymOverviewAnalytics,
 } = require('../controllers/adminController');
 const { protect, authorize } = require('../middlewares/auth');
 
@@ -33,6 +34,7 @@ router.use(authorize('Admin', 'Super Admin'));
 
 // Overview & Analytics
 router.get('/overview', getDashboardOverview);
+router.get('/multi-gym-analytics', authorize('Super Admin'), getMultiGymOverviewAnalytics);
 router.get('/analytics/revenue', getRevenueAnalytics);
 
 // Members Dossier 360° Management
