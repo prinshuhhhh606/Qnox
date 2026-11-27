@@ -14,7 +14,7 @@ import {
   fetchAllSubscribers, dispatchNewsletterCampaign,
   fetchAllInquiries,
   fetchAdminNotifications, markNotificationRead, markAllNotificationsRead, deleteNotificationRecord, triggerAdminExpiryCheck, fetchNotificationUnreadCount,
-  fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest,
+  fetchMembershipRequests, approveMembershipRequest, rejectMembershipRequest, unfreezeActiveRequestAdmin,
   extendMembershipAdmin, suspendMembershipAdmin, reactivateMembershipAdmin, sendRenewalReminderAdmin,
   fetchAdminTrainerApplications, approveAdminTrainerApplication, rejectAdminTrainerApplication
 } from '../services/api';
@@ -136,6 +136,7 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [selectedRequestAction, setSelectedRequestAction] = useState(null);
   const [approvalNotes, setApprovalNotes] = useState('');
+  const [approvedDuration, setApprovedDuration] = useState(14);
   const [refundAmount, setRefundAmount] = useState(0);
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -285,11 +286,19 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
     e.preventDefault();
     if (!selectedRequestAction?.request) return;
     try {
-      await approveMembershipRequest(selectedRequestAction.request._id, {
-        adminNotes: approvalNotes,
-        refundAmount: Number(refundAmount) || 0,
-      });
-      if (onShowToast) onShowToast({ type: 'success', message: 'Membership request approved.' });
+      if (selectedRequestAction.action === 'unfreeze') {
+        await unfreezeActiveRequestAdmin(selectedRequestAction.request._id, {
+          adminRemarks: approvalNotes || 'Unfrozen early by admin concierge.',
+        });
+        if (onShowToast) onShowToast({ type: 'success', message: 'Membership unfrozen and privileges restored.' });
+      } else {
+        await approveMembershipRequest(selectedRequestAction.request._id, {
+          adminNotes: approvalNotes,
+          approvedDuration: Number(approvedDuration) || undefined,
+          refundAmount: Number(refundAmount) || 0,
+        });
+        if (onShowToast) onShowToast({ type: 'success', message: 'Membership request approved.' });
+      }
       setSelectedRequestAction(null);
       setApprovalNotes('');
       setRefundAmount(0);
@@ -1112,6 +1121,8 @@ export default function AdminDashboard({ currentUser, onBackToSite, onLogout, on
         onClose={() => setSelectedRequestAction(null)}
         approvalNotes={approvalNotes}
         setApprovalNotes={setApprovalNotes}
+        approvedDuration={approvedDuration}
+        setApprovedDuration={setApprovedDuration}
         refundAmount={refundAmount}
         setRefundAmount={setRefundAmount}
         rejectionReason={rejectionReason}

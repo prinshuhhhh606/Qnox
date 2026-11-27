@@ -1,10 +1,20 @@
 const User = require('../models/User');
 const MembershipPlan = require('../models/MembershipPlan');
 const MembershipRequest = require('../models/MembershipRequest');
+const MembershipFreezeRequest = require('../models/MembershipFreezeRequest');
 const Payment = require('../models/Payment');
 const AuditLog = require('../models/AuditLog');
 const Notification = require('../models/Notification');
 const { sendEmail } = require('../services/emailService');
+const {
+  DEFAULT_POLICY,
+  getAnnualFreezeDaysUsed,
+  submitFreezeRequest: serviceSubmitFreeze,
+  approveFreezeRequest: serviceApproveFreeze,
+  rejectFreezeRequest: serviceRejectFreeze,
+  cancelPendingFreezeRequest: serviceCancelFreeze,
+  resumeFreeze: serviceResumeFreeze,
+} = require('../services/membershipFreezeService');
 
 // Helper to create audit logs
 const createAudit = async ({ admin, member, action, details, previousValue, newValue }) => {
@@ -78,6 +88,13 @@ exports.getMyMembership = async (req, res, next) => {
       status: 'Pending',
     }).sort({ createdAt: -1 });
 
+    const activeFreezeRequest = await MembershipFreezeRequest.findOne({
+      member: req.user._id,
+      status: { $in: ['Pending', 'Approved', 'Frozen'] },
+    }).sort({ createdAt: -1 });
+
+    const daysUsedThisYear = await getAnnualFreezeDaysUsed(req.user._id);
+
     res.status(200).json({
       success: true,
       data: {
@@ -93,6 +110,14 @@ exports.getMyMembership = async (req, res, next) => {
         cancellationDetails: membership.cancellationDetails,
         autoRenew: membership.autoRenew !== false,
         pendingRequest: pendingRequest || null,
+        activeFreezeRequest: activeFreezeRequest || null,
+        freezeQuota: {
+          minDays: DEFAULT_POLICY.MIN_DAYS,
+          maxDaysPerRequest: DEFAULT_POLICY.MAX_DAYS_PER_REQUEST,
+          annualLimitDays: DEFAULT_POLICY.ANNUAL_LIMIT_DAYS,
+          daysUsedThisYear,
+          remainingAnnualDays: Math.max(0, DEFAULT_POLICY.ANNUAL_LIMIT_DAYS - daysUsedThisYear),
+        },
         membershipHistory: user.membershipHistory || [],
         trial: {
           isActive: trial.isActive || false,
@@ -245,79 +270,100 @@ exports.getTrialStatus = async (req, res, next) => {
 // @access  Private (Gym Member)
 exports.requestFreeze = async (req, res, next) => {
   try {
-    const { startDate, endDate, freezeDays = 30, reason } = req.body;
-    const user = await User.findById(req.user._id);
+    const {
+      startDate,
+      requestedStartDate,
+      freezeDays,
+      requestedDuration,
+      reason,
+      additionalNotes,
+      supportingDocument,
+    } = req.body;
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Member not found.' });
-    }
-
-    if (user.membership?.status !== 'Active') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only active memberships are eligible for freeze privileges.',
-      });
-    }
-
-    // Check if pending request already exists
-    const existing = await MembershipRequest.findOne({
-      user: user._id,
-      type: 'Freeze',
-      status: 'Pending',
+    const request = await serviceSubmitFreeze({
+      userId: req.user._id,
+      requestedStartDate: requestedStartDate || startDate,
+      requestedDuration: requestedDuration || freezeDays,
+      reason,
+      additionalNotes,
+      supportingDocument,
     });
-
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: 'A membership freeze request is already pending concierge review.',
-      });
-    }
-
-    const calculatedStart = startDate ? new Date(startDate) : new Date();
-    const calculatedDays = Number(freezeDays) || 30;
-    const calculatedEnd = endDate
-      ? new Date(endDate)
-      : new Date(calculatedStart.getTime() + calculatedDays * 24 * 60 * 60 * 1000);
-
-    const request = await MembershipRequest.create({
-      user: user._id,
-      userName: user.name,
-      userEmail: user.email,
-      memberId: user.memberId || '',
-      type: 'Freeze',
-      reason: reason || 'Personal / Travel Leave',
-      freezeStartDate: calculatedStart,
-      freezeEndDate: calculatedEnd,
-      freezeDays: calculatedDays,
-      status: 'Pending',
-    });
-
-    // Notify Admins
-    const admins = await User.find({ role: { $in: ['Admin', 'Super Admin'] } }).select('_id');
-    const adminNotifs = admins.map((admin) => ({
-      recipient: admin._id,
-      recipientRole: 'Admin',
-      customer: user._id,
-      customerName: user.name,
-      customerEmail: user.email,
-      customerPhone: user.phone || '',
-      membershipPlan: user.membership?.planName || 'Residency',
-      type: 'MEMBERSHIP_EXPIRING_SOON', // Reusing notification system
-      title: 'Membership Freeze Requested',
-      message: `${user.name} (${user.memberId || user.email}) has requested a ${calculatedDays}-day membership freeze. Reason: ${reason || 'Personal leave'}.`,
-      actionUrl: '/admin?tab=requests',
-      actionLabel: 'Review Request',
-      data: { requestId: request._id, type: 'Freeze' },
-    }));
-
-    if (adminNotifs.length > 0) {
-      await Notification.insertMany(adminNotifs);
-    }
 
     res.status(201).json({
       success: true,
-      message: 'Your membership freeze request has been submitted for Executive review.',
+      message: 'Your membership freeze request has been submitted successfully and is awaiting approval.',
       data: request,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to submit freeze request',
+    });
+  }
+};
+
+// @desc    Get Member Freeze Request History
+// @route   GET /api/memberships/freeze-history
+// @access  Private (Gym Member)
+exports.getMyFreezeHistory = async (req, res, next) => {
+  try {
+    const history = await MembershipFreezeRequest.find({ member: req.user._id }).sort({ createdAt: -1 });
+    const daysUsedThisYear = await getAnnualFreezeDaysUsed(req.user._id);
+
+    res.status(200).json({
+      success: true,
+      data: history,
+      meta: {
+        minDays: DEFAULT_POLICY.MIN_DAYS,
+        maxDaysPerRequest: DEFAULT_POLICY.MAX_DAYS_PER_REQUEST,
+        annualLimitDays: DEFAULT_POLICY.ANNUAL_LIMIT_DAYS,
+        daysUsedThisYear,
+        remainingAnnualDays: Math.max(0, DEFAULT_POLICY.ANNUAL_LIMIT_DAYS - daysUsedThisYear),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel Pending Freeze Request
+// @route   POST /api/memberships/freeze-requests/:id/cancel
+// @access  Private (Gym Member)
+exports.cancelMyFreezeRequest = async (req, res, next) => {
+  try {
+    const cancelled = await serviceCancelFreeze({
+      requestId: req.params.id,
+      userId: req.user._id,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Freeze request ${cancelled.requestId} has been cancelled successfully.`,
+      data: cancelled,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to cancel freeze request',
+    });
+  }
+};
+
+// @desc    Get Freeze Policy Config & Limits
+// @route   GET /api/memberships/freeze-policy
+// @access  Private
+exports.getFreezePolicy = async (req, res, next) => {
+  try {
+    const daysUsedThisYear = req.user ? await getAnnualFreezeDaysUsed(req.user._id) : 0;
+    res.status(200).json({
+      success: true,
+      data: {
+        minDays: DEFAULT_POLICY.MIN_DAYS,
+        maxDaysPerRequest: DEFAULT_POLICY.MAX_DAYS_PER_REQUEST,
+        annualLimitDays: DEFAULT_POLICY.ANNUAL_LIMIT_DAYS,
+        daysUsedThisYear,
+        remainingAnnualDays: Math.max(0, DEFAULT_POLICY.ANNUAL_LIMIT_DAYS - daysUsedThisYear),
+      },
     });
   } catch (error) {
     next(error);
@@ -478,19 +524,117 @@ exports.getMembershipStats = async (req, res, next) => {
 // @access  Private (Admin, Super Admin)
 exports.getMembershipRequests = async (req, res, next) => {
   try {
-    const { status = 'All', type = 'All' } = req.query;
-    let query = {};
-    if (status && status !== 'All') query.status = status;
-    if (type && type !== 'All') query.type = type;
+    const { status = 'All', type = 'All', club, search } = req.query;
 
-    const requests = await MembershipRequest.find(query)
-      .populate('user', 'name email phone memberId membership')
-      .sort({ createdAt: -1 });
+    let filter = {};
+    if (status && status !== 'All') {
+      filter.status = status;
+    }
+
+    // Role-based club authorization: Club managers are filtered to their club; Super Admin can view all
+    if (req.user.role === 'Admin' && req.user.assignedClub) {
+      filter.club = req.user.assignedClub;
+    } else if (club && club !== 'All') {
+      filter.clubName = { $regex: club, $options: 'i' };
+    }
+
+    let freezeItems = [];
+    if (type === 'All' || type === 'Freeze') {
+      let fQuery = { ...filter };
+      if (search && search.trim()) {
+        const sRegex = new RegExp(search.trim(), 'i');
+        fQuery.$or = [
+          { memberName: sRegex },
+          { memberEmail: sRegex },
+          { memberId: sRegex },
+          { requestId: sRegex },
+        ];
+      }
+      const rawFreezes = await MembershipFreezeRequest.find(fQuery)
+        .populate('member', 'name email phone memberId avatar')
+        .populate('club', 'name location')
+        .sort({ createdAt: -1 });
+
+      freezeItems = rawFreezes.map((f) => ({
+        _id: f._id,
+        requestId: f.requestId,
+        userId: f.member?._id || f.member,
+        userName: f.memberName || f.member?.name,
+        userEmail: f.memberEmail || f.member?.email,
+        memberId: f.memberId || f.member?.memberId,
+        membershipName: f.membership?.planName || 'Residency Plan',
+        clubName: f.clubName || f.club?.name || 'Mayfair Sanctuary',
+        type: 'Freeze',
+        requestedStartDate: f.requestedStartDate,
+        requestedDuration: f.requestedDuration,
+        approvedDuration: f.approvedDuration,
+        scheduledStartDate: f.scheduledStartDate,
+        scheduledEndDate: f.scheduledEndDate,
+        actualStartDate: f.actualStartDate,
+        actualEndDate: f.actualEndDate,
+        resumedAt: f.resumedAt,
+        reason: f.reason,
+        additionalNotes: f.additionalNotes,
+        supportingDocument: f.supportingDocument,
+        status: f.status,
+        adminRemarks: f.adminRemarks,
+        rejectionReason: f.rejectionReason,
+        reviewedBy: f.reviewedByName,
+        reviewedAt: f.reviewedAt,
+        originalExpiryDate: f.originalExpiryDate,
+        extendedExpiryDate: f.extendedExpiryDate,
+        createdAt: f.createdAt,
+        history: f.history || [],
+      }));
+    }
+
+    let cancelItems = [];
+    if (type === 'All' || type === 'Cancellation') {
+      let cQuery = { type: 'Cancellation' };
+      if (status && status !== 'All') {
+        cQuery.status = status;
+      }
+      if (search && search.trim()) {
+        const sRegex = new RegExp(search.trim(), 'i');
+        cQuery.$or = [
+          { userName: sRegex },
+          { userEmail: sRegex },
+          { memberId: sRegex },
+        ];
+      }
+      const rawCancels = await MembershipRequest.find(cQuery)
+        .populate('user', 'name email phone memberId')
+        .sort({ createdAt: -1 });
+
+      cancelItems = rawCancels.map((c) => ({
+        _id: c._id,
+        requestId: `CAN-${c._id.toString().slice(-6).toUpperCase()}`,
+        userId: c.user?._id || c.user,
+        userName: c.userName || c.user?.name,
+        userEmail: c.userEmail || c.user?.email,
+        memberId: c.memberId || c.user?.memberId,
+        membershipName: 'Residency Plan',
+        clubName: 'Mayfair Sanctuary',
+        type: 'Cancellation',
+        reason: c.reason,
+        status: c.status,
+        refundAmount: c.refundAmount || 0,
+        adminRemarks: c.adminNotes,
+        rejectionReason: c.rejectionReason,
+        reviewedBy: c.reviewedByName,
+        reviewedAt: c.reviewedAt,
+        createdAt: c.createdAt,
+      }));
+    }
+
+    const combined = [...freezeItems, ...cancelItems].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
 
     res.status(200).json({
       success: true,
-      count: requests.length,
-      data: requests,
+      count: combined.length,
+      data: combined,
     });
   } catch (error) {
     next(error);
@@ -502,9 +646,46 @@ exports.getMembershipRequests = async (req, res, next) => {
 // @access  Private (Admin, Super Admin)
 exports.approveMembershipRequest = async (req, res, next) => {
   try {
-    const { adminNotes, refundAmount = 0 } = req.body;
-    const request = await MembershipRequest.findById(req.params.id);
+    const {
+      adminNotes,
+      adminRemarks,
+      refundAmount = 0,
+      approvedDuration,
+      freezeDays,
+      scheduledStartDate,
+    } = req.body;
 
+    // Check if it exists in MembershipFreezeRequest
+    let freezeReq = await MembershipFreezeRequest.findById(req.params.id);
+    if (!freezeReq) {
+      // Check if it's referenced by legacy MembershipRequest
+      const legacy = await MembershipRequest.findById(req.params.id);
+      if (legacy && legacy.type === 'Freeze') {
+        freezeReq = await MembershipFreezeRequest.findOne({
+          member: legacy.user,
+          status: 'Pending',
+        });
+      }
+    }
+
+    if (freezeReq) {
+      const result = await serviceApproveFreeze({
+        requestId: freezeReq._id,
+        adminUser: req.user,
+        approvedDuration: Number(approvedDuration || freezeDays) || freezeReq.requestedDuration,
+        scheduledStartDate,
+        adminRemarks: adminRemarks || adminNotes,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Membership freeze request [${result.requestId}] approved successfully.`,
+        data: result,
+      });
+    }
+
+    // Otherwise handle Cancellation request
+    const request = await MembershipRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ success: false, message: 'Membership request not found.' });
     }
@@ -520,73 +701,7 @@ exports.approveMembershipRequest = async (req, res, next) => {
 
     const previousState = { ...member.membership.toObject() };
 
-    if (request.type === 'Freeze') {
-      const now = new Date();
-      const currentEnd = new Date(member.membership.endDate);
-      const remainingMs = Math.max(0, currentEnd.getTime() - now.getTime());
-      const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-
-      member.membership.status = 'Frozen';
-      member.membership.isFrozen = true;
-      member.membership.freezeDetails = {
-        startDate: request.freezeStartDate || now,
-        endDate: request.freezeEndDate || new Date(now.getTime() + (request.freezeDays || 30) * 24 * 60 * 60 * 1000),
-        reason: request.reason,
-        remainingDaysAtFreeze: remainingDays,
-        frozenBy: req.user._id,
-      };
-
-      member.freezeHistory.push({
-        startDate: request.freezeStartDate || now,
-        endDate: request.freezeEndDate,
-        reason: request.reason,
-        daysFrozen: 0,
-        performedByName: req.user?.name || 'Executive Admin',
-      });
-
-      member.membershipHistory.push({
-        planName: member.membership.planName,
-        billingCycle: member.membership.billingCycle,
-        startDate: member.membership.startDate,
-        endDate: member.membership.endDate,
-        amount: 0,
-        status: 'Frozen',
-        actionType: 'Freeze',
-        performedByName: req.user?.name || 'Executive Admin',
-        notes: `Freeze request approved: ${request.reason} (${remainingDays} days retained)`,
-      });
-
-      await member.save();
-
-      // Log Audit
-      await createAudit({
-        admin: req.user,
-        member,
-        action: 'MEMBERSHIP_FREEZE',
-        details: `Freeze request approved. Retained ${remainingDays} days.`,
-        previousValue: previousState,
-        newValue: member.membership,
-      });
-
-      // Dispatch Member Notification
-      await Notification.create({
-        recipient: member._id,
-        recipientRole: 'Gym Member',
-        type: 'CUSTOM',
-        title: 'Membership Freeze Approved',
-        message: `Your request to pause your residency for ${request.freezeDays || 30} days has been approved. Your remaining ${remainingDays} days remain protected.`,
-        actionUrl: '/membership',
-        actionLabel: 'View Residency Dossier',
-      });
-
-      // Send Email
-      sendEmail({
-        to: member.email,
-        subject: 'QNOX GYM // Membership Freeze Approved',
-        html: `<p>Dear ${member.name},</p><p>Your request to freeze your membership residency has been approved. Your remaining days are protected until your planned return.</p>`,
-      }).catch((e) => console.log('[Freeze Email Error]:', e.message));
-
-    } else if (request.type === 'Cancellation') {
+    if (request.type === 'Cancellation') {
       member.membership.status = 'Cancelled';
       member.membership.cancellationDetails = {
         isCancelled: true,
@@ -634,7 +749,7 @@ exports.approveMembershipRequest = async (req, res, next) => {
     request.reviewedBy = req.user._id;
     request.reviewedByName = req.user.name;
     request.reviewedAt = new Date();
-    request.adminNotes = adminNotes || '';
+    request.adminNotes = adminRemarks || adminNotes || '';
     request.refundAmount = Number(refundAmount) || 0;
     await request.save();
 
@@ -644,7 +759,7 @@ exports.approveMembershipRequest = async (req, res, next) => {
       data: request,
     });
   } catch (error) {
-    next(error);
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -653,42 +768,141 @@ exports.approveMembershipRequest = async (req, res, next) => {
 // @access  Private (Admin, Super Admin)
 exports.rejectMembershipRequest = async (req, res, next) => {
   try {
-    const { rejectionReason = 'Policy non-compliance or minimum tenure not reached' } = req.body;
-    const request = await MembershipRequest.findById(req.params.id);
+    const { rejectionReason, adminRemarks, adminNotes } = req.body;
+    const reasonText = (rejectionReason || adminRemarks || adminNotes || '').trim();
 
+    if (!reasonText) {
+      return res.status(400).json({ success: false, message: 'Please provide an official rejection reason.' });
+    }
+
+    let freezeReq = await MembershipFreezeRequest.findById(req.params.id);
+    if (!freezeReq) {
+      const legacy = await MembershipRequest.findById(req.params.id);
+      if (legacy && legacy.type === 'Freeze') {
+        freezeReq = await MembershipFreezeRequest.findOne({
+          member: legacy.user,
+          status: 'Pending',
+        });
+      }
+    }
+
+    if (freezeReq) {
+      const result = await serviceRejectFreeze({
+        requestId: freezeReq._id,
+        adminUser: req.user,
+        rejectionReason: reasonText,
+        adminRemarks: adminRemarks || adminNotes,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Membership freeze request [${result.requestId}] has been rejected.`,
+        data: result,
+      });
+    }
+
+    const request = await MembershipRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ success: false, message: 'Membership request not found.' });
     }
 
-    if (request.status !== 'Pending') {
-      return res.status(400).json({ success: false, message: 'Request has already been processed.' });
-    }
-
     request.status = 'Rejected';
-    request.rejectionReason = rejectionReason;
+    request.rejectionReason = reasonText;
     request.reviewedBy = req.user._id;
     request.reviewedByName = req.user.name;
     request.reviewedAt = new Date();
     await request.save();
 
-    // Notify member
-    await Notification.create({
-      recipient: request.user,
-      recipientRole: 'Gym Member',
-      type: 'CUSTOM',
-      title: `Membership ${request.type} Request Update`,
-      message: `Your ${request.type.toLowerCase()} request could not be approved at this time. Reason: ${rejectionReason}. Please contact executive concierge.`,
-      actionUrl: '/membership',
-      actionLabel: 'Contact Concierge',
-    });
-
     res.status(200).json({
       success: true,
-      message: `Membership ${request.type.toLowerCase()} request has been rejected.`,
+      message: `Membership request successfully rejected.`,
       data: request,
     });
   } catch (error) {
-    next(error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Modify Approved Freeze Duration or Parameters (Admin)
+// @route   POST /api/memberships/admin/freeze-requests/:id/modify
+// @access  Private (Admin, Super Admin)
+exports.modifyFreezeRequestAdmin = async (req, res, next) => {
+  try {
+    const { approvedDuration, scheduledStartDate, adminRemarks } = req.body;
+    const freezeReq = await MembershipFreezeRequest.findById(req.params.id);
+    if (!freezeReq) {
+      return res.status(404).json({ success: false, message: 'Freeze request not found.' });
+    }
+
+    if (approvedDuration) {
+      const dur = Number(approvedDuration);
+      if (dur < DEFAULT_POLICY.MIN_DAYS || dur > DEFAULT_POLICY.MAX_DAYS_PER_REQUEST) {
+        return res.status(400).json({
+          success: false,
+          message: `Duration must be between ${DEFAULT_POLICY.MIN_DAYS} and ${DEFAULT_POLICY.MAX_DAYS_PER_REQUEST} days.`,
+        });
+      }
+      freezeReq.approvedDuration = dur;
+      if (freezeReq.scheduledStartDate) {
+        freezeReq.scheduledEndDate = new Date(
+          new Date(freezeReq.scheduledStartDate).getTime() + dur * 24 * 60 * 60 * 1000
+        );
+      }
+    }
+
+    if (scheduledStartDate) {
+      const start = new Date(scheduledStartDate);
+      freezeReq.scheduledStartDate = start;
+      const dur = freezeReq.approvedDuration || 14;
+      freezeReq.scheduledEndDate = new Date(start.getTime() + dur * 24 * 60 * 60 * 1000);
+    }
+
+    if (adminRemarks) freezeReq.adminRemarks = adminRemarks;
+
+    freezeReq.history.push({
+      status: freezeReq.status,
+      changedAt: new Date(),
+      changedBy: req.user._id,
+      changedByName: req.user.name,
+      note: `Concierge modified parameters: Duration ${freezeReq.approvedDuration}d.`,
+    });
+
+    await freezeReq.save();
+    res.status(200).json({
+      success: true,
+      message: `Freeze request [${freezeReq.requestId}] updated successfully.`,
+      data: freezeReq,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Unfreeze Active Freeze Request Ahead of Schedule (Admin)
+// @route   POST /api/memberships/admin/freeze-requests/:id/unfreeze-now
+// @access  Private (Admin, Super Admin)
+exports.unfreezeActiveRequestAdmin = async (req, res, next) => {
+  try {
+    const freezeReq = await MembershipFreezeRequest.findById(req.params.id);
+    if (!freezeReq) {
+      return res.status(404).json({ success: false, message: 'Freeze request not found.' });
+    }
+
+    if (freezeReq.status !== 'Frozen') {
+      return res.status(400).json({
+        success: false,
+        message: `Only currently frozen requests can be unfreezed early. Current status is ${freezeReq.status}.`,
+      });
+    }
+
+    await serviceResumeFreeze(freezeReq, null, req.user);
+    res.status(200).json({
+      success: true,
+      message: `Membership residency has been resumed successfully ahead of schedule.`,
+      data: freezeReq,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 

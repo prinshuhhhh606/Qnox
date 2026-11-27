@@ -6,6 +6,7 @@ const {
   sendMembershipExpiryReminderEmail,
   sendMembershipRenewalSuccessEmail,
 } = require('./emailService');
+const { processScheduledFreezes } = require('./membershipFreezeService');
 
 const TIMEZONE = 'Asia/Kolkata';
 
@@ -429,18 +430,22 @@ const initScheduler = () => {
     async () => {
       console.log(`[QNOX CRON TRIGGERED] ${new Date().toISOString()}`);
       await checkAndProcessMembershipExpiries();
+      await processScheduledFreezes();
     },
     {
       timezone: TIMEZONE,
     }
   );
 
-  console.log(`[QNOX Scheduler Initialized] Automated Expiry Engine scheduled daily at 00:00 [${TIMEZONE}]`);
+  console.log(`[QNOX Scheduler Initialized] Automated Expiry & Freeze Engine scheduled daily at 00:00 [${TIMEZONE}]`);
 
   // Run a non-blocking check on server boot after a 5-second stabilization delay
   setTimeout(() => {
     checkAndProcessMembershipExpiries().catch((err) =>
       console.warn('[Startup Expiry Check Warning]:', err.message)
+    );
+    processScheduledFreezes().catch((err) =>
+      console.warn('[Startup Freeze Processor Warning]:', err.message)
     );
   }, 5000);
 };

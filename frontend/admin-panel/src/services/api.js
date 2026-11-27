@@ -1211,6 +1211,28 @@ export const rejectMembershipRequest = async (id, payload = {}) => {
   return data;
 };
 
+export const modifyFreezeRequestAdmin = async (requestId, payload) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/freeze-requests/${requestId}/modify`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to modify freeze request');
+  return data;
+};
+
+export const unfreezeActiveRequestAdmin = async (requestId, payload = {}) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/freeze-requests/${requestId}/unfreeze-now`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to unfreeze membership');
+  return data;
+};
+
 export const extendMembershipAdmin = async (userId, payload) => {
   const res = await fetch(`${API_BASE}/memberships/admin/${userId}/extend`, {
     method: 'POST',

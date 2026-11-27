@@ -1183,6 +1183,57 @@ export const submitCancellationRequest = async (payload) => {
   return data;
 };
 
+export const fetchMyFreezeHistory = async () => {
+  const res = await fetch(`${API_BASE}/memberships/freeze-history`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch freeze history');
+  return data.data;
+};
+
+export const cancelMyFreezeRequest = async (requestId, payload = {}) => {
+  const res = await fetch(`${API_BASE}/memberships/freeze-requests/${requestId}/cancel`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to cancel freeze request');
+  return data;
+};
+
+export const fetchFreezePolicy = async () => {
+  const res = await fetch(`${API_BASE}/memberships/freeze-policy`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch freeze policy');
+  return data.data;
+};
+
+export const modifyFreezeRequestAdmin = async (requestId, payload) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/freeze-requests/${requestId}/modify`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to modify freeze request');
+  return data;
+};
+
+export const unfreezeActiveRequestAdmin = async (requestId, payload = {}) => {
+  const res = await fetch(`${API_BASE}/memberships/admin/freeze-requests/${requestId}/unfreeze-now`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to unfreeze membership');
+  return data;
+};
+
 export const toggleAutoRenew = async () => {
   const res = await fetch(`${API_BASE}/memberships/auto-renew`, {
     method: 'PATCH',

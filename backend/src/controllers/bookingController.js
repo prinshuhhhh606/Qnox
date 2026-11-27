@@ -31,6 +31,14 @@ exports.bookClass = async (req, res, next) => {
     const now = new Date();
 
     if (freshUser && !['Admin', 'Super Admin', 'Trainer'].includes(freshUser.role)) {
+      if (freshUser.membership?.status === 'Frozen' || freshUser.membership?.isFrozen) {
+        return res.status(403).json({
+          success: false,
+          code: 'MEMBERSHIP_FROZEN',
+          message: 'Your membership residency is currently frozen. Sanctuary class and session bookings are suspended during the freeze period.',
+        });
+      }
+
       const isPaidActive = freshUser.membership?.status === 'Active' && (!freshUser.membership.endDate || new Date(freshUser.membership.endDate) >= now);
 
       let isTrialActive = false;

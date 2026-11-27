@@ -314,6 +314,13 @@ exports.markMemberCheckIn = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Member not found' });
     }
 
+    if (member.membership?.status === 'Frozen' || member.membership?.isFrozen || member.biometricAccess === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot check in: Member's residency is currently frozen. Biometric facility access is suspended.",
+      });
+    }
+
     // Prevent duplicate check-in today if not checked out
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -855,6 +862,16 @@ exports.getPTSessions = async (req, res) => {
 
 exports.schedulePTSession = async (req, res) => {
   try {
+    if (req.body.member) {
+      const memberDoc = await User.findById(req.body.member);
+      if (memberDoc && (memberDoc.membership?.status === 'Frozen' || memberDoc.membership?.isFrozen)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot schedule session: Athlete residency is currently frozen.',
+        });
+      }
+    }
+
     const trainerDoc = await resolveTrainerProfile(req.user._id);
     const trainerId = trainerDoc ? trainerDoc._id : req.user._id;
 

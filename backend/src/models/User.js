@@ -65,6 +65,18 @@ const UserSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Trainer',
     },
+    biometricAccess: {
+      type: Boolean,
+      default: true,
+    },
+    homeClub: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Club',
+    },
+    homeClubName: {
+      type: String,
+      default: 'Mayfair Sanctuary',
+    },
     isArchived: {
       type: Boolean,
       default: false,
@@ -102,6 +114,8 @@ const UserSchema = new mongoose.Schema(
         endDate: { type: Date },
         reason: { type: String, default: '' },
         remainingDaysAtFreeze: { type: Number, default: 0 },
+        approvedDuration: { type: Number, default: 0 },
+        requestId: { type: String, default: '' },
         frozenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       },
       suspensionDetails: {

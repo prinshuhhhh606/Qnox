@@ -15,6 +15,8 @@ const initNotificationSocket = (io) => {
       socket.join('admin_feed');
     });
 
+
+    
     socket.on('join_trainer_feed', ({ trainerId }) => {
       socket.join(`trainer_${trainerId}`);
     });

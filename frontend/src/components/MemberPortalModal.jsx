@@ -14,6 +14,9 @@ import {
   submitCancellationRequest,
   toggleAutoRenew,
   startFreeTrial,
+  fetchMyFreezeHistory,
+  cancelMyFreezeRequest,
+  fetchFreezePolicy,
 } from '../services/api';
 import ReceiptModal from './ReceiptModal';
 import AiWorkoutModule from './WorkoutModule/AiWorkoutModule';
@@ -36,12 +39,47 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
   const [membershipData, setMembershipData] = useState(null);
   const [showFreezeModal, setShowFreezeModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [freezeDays, setFreezeDays] = useState(30);
-  const [freezeReason, setFreezeReason] = useState('Personal / Travel Leave');
+  const [freezeDays, setFreezeDays] = useState(14);
+  const [freezeReason, setFreezeReason] = useState('Travelling');
+  const [freezeStartDate, setFreezeStartDate] = useState(
+    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [freezeNotes, setFreezeNotes] = useState('');
+  const [freezeDocUrl, setFreezeDocUrl] = useState('');
+  const [freezeHistory, setFreezeHistory] = useState([]);
+  const [loadingFreezeHistory, setLoadingFreezeHistory] = useState(false);
+  const [freezePolicy, setFreezePolicy] = useState({
+    minDays: 7,
+    maxDays: 30,
+    annualLimit: 60,
+    annualDaysUsed: 0,
+    remainingAnnualDays: 60,
+  });
+  const [cancellingRequestId, setCancellingRequestId] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [submittingLifecycle, setSubmittingLifecycle] = useState(false);
   const [autoRenewEnabled, setAutoRenewEnabled] = useState(true);
   const [startingTrial, setStartingTrial] = useState(false);
+
+  const loadFreezeData = async () => {
+    setLoadingFreezeHistory(true);
+    try {
+      const [hist, pol] = await Promise.allSettled([
+        fetchMyFreezeHistory(),
+        fetchFreezePolicy(),
+      ]);
+      if (hist.status === 'fulfilled' && hist.value) {
+        setFreezeHistory(hist.value);
+      }
+      if (pol.status === 'fulfilled' && pol.value) {
+        setFreezePolicy(pol.value);
+      }
+    } catch (e) {
+      console.warn('Failed loading freeze info:', e.message);
+    } finally {
+      setLoadingFreezeHistory(false);
+    }
+  };
 
   const handleStartTrialFromPortal = async () => {
     setStartingTrial(true);
@@ -62,6 +100,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
       loadPayments();
       loadNotifications();
       loadMembershipDetails();
+      loadFreezeData();
     }
   }, [isOpen]);
 
@@ -91,14 +130,41 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
     e.preventDefault();
     setSubmittingLifecycle(true);
     try {
-      const res = await submitFreezeRequest({ freezeDays, reason: freezeReason });
+      const res = await submitFreezeRequest({
+        requestedStartDate: freezeStartDate,
+        requestedDuration: Number(freezeDays),
+        reason: freezeReason,
+        additionalNotes: freezeNotes,
+        supportingDocument: freezeDocUrl,
+      });
       setShowFreezeModal(false);
-      loadMembershipDetails();
-      if (onShowToast) onShowToast({ type: 'success', message: res.message });
+      setFreezeNotes('');
+      setFreezeDocUrl('');
+      await Promise.all([loadMembershipDetails(), loadFreezeData()]);
+      if (onShowToast) {
+        onShowToast({
+          type: 'success',
+          message: res.message || 'Your membership freeze request has been submitted successfully and is awaiting approval.',
+        });
+      }
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     } finally {
       setSubmittingLifecycle(false);
+    }
+  };
+
+  const handleCancelPendingFreeze = async (reqId) => {
+    if (!window.confirm('Are you sure you want to cancel this pending freeze request?')) return;
+    setCancellingRequestId(reqId);
+    try {
+      const res = await cancelMyFreezeRequest(reqId);
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Freeze request cancelled successfully.' });
+      await Promise.all([loadMembershipDetails(), loadFreezeData()]);
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setCancellingRequestId(null);
     }
   };
 
@@ -331,7 +397,7 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center border-b border-white/10 px-4 sm:px-8 bg-[#070707] overflow-x-auto scrollbar-none flex-shrink-0">
+          <div className="qnox-portal-tabs-nav">
             <button
               onClick={() => setActiveTab('residency')}
               className={`qnox-portal-tab ${activeTab === 'residency' ? 'active' : ''}`}
@@ -377,41 +443,65 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
             {/* TAB 1: RESIDENCY */}
             {activeTab === 'residency' && (
               <div className="space-y-6">
-                {/* Pending Request Banner */}
-                {pendingRequest && (
-                  <div className="bg-[#c5a880]/15 border border-[#c5a880]/50 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-start space-x-3">
-                      <Clock className="w-4 h-4 text-[#c5a880] flex-shrink-0 mt-0.5" />
+                {/* Dynamic Status Banners */}
+                {membershipData?.activeFreezeRequest?.status === 'Pending' && (
+                  <div className="bg-amber-950/40 border border-amber-500/60 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                    <div className="flex items-start space-x-3.5">
+                      <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold text-[#c5a880] block">
-                          CONCIERGE REVIEW PENDING: {pendingRequest.type.toUpperCase()} REQUEST
+                        <span className="font-bold text-amber-300 block font-serif text-sm">
+                          PENDING FREEZE APPROVAL: REQUEST #{membershipData.activeFreezeRequest.requestId}
                         </span>
-                        <p className="text-neutral-300 font-light mt-0.5">
-                          Submitted on {new Date(pendingRequest.createdAt).toLocaleDateString('en-GB')}: &quot;{pendingRequest.reason}&quot;. Our executive team is processing your dossier.
+                        <p className="text-neutral-300 font-light mt-1 leading-relaxed">
+                          Requested pause of <strong className="text-white">{membershipData.activeFreezeRequest.requestedDuration} days</strong> starting on <strong className="text-white">{new Date(membershipData.activeFreezeRequest.requestedStartDate).toLocaleDateString('en-GB')}</strong> ({membershipData.activeFreezeRequest.reason}).
+                          Your membership remains <strong className="text-emerald-400">ACTIVE</strong> until approved start date.
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 bg-[#c5a880]/20 border border-[#c5a880]/40 text-[#c5a880] whitespace-nowrap">
-                      STATUS: PENDING
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 bg-amber-950 border border-amber-500/50 text-amber-300 whitespace-nowrap">
+                      STATUS: PENDING REVIEW
+                    </span>
+                  </div>
+                )}
+
+                {membershipData?.activeFreezeRequest?.status === 'Approved' && (
+                  <div className="bg-sky-950/40 border border-sky-400/60 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                    <div className="flex items-start space-x-3.5">
+                      <Pause className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-sky-300 block font-serif text-sm">
+                          APPROVED FREEZE SCHEDULED: REQUEST #{membershipData.activeFreezeRequest.requestId}
+                        </span>
+                        <p className="text-sky-200/90 font-light mt-1 leading-relaxed">
+                          Your freeze of <strong className="text-white">{membershipData.activeFreezeRequest.approvedDuration || membershipData.activeFreezeRequest.requestedDuration} days</strong> is approved and scheduled from <strong className="text-white">{new Date(membershipData.activeFreezeRequest.scheduledStartDate).toLocaleDateString('en-GB')}</strong> to <strong className="text-white">{new Date(membershipData.activeFreezeRequest.scheduledEndDate).toLocaleDateString('en-GB')}</strong>.
+                          Your membership privileges remain <strong className="text-emerald-400">ACTIVE</strong> until {new Date(membershipData.activeFreezeRequest.scheduledStartDate).toLocaleDateString('en-GB')}.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 bg-sky-950 border border-sky-400/50 text-sky-300 whitespace-nowrap">
+                      STATUS: SCHEDULED
                     </span>
                   </div>
                 )}
 
                 {/* Frozen Status Banner */}
                 {isFrozen && (
-                  <div className="bg-sky-950/40 border border-sky-400/60 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="bg-sky-950/60 border border-sky-400 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-start space-x-3.5">
                       <Pause className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
                       <div>
                         <h5 className="font-serif text-sm text-sky-300 font-semibold mb-1">
                           Residency Currently Paused / Frozen
                         </h5>
-                        <p className="text-xs text-sky-200/80 font-light leading-relaxed">
+                        <p className="text-xs text-sky-200/90 font-light leading-relaxed">
                           {membership.freezeDetails?.reason ? `Reason: "${membership.freezeDetails.reason}". ` : ''}
-                          Your {membership.freezeDetails?.remainingDaysAtFreeze || daysRemaining || 0} remaining days are safeguarded. Contact executive concierge or admin to unfreeze anytime.
+                          Your {membership.freezeDetails?.remainingDaysAtFreeze || daysRemaining || 0} remaining paid days are safeguarded and will be added back upon unfreezing. Biometric club access and new session bookings are temporarily suspended.
                         </p>
                       </div>
                     </div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 bg-sky-900 border border-sky-400 text-sky-200 whitespace-nowrap">
+                      STATUS: FROZEN
+                    </span>
                   </div>
                 )}
 
@@ -807,6 +897,107 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                     </div>
                   </div>
                 </div>
+
+                {/* Freeze Request History */}
+                <div className="border border-white/10 p-6 bg-[#0c0c0c] space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                    <div>
+                      <span className="text-[10px] tracking-[0.2em] uppercase text-sky-400 font-semibold block">
+                        MEMBERSHIP LIFECYCLE
+                      </span>
+                      <h5 className="font-serif text-base text-white font-medium">
+                        Freeze Request History & Annual Quota
+                      </h5>
+                    </div>
+                    <div className="text-[11px] font-mono text-neutral-400">
+                      Annual Used: <span className="text-white font-bold">{freezePolicy.annualDaysUsed || 0}</span> / {freezePolicy.annualLimit || 60} Days
+                      <span className="text-sky-400 ml-2">({freezePolicy.remainingAnnualDays !== undefined ? freezePolicy.remainingAnnualDays : 60}d remaining)</span>
+                    </div>
+                  </div>
+
+                  {loadingFreezeHistory ? (
+                    <div className="py-6 text-center text-xs text-neutral-500 font-mono tracking-widest uppercase">
+                      Loading freeze records...
+                    </div>
+                  ) : freezeHistory.length === 0 ? (
+                    <p className="text-xs text-neutral-500 font-light italic">
+                      No membership freeze requests on record.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead className="text-[9px] uppercase tracking-wider text-neutral-500 border-b border-white/10">
+                          <tr>
+                            <th className="pb-2">Request ID</th>
+                            <th className="pb-2">Start Date</th>
+                            <th className="pb-2">Duration</th>
+                            <th className="pb-2">Reason</th>
+                            <th className="pb-2">Submitted</th>
+                            <th className="pb-2">Status</th>
+                            <th className="pb-2 text-right">Action / Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-neutral-300">
+                          {freezeHistory.map((item) => (
+                            <tr key={item._id || item.requestId} className="hover:bg-white/[0.02]">
+                              <td className="py-2.5 text-[#c5a880] font-bold">{item.requestId || 'FRZ-N/A'}</td>
+                              <td className="py-2.5">
+                                {item.scheduledStartDate
+                                  ? new Date(item.scheduledStartDate).toLocaleDateString('en-GB')
+                                  : item.requestedStartDate
+                                  ? new Date(item.requestedStartDate).toLocaleDateString('en-GB')
+                                  : 'N/A'}
+                              </td>
+                              <td className="py-2.5">
+                                {item.approvedDuration ? `${item.approvedDuration}d (Approved)` : `${item.requestedDuration}d (Req)`}
+                              </td>
+                              <td className="py-2.5 text-neutral-400">{item.reason}</td>
+                              <td className="py-2.5 text-neutral-500">
+                                {new Date(item.createdAt).toLocaleDateString('en-GB')}
+                              </td>
+                              <td className="py-2.5">
+                                <span
+                                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                    item.status === 'Pending'
+                                      ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40'
+                                      : item.status === 'Approved'
+                                      ? 'bg-sky-950/60 text-sky-300 border border-sky-400/50'
+                                      : item.status === 'Frozen'
+                                      ? 'bg-blue-950/70 text-blue-300 border border-blue-400'
+                                      : item.status === 'Resumed'
+                                      ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
+                                      : item.status === 'Rejected'
+                                      ? 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                                      : 'bg-neutral-900 text-neutral-400 border border-neutral-700'
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              </td>
+                              <td className="py-2.5 text-right">
+                                {item.status === 'Pending' ? (
+                                  <button
+                                    onClick={() => handleCancelPendingFreeze(item._id)}
+                                    disabled={cancellingRequestId === item._id}
+                                    className="text-[10px] text-rose-400 hover:text-white uppercase tracking-wider underline disabled:opacity-50"
+                                  >
+                                    {cancellingRequestId === item._id ? 'Cancelling...' : 'Cancel'}
+                                  </button>
+                                ) : item.adminRemarks || item.rejectionReason ? (
+                                  <span className="text-[10px] text-neutral-400 italic max-w-xs truncate inline-block" title={item.adminRemarks || item.rejectionReason}>
+                                    {item.adminRemarks || item.rejectionReason}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-neutral-600">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1044,12 +1235,16 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
 
       {/* Freeze Request Modal */}
       {showFreezeModal && (
-        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0e0e0e] border border-white/20 w-full max-w-md p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0e0e0e] border border-[#c5a880]/40 w-full max-w-xl p-6 sm:p-7 space-y-5 shadow-2xl my-8">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
-                <span className="text-[10px] tracking-[0.25em] text-sky-400 font-bold uppercase block">RESIDENCY SUSPENSION</span>
-                <h4 className="font-serif text-lg text-white font-semibold">Request Membership Freeze</h4>
+                <span className="text-[10px] tracking-[0.25em] text-sky-400 font-bold uppercase block">
+                  RESIDENCY SUSPENSION PROTOCOL
+                </span>
+                <h4 className="font-serif text-xl text-white font-semibold">
+                  Membership Freeze Dossier
+                </h4>
               </div>
               <button
                 onClick={() => setShowFreezeModal(false)}
@@ -1059,42 +1254,130 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
               </button>
             </div>
 
-            <p className="text-xs text-neutral-400 font-light leading-relaxed">
-              Pause your residency without forfeiting your membership days. Remaining active days are banked and resume upon unfreezing.
+            <p className="text-xs text-neutral-300 font-light leading-relaxed">
+              Safeguard your paid residency during travel or recovery. Submitting this request keeps your membership <strong className="text-emerald-400">ACTIVE</strong> until the approved freeze start date. Once approved, frozen days are not deducted and will be credited back on resumption.
             </p>
 
             <form onSubmit={handleFreezeSubmit} className="space-y-4">
+              {/* Pre-filled Read-Only Membership Information */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-[#080808] border border-white/10 text-xs font-mono">
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">1. Member Name</span>
+                  <span className="text-white font-medium truncate block">{user.name}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">2. Member ID</span>
+                  <span className="text-[#c5a880] font-bold truncate block">
+                    {user.memberId || `QNX-${user.id ? user.id.slice(-6).toUpperCase() : 'MEMBER'}`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">3. Membership Plan</span>
+                  <span className="text-white font-medium truncate block">{membership.planName || 'THE METROPOLITAN'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">4. Assigned Club</span>
+                  <span className="text-neutral-300 truncate block">{user.homeClubName || 'Mayfair Sanctuary'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">5. Plan Start Date</span>
+                  <span className="text-neutral-300 block">{startDate ? startDate.toLocaleDateString('en-GB') : 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-neutral-500 uppercase block">6. Current Expiry Date</span>
+                  <span className="text-neutral-300 block">{endDate ? endDate.toLocaleDateString('en-GB') : 'N/A'}</span>
+                </div>
+              </div>
+
+              {/* Editable Requested Dates and Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1 font-mono">
+                    7. REQUESTED FREEZE START DATE *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={freezeStartDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    max={endDate ? new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined}
+                    onChange={(e) => setFreezeStartDate(e.target.value)}
+                    className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
+                  />
+                  <span className="text-[9px] text-neutral-500 block mt-1">
+                    Membership remains Active until this date
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] text-neutral-400 uppercase tracking-widest font-mono">
+                      8. FREEZE DURATION ({freezeDays} DAYS) *
+                    </label>
+                    <span className="text-[9px] text-sky-400 font-mono">
+                      Annual quota: {freezePolicy.annualLimit || 60}d max ({freezePolicy.remainingAnnualDays !== undefined ? freezePolicy.remainingAnnualDays : 60}d left)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={freezePolicy.minDays || 7}
+                    max={Math.min(freezePolicy.maxDays || 30, freezePolicy.remainingAnnualDays || 30)}
+                    value={freezeDays}
+                    onChange={(e) => setFreezeDays(Number(e.target.value))}
+                    className="w-full accent-sky-400 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-neutral-500 font-mono mt-0.5">
+                    <span>Min: 7 days</span>
+                    <span className="text-sky-300 font-bold">{freezeDays} Days Selected</span>
+                    <span>Max: 30 days</span>
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                  FREEZE DURATION
+                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1 font-mono">
+                  9. FREEZE REASON *
                 </label>
                 <select
-                  value={freezeDays}
-                  onChange={(e) => setFreezeDays(Number(e.target.value))}
-                  className="w-full bg-[#141414] border border-white/10 px-3.5 py-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
+                  value={freezeReason}
+                  onChange={(e) => setFreezeReason(e.target.value)}
+                  className="w-full bg-[#141414] border border-white/10 px-3 py-2 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
                 >
-                  <option value={15}>15 Days (Short Leave)</option>
-                  <option value={30}>30 Days (Standard Monthly Pause)</option>
-                  <option value={45}>45 Days (Extended Leave)</option>
-                  <option value={60}>60 Days (Maximum Policy Allowance)</option>
+                  <option value="Travelling">Travelling</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Personal Reasons">Personal Reasons</option>
+                  <option value="Work Commitments">Work Commitments</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1.5 font-mono">
-                  REASON FOR FREEZE
+                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1 font-mono">
+                  10. ADDITIONAL NOTES (OPTIONAL)
                 </label>
                 <textarea
-                  value={freezeReason}
-                  onChange={(e) => setFreezeReason(e.target.value)}
-                  required
-                  rows={3}
-                  placeholder="e.g. International travel, medical recovery, executive reassignment..."
-                  className="w-full bg-[#141414] border border-white/10 p-3 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
+                  value={freezeNotes}
+                  onChange={(e) => setFreezeNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Provide any specific context or travel dates for concierge review..."
+                  className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none resize-none font-light"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-2">
+              <div>
+                <label className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1 font-mono">
+                  11. SUPPORTING DOCUMENT (OPTIONAL)
+                </label>
+                <input
+                  type="text"
+                  value={freezeDocUrl}
+                  onChange={(e) => setFreezeDocUrl(e.target.value)}
+                  placeholder="Medical slip, flight itinerary link, or document reference..."
+                  className="w-full bg-[#141414] border border-white/10 p-2.5 text-xs text-white focus:border-[#c5a880] outline-none font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setShowFreezeModal(false)}
@@ -1104,11 +1387,11 @@ export default function MemberPortalModal({ isOpen, onClose, user, onRenewMember
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingLifecycle}
-                  className="px-5 py-2 bg-sky-500 hover:bg-sky-400 text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5 disabled:opacity-50"
+                  disabled={submittingLifecycle || (freezePolicy.remainingAnnualDays !== undefined && freezePolicy.remainingAnnualDays < freezeDays)}
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-400 text-black text-xs font-bold uppercase tracking-wider transition flex items-center space-x-1.5 disabled:opacity-40"
                 >
                   {submittingLifecycle ? (
-                    <span>TRANSMITTING...</span>
+                    <span>TRANSMITTING DOSSIER...</span>
                   ) : (
                     <>
                       <Pause className="w-3.5 h-3.5" />
