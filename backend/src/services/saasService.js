@@ -143,6 +143,12 @@ exports.registerGymOwnerAndOrg = async ({ ownerName, email, phone, password, gym
     .replace(/-+/g, '-')
     .slice(0, 30) + '-' + Math.random().toString(36).substring(2, 6);
 
+  const formattedAddress = typeof address === 'object' && address !== null
+    ? [address.street, address.city, address.state, address.pincode].filter(Boolean).join(', ')
+    : String(address || location || '');
+
+  const resolvedCity = (typeof address === 'object' && address !== null && address.city) || (typeof location === 'string' ? location.split(',')[0].trim() : '') || 'Metropolitan';
+
   // Create Organization (Pending until payment verified)
   const organization = await Organization.create({
     name: gymName,
@@ -151,8 +157,8 @@ exports.registerGymOwnerAndOrg = async ({ ownerName, email, phone, password, gym
     status: 'Pending-Approval',
     contactEmail: email.toLowerCase(),
     phone,
-    address,
-    city: location,
+    address: formattedAddress,
+    city: resolvedCity,
     branchesLimit: plan.maxBranches,
     trainersLimit: plan.maxTrainers,
     membersLimit: plan.maxMembers,

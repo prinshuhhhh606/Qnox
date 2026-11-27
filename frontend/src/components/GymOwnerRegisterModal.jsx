@@ -24,6 +24,7 @@ export default function GymOwnerRegisterModal({ isOpen, onClose, onShowToast, on
 
   const [submitting, setSubmitting] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -78,21 +79,20 @@ export default function GymOwnerRegisterModal({ isOpen, onClose, onShowToast, on
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setErrorMessage('');
 
     try {
+      const formattedLocation = `${formData.city}, ${formData.state}`.trim();
       // 1. Register owner & create pending organization
       const res = await registerGymOwner({
-        ownerName: formData.ownerName,
-        email: formData.email,
+        ownerName: formData.ownerName.trim(),
+        email: formData.email.trim(),
         password: formData.password,
-        phone: formData.phone,
-        gymName: formData.gymName,
-        location: `${formData.city}, ${formData.state}`,
-        address: {
-          city: formData.city,
-          state: formData.state,
-        },
-        planCode: selectedPlanCode,
+        phone: formData.phone.trim(),
+        gymName: formData.gymName.trim(),
+        location: formattedLocation,
+        address: formattedLocation,
+        planCode: selectedPlanCode.toLowerCase(),
         billingCycle,
       });
 
@@ -100,10 +100,11 @@ export default function GymOwnerRegisterModal({ isOpen, onClose, onShowToast, on
         throw new Error(res.message || 'Registration failed');
       }
 
-      const { user, organization, razorpayOrder, token } = res.data;
+      const { user, owner, organization, razorpayOrder, token } = res.data;
+      const effectiveOwner = user || owner;
 
       // 2. Complete payment activation (direct/test mode or Razorpay)
-      const verifyRes = await verifySaaSPayment({
+      await verifySaaSPayment({
         organizationId: organization._id,
         planCode: selectedPlanCode,
         billingCycle,
@@ -134,12 +135,13 @@ export default function GymOwnerRegisterModal({ isOpen, onClose, onShowToast, on
 
       if (onAuthSuccess) {
         onAuthSuccess({
-          ...user,
+          ...effectiveOwner,
           role: 'Gym Owner',
           organization: organization._id,
         });
       }
     } catch (err) {
+      setErrorMessage(err.message || 'Failed to commission sanctuary');
       if (onShowToast) {
         onShowToast({ type: 'error', message: err.message });
       }
@@ -479,6 +481,19 @@ export default function GymOwnerRegisterModal({ isOpen, onClose, onShowToast, on
                     </div>
                   </div>
                 </div>
+
+                {errorMessage && (
+                  <div className="p-3.5 bg-rose-950/60 border border-rose-500/50 rounded-xl text-rose-300 text-xs flex items-center justify-between gap-3 animate-shake">
+                    <span>{errorMessage}</span>
+                    <button
+                      type="button"
+                      onClick={() => setErrorMessage('')}
+                      className="text-rose-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
                 <div className="p-4 bg-[#101010] border border-[#c5a880]/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2.5 text-neutral-300">

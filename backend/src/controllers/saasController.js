@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const SaaSSubscriptionPlan = require('../models/SaaSSubscriptionPlan');
 const Organization = require('../models/Organization');
 const OrganizationSubscription = require('../models/OrganizationSubscription');
@@ -54,10 +55,20 @@ exports.registerGymOwner = async (req, res, next) => {
       billingCycle: billingCycle || 'monthly',
     });
 
+    const token = jwt.sign(
+      { id: result.owner._id, role: result.owner.role, organization: result.organization._id },
+      process.env.JWT_SECRET || 'qnox_luxury_jwt_secret_key_2026',
+      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+    );
+
     res.status(201).json({
       success: true,
       message: 'Gym owner account created. Complete payment to activate your sanctuary dashboard.',
-      data: result,
+      data: {
+        ...result,
+        user: result.owner,
+        token,
+      },
     });
   } catch (err) {
     res.status(400).json({
