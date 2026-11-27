@@ -295,14 +295,18 @@ exports.verifyAndActivateSaaSSubscription = async ({
   await organization.save();
 
   // Create an official Payment ledger record
+  const invoiceNumber = `INV-SAAS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const ownerId = (organization.owner && organization.owner._id) || organization.owner;
+
   await Payment.create({
-    user: organization.owner._id,
+    user: ownerId,
     userName: organization.ownerName || 'Gym Owner',
     userEmail: organization.ownerEmail || organization.contactEmail,
     orderId: razorpayOrderId,
     paymentId: razorpayPaymentId || `pay_saas_${Date.now()}`,
     amount,
     currency: 'INR',
+    invoiceNumber,
     planName: `QNOX SaaS ${plan.name} (${billingCycle.toUpperCase()})`,
     duration: billingCycle === 'yearly' ? 'yearly' : 'monthly',
     status: 'Completed',
