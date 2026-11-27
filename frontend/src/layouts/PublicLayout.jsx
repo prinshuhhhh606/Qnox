@@ -91,6 +91,7 @@ export default function PublicLayout() {
         isOpen={isAuthModalOpen}
         initialRole={authModalRole}
         onClose={() => setIsAuthModalOpen(false)}
+        onOpenGymOwnerRegister={() => setIsGymOwnerRegisterOpen(true)}
         onAuthSuccess={(user) => {
           if (setCurrentUser) {
             setCurrentUser(user);

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Dumbbell, Sparkles } from 'lucide-react';
+import { X, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Dumbbell, Sparkles, Building2 } from 'lucide-react';
 import { loginUser, registerUser, requestPasswordReset } from '../services/api';
 import './AuthModal.css';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast, initialMode = 'login', initialRole = 'member' }) {
-  const [authRole, setAuthRole] = useState(initialRole); // 'member' | 'trainer'
+export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast, onOpenGymOwnerRegister, initialMode = 'login', initialRole = 'member' }) {
+  const [authRole, setAuthRole] = useState(initialRole); // 'member' | 'trainer' | 'owner'
   const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot'
   const [formData, setFormData] = useState({
     name: '',
@@ -16,6 +16,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
+
+  useEffect(() => {
+    if (initialRole) {
+      setAuthRole(initialRole);
+      if (initialRole !== 'member') {
+        setMode('login');
+      }
+    }
+  }, [initialRole, isOpen]);
 
   if (!isOpen) return null;
 
@@ -42,12 +51,23 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
           throw new Error('This account is registered as a Gym Customer. Please use Customer Login.');
         }
 
+        // Enforce role separation if logging in as Gym Owner
+        if (authRole === 'owner' && !['Gym Owner', 'Company Admin', 'Super Admin'].includes(res.user.role)) {
+          throw new Error('This account is not registered as a Partner Gym Owner.');
+        }
+
         if (authRole === 'member' && res.user.role === 'Trainer') {
-          // Gently inform them and auto-switch
           if (onShowToast) {
             onShowToast({
               type: 'info',
               message: 'Trainer account recognized. Opening Coach Command Portal.',
+            });
+          }
+        } else if (authRole === 'member' && ['Gym Owner', 'Company Admin'].includes(res.user.role)) {
+          if (onShowToast) {
+            onShowToast({
+              type: 'info',
+              message: 'Gym Owner account recognized. Opening Gym Command Dashboard.',
             });
           }
         } else if (onShowToast) {
@@ -111,31 +131,37 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
             <span>SANCTUARY VERIFICATION</span>
           </div>
           <h2 className="font-serif text-3xl text-white">
-            {authRole === 'trainer' ? 'Coach Command Login' : 'QNOX Membership Access'}
+            {authRole === 'trainer'
+              ? 'Coach Command Login'
+              : authRole === 'owner'
+              ? 'Gym Owner Command Login'
+              : 'QNOX Membership Access'}
           </h2>
           <p className="text-xs text-neutral-400 font-light mt-1">
             {authRole === 'trainer'
               ? 'Authorized access for approved master practitioners & trainers.'
+              : authRole === 'owner'
+              ? 'Authorized portal for approved B2B partner gym owners and managers.'
               : 'Access your private dossier, active bookings & member privileges.'}
           </p>
         </div>
 
-        {/* Portal Role Selector (Customer / Member vs Trainer) */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-lg mb-6">
+        {/* Portal Role Selector (Customer / Member vs Trainer vs Gym Owner) */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-white/[0.03] border border-white/10 rounded-lg mb-6">
           <button
             type="button"
             onClick={() => {
               setAuthRole('member');
               setErrorMsg('');
             }}
-            className={`py-2 px-3 rounded text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
+            className={`py-2 px-2 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 ${
               authRole === 'member'
                 ? 'bg-[#c5a880] text-black shadow-md'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <User className="w-3.5 h-3.5" />
-            <span>Customer Login</span>
+            <User className="w-3 h-3" />
+            <span>Member</span>
           </button>
           <button
             type="button"
@@ -144,14 +170,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
               setMode('login'); // Trainers cannot register through member modal
               setErrorMsg('');
             }}
-            className={`py-2 px-3 rounded text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
+            className={`py-2 px-2 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 ${
               authRole === 'trainer'
                 ? 'bg-[#c5a880] text-black shadow-md'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Dumbbell className="w-3.5 h-3.5" />
-            <span>Trainer Login</span>
+            <Dumbbell className="w-3 h-3" />
+            <span>Trainer</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthRole('owner');
+              setMode('login'); // Gym owners register via pre-approval invitation
+              setErrorMsg('');
+            }}
+            className={`py-2 px-2 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 ${
+              authRole === 'owner'
+                ? 'bg-[#c5a880] text-black shadow-md font-bold'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Building2 className="w-3 h-3" />
+            <span>Gym Owner</span>
           </button>
         </div>
 
@@ -172,6 +214,26 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
           </div>
         )}
 
+        {/* Informative notice for Gym Owners wanting to register */}
+        {authRole === 'owner' && (
+          <div className="mb-6 p-3 bg-[#c5a880]/10 border border-[#c5a880]/30 rounded text-xs text-neutral-300 flex items-center justify-between">
+            <div>
+              <span className="text-[#c5a880] font-semibold block">Need Partnership Approval?</span>
+              <span className="text-[11px] text-neutral-400">Gym Owners require Super Admin pre-approval before onboarding.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onOpenGymOwnerRegister) onOpenGymOwnerRegister();
+              }}
+              className="px-3 py-1.5 bg-[#c5a880] hover:bg-white text-black font-semibold text-[10px] uppercase tracking-wider rounded"
+            >
+              Apply as Owner
+            </button>
+          </div>
+        )}
+
         {/* Tabs (Only show New Member tab if role is Member) */}
         <div className="flex border-b border-white/10 mb-8">
           <button
@@ -179,7 +241,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
             className={`qnox-auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
             onClick={() => { setMode('login'); setErrorMsg(''); setInfoMsg(''); }}
           >
-            {authRole === 'trainer' ? 'TRAINER SIGN IN' : 'SIGN IN'}
+            {authRole === 'trainer'
+              ? 'TRAINER SIGN IN'
+              : authRole === 'owner'
+              ? 'GYM OWNER SIGN IN'
+              : 'SIGN IN'}
           </button>
           {authRole === 'member' && (
             <button
@@ -244,7 +310,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
                 required
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="member@domain.com"
+                placeholder={authRole === 'owner' ? 'owner@gymbrand.com' : authRole === 'trainer' ? 'trainer@qnoxgym.com' : 'member@domain.com'}
                 className="qnox-auth-input pl-10"
               />
               <Mail className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

@@ -99,17 +99,29 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
               </NavLink>
             ))}
 
-            {/* FOR GYM OWNERS SaaS Link */}
-            <button
-              type="button"
-              onClick={onOpenGymOwnerRegister}
-              className="qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px] pb-1 border-b-2 border-transparent text-[#c5a880] hover:text-white hover:border-[#c5a880] transition-all flex items-center gap-1 font-semibold cursor-pointer"
-            >
-              <span>FOR GYM OWNERS</span>
-              <span className="text-[8px] font-mono px-1 py-0.2 bg-[#c5a880]/20 text-[#c5a880] border border-[#c5a880]/40 rounded">
-                SAAS
-              </span>
-            </button>
+            {/* FOR GYM OWNERS SaaS Link & Owner Login */}
+            <div className="flex items-center space-x-1 border-l border-white/10 pl-2">
+              <button
+                type="button"
+                onClick={onOpenGymOwnerRegister}
+                className="qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px] pb-1 border-b-2 border-transparent text-[#c5a880] hover:text-white hover:border-[#c5a880] transition-all flex items-center gap-1 font-semibold cursor-pointer"
+                title="Apply for Gym Partnership"
+              >
+                <span>FOR GYM OWNERS</span>
+                <span className="text-[8px] font-mono px-1 py-0.2 bg-[#c5a880]/20 text-[#c5a880] border border-[#c5a880]/40 rounded">
+                  APPLY
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenAuth('owner')}
+                className="qnox-nav-link whitespace-nowrap text-[10px] xl:text-[11px] pb-1 border-b-2 border-transparent text-neutral-400 hover:text-[#c5a880] transition-all font-mono cursor-pointer flex items-center gap-1"
+                title="Gym Owner Login"
+              >
+                <Shield className="w-2.5 h-2.5 text-[#c5a880]" />
+                <span>OWNER LOGIN</span>
+              </button>
+            </div>
           </nav>
 
           {/* Right Action Buttons */}
@@ -177,12 +189,22 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => onOpenAuth('member')}
-                className="px-3.5 py-2 border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white text-[11px] font-medium tracking-wider uppercase transition-colors whitespace-nowrap flex-shrink-0"
-              >
-                SIGN IN
-              </button>
+              <div className="flex items-center space-x-1.5 flex-shrink-0">
+                <button
+                  onClick={() => onOpenAuth('member')}
+                  className="px-3 py-2 border border-white/20 hover:border-[#c5a880] text-neutral-300 hover:text-white text-[11px] font-medium tracking-wider uppercase transition-colors whitespace-nowrap flex-shrink-0"
+                >
+                  SIGN IN
+                </button>
+                <button
+                  onClick={() => onOpenAuth('owner')}
+                  className="px-3 py-2 border border-[#c5a880]/40 bg-[#c5a880]/10 hover:bg-[#c5a880] hover:text-black text-[#c5a880] text-[11px] font-semibold tracking-wider uppercase transition-all whitespace-nowrap flex-shrink-0 flex items-center space-x-1"
+                  title="Gym Owner Private Portal"
+                >
+                  <Shield className="w-3 h-3 flex-shrink-0" />
+                  <span>OWNER LOGIN</span>
+                </button>
+              </div>
             )}
 
             <button
@@ -261,7 +283,18 @@ export default function Navbar({ onOpenTourModal, currentUser, onOpenAuth, onOpe
             className="text-left text-2xl font-serif tracking-[0.15em] text-[#c5a880] hover:text-white transition-colors flex items-center justify-between"
           >
             <span>FOR GYM OWNERS</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 bg-[#c5a880]/20 rounded border border-[#c5a880]/40">SAAS</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 bg-[#c5a880]/20 rounded border border-[#c5a880]/40">APPLY</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              onOpenAuth('owner');
+            }}
+            className="text-left text-xl font-serif tracking-wider text-neutral-300 hover:text-[#c5a880] transition-colors flex items-center space-x-2"
+          >
+            <Shield className="w-4 h-4 text-[#c5a880]" />
+            <span>GYM OWNER LOGIN</span>
           </button>
           {isAdmin && (
             <button
