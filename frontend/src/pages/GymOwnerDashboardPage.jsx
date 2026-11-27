@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, Dumbbell, Shield, Award, CreditCard,
   Plus, Trash2, Edit3, CheckCircle, AlertTriangle, ArrowUpRight,
@@ -39,6 +40,13 @@ import InvoiceModal from '../components/InvoiceModal';
 export default function GymOwnerDashboardPage() {
   const { currentUser, logout } = useAuth();
   const { showToast } = useNotifications();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    if (showToast) showToast({ type: 'info', message: 'Signed out of Gym Owner Command Suite.' });
+    navigate('/');
+  };
 
   // Active Tab: 'overview' | 'branches' | 'trainers' | 'members' | 'billing' | 'settings'
   const [activeTab, setActiveTab] = useState('overview');
@@ -610,8 +618,8 @@ export default function GymOwnerDashboardPage() {
               </div>
             </div>
             <button
-              onClick={logout}
-              className="p-1.5 text-neutral-400 hover:text-white transition-colors"
+              onClick={handleLogout}
+              className="p-1.5 text-neutral-400 hover:text-rose-400 transition-colors"
               title="Logout"
             >
               <LogOut className="w-4 h-4" />
@@ -671,6 +679,14 @@ export default function GymOwnerDashboardPage() {
             >
               WEBSITE
             </a>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 border border-rose-500/40 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 hover:text-white text-[11px] font-mono uppercase tracking-wider transition-all flex items-center space-x-1.5 shadow-sm"
+              title="Sign Out of Gym Owner Portal"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>LOGOUT</span>
+            </button>
           </div>
         </header>
 
