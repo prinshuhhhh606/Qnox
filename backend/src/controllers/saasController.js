@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const Razorpay = require('razorpay');
 const SaaSSubscriptionPlan = require('../models/SaaSSubscriptionPlan');
 const Organization = require('../models/Organization');
@@ -168,12 +169,14 @@ exports.getMyOrganization = async (req, res, next) => {
 exports.updateMyOrganization = async (req, res, next) => {
   try {
     const orgId = req.tenantOrgId || req.user.organization;
-    const { name, phone, address, city, logo } = req.body;
+    const { name, phone, address, city, state, contactEmail, logo } = req.body;
     const updateData = {};
     if (name) updateData.name = name;
     if (phone) updateData.phone = phone;
     if (address) updateData.address = address;
     if (city) updateData.city = city;
+    if (state !== undefined) updateData.state = state;
+    if (contactEmail) updateData.contactEmail = contactEmail;
     if (logo) updateData.logo = logo;
 
     const org = await Organization.findByIdAndUpdate(orgId, updateData, { new: true, runValidators: true });
@@ -195,10 +198,25 @@ exports.getMyBranches = async (req, res, next) => {
     const orgId = req.tenantOrgId || req.user.organization;
     const branches = await Club.find({ organization: orgId }).sort({ createdAt: -1 });
 
+    // Enrich branches with counts of active trainers and members
+    const enrichedBranches = await Promise.all(
+      branches.map(async (b) => {
+        const [trainerCount, memberCount] = await Promise.all([
+          Trainer.countDocuments({ organization: orgId, branch: b._id }),
+          User.countDocuments({ organization: orgId, assignedBranch: b._id, role: 'Gym Member' }),
+        ]);
+        return {
+          ...b.toObject(),
+          trainersCount: trainerCount,
+          membersCount: memberCount,
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      count: branches.length,
-      data: branches,
+      count: enrichedBranches.length,
+      data: enrichedBranches,
     });
   } catch (err) {
     next(err);
@@ -222,7 +240,9 @@ exports.createTenantBranch = async (req, res, next) => {
     if (!branchData.slug) {
       branchData.slug = branchData.name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 6);
     }
-
+    if (!branchData.branchCode) {
+      branchData.branchCode = 'BR-' + Math.floor(100 + Math.random() * 900);
+    }
     if (!branchData.tagline) {
       branchData.tagline = `${branchData.name} - Luxury Wellness Sanctuary`;
     }
@@ -260,6 +280,30 @@ exports.updateTenantBranch = async (req, res, next) => {
     }
     const updated = await Club.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.status(200).json({ success: true, message: 'Branch updated successfully.', data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Toggle Branch Active Status
+// @route   PUT /api/saas/branches/:id/toggle-status
+// @access  Private (Gym Owner, Company Admin)
+exports.toggleTenantBranchStatus = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const branch = await Club.findOne({ _id: req.params.id, organization: orgId });
+    if (!branch) {
+      return res.status(404).json({ success: false, message: 'Branch not found or unauthorized.' });
+    }
+    branch.isActive = !branch.isActive;
+    branch.status = branch.isActive ? 'OPEN' : 'MAINTENANCE';
+    await branch.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Branch status updated to ${branch.isActive ? 'Active' : 'Deactivated'}.`,
+      data: branch,
+    });
   } catch (err) {
     next(err);
   }
@@ -339,11 +383,53 @@ exports.createTenantTrainer = async (req, res, next) => {
       branch: branchId || null,
       user: userAccount ? userAccount._id : null,
       workingHours: workingHours || '06:00 AM - 02:00 PM',
+      isActive: true,
     });
 
     res.status(201).json({ success: true, message: 'Coach added successfully.', data: trainer });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Update Trainer Profile under Gym Owner's Organization
+// @route   PUT /api/saas/trainers/:id
+// @access  Private (Gym Owner, Company Admin)
+exports.updateTenantTrainer = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const trainer = await Trainer.findOne({ _id: req.params.id, organization: orgId });
+    if (!trainer) {
+      return res.status(404).json({ success: false, message: 'Trainer not found or unauthorized.' });
+    }
+
+    const updated = await Trainer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).populate('branch');
+    res.status(200).json({ success: true, message: 'Coach profile updated successfully.', data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Toggle Trainer Active Status
+// @route   PUT /api/saas/trainers/:id/toggle-status
+// @access  Private (Gym Owner, Company Admin)
+exports.toggleTenantTrainerStatus = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const trainer = await Trainer.findOne({ _id: req.params.id, organization: orgId });
+    if (!trainer) {
+      return res.status(404).json({ success: false, message: 'Trainer not found or unauthorized.' });
+    }
+    trainer.isActive = !trainer.isActive;
+    await trainer.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Coach status updated to ${trainer.isActive ? 'Active' : 'Inactive'}.`,
+      data: trainer,
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -367,17 +453,57 @@ exports.deleteTenantTrainer = async (req, res, next) => {
   }
 };
 
-// @desc    Get Gym Owner's Registered Members
+// @desc    Get Gym Owner's Registered Members (with search & filter)
 // @route   GET /api/saas/my-members
 // @access  Private (Gym Owner, Company Admin)
 exports.getMyMembers = async (req, res, next) => {
   try {
     const orgId = req.tenantOrgId || req.user.organization;
-    const members = await User.find({ organization: orgId, role: 'Gym Member' })
+    const { search, branchId, status } = req.query;
+
+    const query = { organization: orgId, role: 'Gym Member' };
+
+    if (branchId) {
+      query.assignedBranch = branchId;
+    }
+    if (status) {
+      query['membership.status'] = status;
+    }
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { memberId: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const members = await User.find(query)
       .populate('assignedBranch')
       .select('-password')
       .sort({ createdAt: -1 });
+
     res.status(200).json({ success: true, count: members.length, data: members });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get Single Member Dossier / Details
+// @route   GET /api/saas/members/:id
+// @access  Private (Gym Owner, Company Admin)
+exports.getTenantMemberDossier = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const member = await User.findOne({ _id: req.params.id, organization: orgId, role: 'Gym Member' })
+      .populate('assignedBranch assignedTrainer')
+      .select('-password');
+
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found or unauthorized.' });
+    }
+
+    res.status(200).json({ success: true, data: member });
   } catch (err) {
     next(err);
   }
@@ -391,7 +517,7 @@ exports.createTenantMember = async (req, res, next) => {
     const orgId = req.tenantOrgId || req.user.organization;
     await enforceQuotaLimit(orgId, 'member');
 
-    const { name, email, phone, password, branchId, dateOfBirth, gender } = req.body;
+    const { name, email, phone, password, branchId, dateOfBirth, gender, planName, durationMonths } = req.body;
     if (!name || !email) {
       return res.status(400).json({ success: false, message: 'Name and email are required for member.' });
     }
@@ -402,6 +528,10 @@ exports.createTenantMember = async (req, res, next) => {
     }
 
     const memberId = 'QNX-M-' + Math.floor(100000 + Math.random() * 900000);
+    const months = Number(durationMonths) || 1;
+    const startDate = new Date();
+    const endDate = new Date(Date.now() + months * 30 * 86400000);
+
     const member = await User.create({
       name,
       email: email.toLowerCase(),
@@ -412,7 +542,14 @@ exports.createTenantMember = async (req, res, next) => {
       assignedBranch: branchId || null,
       memberId,
       dateOfBirth,
-      gender,
+      gender: gender || 'Not Specified',
+      membership: {
+        planName: planName || 'Sanctuary Standard Residency',
+        status: 'Active',
+        startDate,
+        endDate,
+        autoRenew: true,
+      },
     });
 
     res.status(201).json({
@@ -426,10 +563,69 @@ exports.createTenantMember = async (req, res, next) => {
         memberId: member.memberId,
         organization: member.organization,
         assignedBranch: member.assignedBranch,
+        membership: member.membership,
       },
     });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Update Member Information under Gym Owner's Organization
+// @route   PUT /api/saas/members/:id
+// @access  Private (Gym Owner, Company Admin)
+exports.updateTenantMember = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const member = await User.findOne({ _id: req.params.id, organization: orgId, role: 'Gym Member' });
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found or unauthorized.' });
+    }
+
+    const { name, email, phone, branchId, gender, dateOfBirth, status } = req.body;
+    if (name) member.name = name;
+    if (email) member.email = email.toLowerCase();
+    if (phone) member.phone = phone;
+    if (branchId !== undefined) member.assignedBranch = branchId || null;
+    if (gender) member.gender = gender;
+    if (dateOfBirth) member.dateOfBirth = dateOfBirth;
+    if (status) {
+      if (!member.membership) member.membership = {};
+      member.membership.status = status;
+    }
+
+    await member.save();
+    res.status(200).json({ success: true, message: 'Member updated successfully.', data: member });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Toggle Member Active Status (Activate / Suspend)
+// @route   PUT /api/saas/members/:id/toggle-status
+// @access  Private (Gym Owner, Company Admin)
+exports.toggleTenantMemberStatus = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const member = await User.findOne({ _id: req.params.id, organization: orgId, role: 'Gym Member' });
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found or unauthorized.' });
+    }
+
+    const currentStatus = member.membership?.status || 'Active';
+    const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
+    if (!member.membership) member.membership = {};
+    member.membership.status = newStatus;
+    member.isArchived = newStatus === 'Suspended';
+    await member.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Member status set to ${newStatus}.`,
+      data: member,
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -529,21 +725,44 @@ exports.upgradeSaaSSubscription = async (req, res, next) => {
   }
 };
 
-// @desc    Get Gym Owner's Private Analytics & Revenue
+// @desc    Get Gym Owner's Private Analytics, Revenue & Branch Performance
 // @route   GET /api/saas/analytics
 // @access  Private (Gym Owner, Company Admin)
 exports.getTenantAnalytics = async (req, res, next) => {
   try {
     const orgId = req.tenantOrgId || req.user.organization;
 
-    const [branches, totalMembers, totalAttendance, payments] = await Promise.all([
-      Club.find({ organization: orgId }).select('_id name currentOccupancy capacity'),
+    const [branches, totalMembers, totalAttendance, payments, recentMembers, recentInvoices] = await Promise.all([
+      Club.find({ organization: orgId }).select('_id name currentOccupancy capacity branchCode location address isActive'),
       User.countDocuments({ organization: orgId, role: 'Gym Member' }),
       Attendance.countDocuments({ organization: orgId }),
       Payment.find({ organization: orgId, status: { $in: ['Completed', 'Paid'] } }),
+      User.find({ organization: orgId, role: 'Gym Member' }).sort({ createdAt: -1 }).limit(5).select('name email memberId createdAt membership assignedBranch'),
+      Invoice.find({ organization: orgId }).sort({ createdAt: -1 }).limit(5).select('invoiceNumber pricing status createdAt subscriptionDetails'),
     ]);
 
     const totalRevenue = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+
+    // Calculate branch-wise live performance
+    const branchPerformance = await Promise.all(
+      branches.map(async (b) => {
+        const [membersCount, trainersCount] = await Promise.all([
+          User.countDocuments({ organization: orgId, assignedBranch: b._id, role: 'Gym Member' }),
+          Trainer.countDocuments({ organization: orgId, branch: b._id }),
+        ]);
+        return {
+          _id: b._id,
+          name: b.name,
+          branchCode: b.branchCode,
+          location: b.location,
+          capacity: b.capacity,
+          currentOccupancy: b.currentOccupancy,
+          isActive: b.isActive,
+          membersCount,
+          trainersCount,
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
@@ -552,7 +771,72 @@ exports.getTenantAnalytics = async (req, res, next) => {
         totalMembers,
         totalAttendance,
         totalRevenue,
-        branches,
+        branchPerformance,
+        recentActivities: {
+          members: recentMembers,
+          invoices: recentInvoices,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Gym Owner Secure Password Change
+// @route   PUT /api/saas/change-password
+// @access  Private (Gym Owner, Company Admin)
+exports.changeOwnerPassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password does not match.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'Password updated securely.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Gym Owner Profile (Name, Phone)
+// @route   PUT /api/saas/owner-profile
+// @access  Private (Gym Owner, Company Admin)
+exports.updateOwnerProfile = async (req, res, next) => {
+  try {
+    const { name, phone } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    await user.save();
+
+    if (req.user.organization && name) {
+      await Organization.findByIdAndUpdate(req.user.organization, { ownerName: name });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Owner profile updated successfully.',
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
       },
     });
   } catch (err) {

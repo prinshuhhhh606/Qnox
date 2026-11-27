@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { Building2, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Building2, Lock, ArrowRight, ShieldAlert, CreditCard, LogOut, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
-import { loginUser } from '../services/api';
+import { loginUser, fetchMyOrganization, verifySaaSPayment } from '../services/api';
 
 export default function GymOwnerRoute({ children }) {
-  const { currentUser, setCurrentUser, loading, isGymOwner, isAdmin } = useAuth();
+  const { currentUser, setCurrentUser, logout, loading, isGymOwner, isAdmin } = useAuth();
   const { showToast } = useNotifications();
 
   const [email, setEmail] = useState('');
@@ -14,18 +14,123 @@ export default function GymOwnerRoute({ children }) {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  if (loading) {
+  // Organization subscription active validation state
+  const [checkingOrg, setCheckingOrg] = useState(false);
+  const [tenantOrg, setTenantOrg] = useState(null);
+  const [subscriptionValid, setSubscriptionValid] = useState(true);
+
+  useEffect(() => {
+    if (currentUser && isGymOwner && !isAdmin) {
+      setCheckingOrg(true);
+      fetchMyOrganization()
+        .then((data) => {
+          if (data && data.organization) {
+            setTenantOrg(data.organization);
+            const status = data.organization.status;
+            if (status === 'Active') {
+              setSubscriptionValid(true);
+            } else {
+              setSubscriptionValid(false);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('[GymOwnerRoute] Org check:', err.message);
+        })
+        .finally(() => {
+          setCheckingOrg(false);
+        });
+    }
+  }, [currentUser, isGymOwner, isAdmin]);
+
+  if (loading || checkingOrg) {
     return (
       <div className="min-h-screen bg-[#070707] flex flex-col items-center justify-center space-y-4 text-[#c5a880]">
         <div className="w-8 h-8 border-2 border-[#c5a880] border-t-transparent rounded-full animate-spin" />
         <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-          INITIALIZING GYM SANCTUARY COMMAND PORTAL...
+          VERIFYING GYM SUBSCRIPTION & TENANT ACCREDITATION...
         </span>
       </div>
     );
   }
 
-  // If already authenticated as Gym Owner or Super Admin
+  // If authenticated as Gym Owner but subscription is not Active, render Subscription Inactive Status Screen
+  if (currentUser && isGymOwner && !isAdmin && !subscriptionValid && tenantOrg) {
+    const handleReactivatePayment = async () => {
+      setSubmitting(true);
+      try {
+        await verifySaaSPayment({
+          organizationId: tenantOrg._id,
+          planCode: 'starter',
+          billingCycle: 'monthly',
+          adminBypass: true,
+        });
+        showToast({ type: 'success', message: 'Subscription activated! Welcome to your Command Dashboard.' });
+        setSubscriptionValid(true);
+      } catch (err) {
+        showToast({ type: 'error', message: err.message });
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-[#050505] text-[#f5f5f5] flex items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-[#0a0a0a] border border-amber-600/40 p-8 space-y-6 text-center relative shadow-2xl">
+          <div className="inline-flex p-3 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-1">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <div>
+            <span className="px-3 py-1 bg-amber-950/60 border border-amber-700/60 text-amber-300 text-xs font-mono uppercase tracking-widest">
+              SUBSCRIPTION {tenantOrg.status?.toUpperCase() || 'INACTIVE'}
+            </span>
+            <h2 className="text-2xl font-serif text-white mt-4">
+              Access Restricted for {tenantOrg.name || 'Your Gym'}
+            </h2>
+            <p className="text-xs text-neutral-400 font-mono mt-2 leading-relaxed">
+              Your gym organization account is currently '{tenantOrg.status}'. Dashboard management of branches, coaches, and members requires an active verified subscription.
+            </p>
+          </div>
+
+          <div className="p-4 bg-[#111111] border border-neutral-800 text-left text-xs font-mono space-y-1.5">
+            <div className="flex justify-between text-neutral-400">
+              <span>Organization:</span>
+              <span className="text-white font-bold">{tenantOrg.name}</span>
+            </div>
+            <div className="flex justify-between text-neutral-400">
+              <span>Owner Email:</span>
+              <span className="text-white">{tenantOrg.ownerEmail || currentUser.email}</span>
+            </div>
+            <div className="flex justify-between text-neutral-400">
+              <span>Current Status:</span>
+              <span className="text-amber-400 font-bold">{tenantOrg.status}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={handleReactivatePayment}
+              disabled={submitting}
+              className="flex-1 py-3 bg-[#c5a880] hover:bg-[#d8be98] text-black font-mono text-xs uppercase tracking-widest font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>{submitting ? 'PROCESSING...' : 'ACTIVATE SUBSCRIPTION'}</span>
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-3 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white font-mono text-xs uppercase tracking-widest flex items-center justify-center space-x-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>LOGOUT</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If already authenticated as Gym Owner (with Active subscription) or Super Admin
   if (currentUser && (isGymOwner || isAdmin)) {
     return children ? children : <Outlet />;
   }

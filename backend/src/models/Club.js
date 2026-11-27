@@ -63,6 +63,32 @@ const ClubSchema = new mongoose.Schema(
       spaAndRecovery: { type: Boolean, default: true },
       valet: { type: Boolean, default: true },
     },
+    branchCode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: '',
+    },
+    state: {
+      type: String,
+      default: '',
+    },
+    phone: {
+      type: String,
+      default: '',
+    },
+    email: {
+      type: String,
+      default: '',
+      lowercase: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     // Multi-Branch / Multi-Gym Architecture
     organization: {
       type: mongoose.Schema.Types.ObjectId,

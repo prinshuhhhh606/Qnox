@@ -9,16 +9,24 @@ const {
   getMyBranches,
   createTenantBranch,
   updateTenantBranch,
+  toggleTenantBranchStatus,
   deleteTenantBranch,
   getMyTrainers,
   createTenantTrainer,
+  updateTenantTrainer,
+  toggleTenantTrainerStatus,
   deleteTenantTrainer,
   getMyMembers,
+  getTenantMemberDossier,
   createTenantMember,
+  updateTenantMember,
+  toggleTenantMemberStatus,
   getMyInvoices,
   getInvoiceByNumber,
   upgradeSaaSSubscription,
   getTenantAnalytics,
+  changeOwnerPassword,
+  updateOwnerProfile,
   getAdminTenants,
   updateAdminTenantStatus,
   updateAdminTenantPlan,
@@ -34,21 +42,29 @@ router.post('/verify-payment', verifySaaSPayment);
 // Private Gym Owner Tenant Routes
 router.get('/my-organization', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyOrganization);
 router.put('/my-organization', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateMyOrganization);
+router.put('/change-password', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), changeOwnerPassword);
+router.put('/owner-profile', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), updateOwnerProfile);
 
 // Branches
 router.get('/my-branches', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyBranches);
 router.post('/branches', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, createTenantBranch);
 router.put('/branches/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateTenantBranch);
+router.put('/branches/:id/toggle-status', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, toggleTenantBranchStatus);
 router.delete('/branches/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, deleteTenantBranch);
 
 // Trainers
 router.get('/my-trainers', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyTrainers);
 router.post('/trainers', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, createTenantTrainer);
+router.put('/trainers/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateTenantTrainer);
+router.put('/trainers/:id/toggle-status', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, toggleTenantTrainerStatus);
 router.delete('/trainers/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, deleteTenantTrainer);
 
 // Members
 router.get('/my-members', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyMembers);
+router.get('/members/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getTenantMemberDossier);
 router.post('/members', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, createTenantMember);
+router.put('/members/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateTenantMember);
+router.put('/members/:id/toggle-status', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, toggleTenantMemberStatus);
 
 // Invoices & Billing
 router.get('/my-invoices', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyInvoices);

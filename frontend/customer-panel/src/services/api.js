@@ -2401,6 +2401,16 @@ export const deleteTenantBranch = async (id) => {
   return data;
 };
 
+export const toggleTenantBranchStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}/toggle-status`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to toggle branch status');
+  return data.data;
+};
+
 export const fetchMyTenantTrainers = async () => {
   const res = await fetch(`${API_BASE}/saas/my-trainers`, {
     headers: authHeaders(),
@@ -2421,6 +2431,27 @@ export const createTenantTrainer = async (payload) => {
   return data.data;
 };
 
+export const updateTenantTrainer = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/trainers/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update coach');
+  return data.data;
+};
+
+export const toggleTenantTrainerStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/trainers/${id}/toggle-status`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to toggle coach status');
+  return data.data;
+};
+
 export const deleteTenantTrainer = async (id) => {
   const res = await fetch(`${API_BASE}/saas/trainers/${id}`, {
     method: 'DELETE',
@@ -2431,12 +2462,22 @@ export const deleteTenantTrainer = async (id) => {
   return data;
 };
 
-export const fetchMyTenantMembers = async () => {
-  const res = await fetch(`${API_BASE}/saas/my-members`, {
+export const fetchMyTenantMembers = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/saas/my-members${query ? `?${query}` : ''}`, {
     headers: authHeaders(),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to fetch members');
+  return data.data;
+};
+
+export const fetchTenantMemberDossier = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/members/${id}`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch member dossier');
   return data.data;
 };
 
@@ -2448,6 +2489,49 @@ export const createTenantMember = async (payload) => {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to register member');
+  return data.data;
+};
+
+export const updateTenantMember = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/members/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update member');
+  return data.data;
+};
+
+export const toggleTenantMemberStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/members/${id}/toggle-status`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to toggle member status');
+  return data.data;
+};
+
+export const changeOwnerPassword = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/change-password`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to change password');
+  return data;
+};
+
+export const updateOwnerProfile = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/owner-profile`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update owner profile');
   return data.data;
 };
 
