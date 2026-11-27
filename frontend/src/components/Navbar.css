@@ -134,3 +134,45 @@
   color: #050505;
   border-color: #c5a880;
 }
+
+/* Luxury Dropdown Animations */
+@keyframes luxuryDropdownFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.qnox-dropdown-menu {
+  animation: luxuryDropdownFade 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 25px rgba(197, 168, 128, 0.1);
+  transform-origin: top;
+}
+
+/* Button Refinements */
+.qnox-owner-signup-btn {
+  letter-spacing: 0.14em;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qnox-owner-signup-btn:hover {
+  box-shadow: 0 0 20px rgba(197, 168, 128, 0.35);
+  transform: translateY(-1px);
+}
+
+.qnox-customer-signin-btn {
+  letter-spacing: 0.14em;
+  transition: all 0.25s ease;
+}
+
+.qnox-customer-signin-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: #ffffff;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
