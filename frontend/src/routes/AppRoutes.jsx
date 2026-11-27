@@ -6,6 +6,7 @@ import PublicLayout from '../layouts/PublicLayout';
 import CustomerLayout from '../layouts/CustomerLayout';
 import TrainerLayout from '../layouts/TrainerLayout';
 import AdminLayout from '../layouts/AdminLayout';
+import GymOwnerLayout from '../layouts/GymOwnerLayout';
 
 // Route Guards
 import CustomerRoute from './CustomerRoute';
@@ -100,7 +101,7 @@ export default function AppRoutes() {
         path="/gym-owner"
         element={
           <GymOwnerRoute>
-            <PublicLayout />
+            <GymOwnerLayout />
           </GymOwnerRoute>
         }
       >

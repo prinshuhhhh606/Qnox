@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Layouts
 import PublicLayout from '../layouts/PublicLayout';
 import CustomerLayout from '../layouts/CustomerLayout';
+import GymOwnerLayout from '../layouts/GymOwnerLayout';
 
 // Route Guards
 import CustomerRoute from './CustomerRoute';
@@ -82,7 +83,7 @@ export default function AppRoutes() {
         path="/gym-owner"
         element={
           <GymOwnerRoute>
-            <PublicLayout />
+            <GymOwnerLayout />
           </GymOwnerRoute>
         }
       >
