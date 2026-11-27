@@ -16,10 +16,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
   // Asynchronously connect to DB and seed
   connectDB()
-    .then(() => seedDatabase())
-    .then(() => {
-      const { initScheduler } = require('./src/services/cronService');
-      initScheduler();
+    .then((conn) => {
+      if (conn) {
+        return seedDatabase().then(() => {
+          const { initScheduler } = require('./src/services/cronService');
+          initScheduler();
+        });
+      }
     })
     .catch((err) => console.log('[QNOX DB Init] Operating on high-availability local store'));
 });

@@ -21,12 +21,14 @@ const connectDB = async () => {
     isConnected = true;
     console.log(`[QNOX] 🟢 MongoDB Connected Successfully: ${conn.connection.host}`);
     console.log(`[QNOX] Database Name: ${conn.connection.name}`);
+    return conn;
   } catch (error) {
     isConnected = false;
     console.warn(`\n[QNOX] ⚠️  MongoDB Atlas Connection Notice:`);
     console.warn(`  Reason: ${error.message}`);
     console.warn(`  Operating Mode: Running with high-availability local store for zero-downtime.`);
     console.warn(`  Tip: In MongoDB Atlas Dashboard -> Network Access, ensure IP '0.0.0.0/0' is whitelisted.\n`);
+    return null;
   }
 };
 
