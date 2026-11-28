@@ -173,14 +173,22 @@ export default function ClubsSection({ clubs = [], onOpenTourModal }) {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/30 to-transparent" />
                   
                   {/* Status Pill */}
-                  <div className="absolute top-4 left-4">
-                    <span className={`px-3 py-1 text-[9px] font-sans tracking-[0.25em] uppercase font-bold border backdrop-blur-md ${
-                      club.status === 'OPEN' 
-                        ? 'bg-black/70 text-emerald-400 border-emerald-500/40'
-                        : 'bg-black/70 text-[#c5a880] border-[#c5a880]/50'
+                  <div className="absolute top-4 left-4 flex items-center space-x-1.5">
+                    <span className={`px-2.5 py-1 text-[9px] font-sans tracking-[0.2em] uppercase font-bold border backdrop-blur-md flex items-center space-x-1.5 ${
+                      (club.liveStatus === 'OPEN' || club.status === 'OPEN') 
+                        ? 'bg-black/80 text-emerald-400 border-emerald-500/50'
+                        : 'bg-black/80 text-neutral-400 border-neutral-700'
                     }`}>
-                      {club.status || 'OPEN'}
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        (club.liveStatus === 'OPEN' || club.status === 'OPEN') ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
+                      }`} />
+                      <span>{club.liveStatus || club.status || 'OPEN'}</span>
                     </span>
+                    {!club.isCompanyOwned && (
+                      <span className="px-2 py-0.5 text-[8px] font-sans tracking-widest uppercase font-bold bg-[#c5a880] text-black border border-[#c5a880]">
+                        NETWORK PARTNER
+                      </span>
+                    )}
                   </div>
 
                   {/* Location Tag */}

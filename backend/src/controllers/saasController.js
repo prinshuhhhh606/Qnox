@@ -16,6 +16,7 @@ const GymOwnerApplication = require('../models/GymOwnerApplication');
 const AuditLog = require('../models/AuditLog');
 const emailService = require('../services/emailService');
 const invoiceService = require('../services/invoiceService');
+const { computeLiveStatus } = require('./clubController');
 const {
   registerGymOwnerAndOrg,
   verifyAndActivateSaaSSubscription,
@@ -203,18 +204,18 @@ exports.getMyBranches = async (req, res, next) => {
     const orgId = req.tenantOrgId || req.user.organization;
     const branches = await Club.find({ organization: orgId }).sort({ createdAt: -1 });
 
-    // Enrich branches with counts of active trainers and members
+    // Enrich branches with counts of active trainers and members, plus liveStatus
     const enrichedBranches = await Promise.all(
       branches.map(async (b) => {
         const [trainerCount, memberCount] = await Promise.all([
           Trainer.countDocuments({ organization: orgId, branch: b._id }),
           User.countDocuments({ organization: orgId, assignedBranch: b._id, role: 'Gym Member' }),
         ]);
-        return {
-          ...b.toObject(),
-          trainersCount: trainerCount,
-          membersCount: memberCount,
-        };
+        const branchObj = b.toObject();
+        branchObj.trainersCount = trainerCount;
+        branchObj.membersCount = memberCount;
+        branchObj.liveStatus = computeLiveStatus(b);
+        return branchObj;
       })
     );
 
@@ -236,17 +237,24 @@ exports.createTenantBranch = async (req, res, next) => {
     const orgId = req.tenantOrgId || req.user.organization;
     await enforceQuotaLimit(orgId, 'branch');
 
+    const isDraft = req.body.action === 'DRAFT' || req.body.isDraft === true;
+
     const branchData = {
       ...req.body,
       organization: orgId,
       gymType: 'SaaS-Partner',
+      isCompanyOwned: false,
+      verificationStatus: isDraft ? 'DRAFT' : 'PENDING_VERIFICATION',
+      operationalStatus: 'INACTIVE',
+      publicationStatus: 'DRAFT',
+      isActive: false,
     };
 
     if (!branchData.slug) {
       branchData.slug = branchData.name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 6);
     }
     if (!branchData.branchCode) {
-      branchData.branchCode = 'BR-' + Math.floor(100 + Math.random() * 900);
+      branchData.branchCode = 'BR-' + Math.floor(1000 + Math.random() * 9000);
     }
     if (!branchData.tagline) {
       branchData.tagline = `${branchData.name} - Luxury Wellness Sanctuary`;
@@ -255,15 +263,49 @@ exports.createTenantBranch = async (req, res, next) => {
       branchData.description = `${branchData.name} private fitness and wellness facilities.`;
     }
     if (!branchData.heroImage) {
-      branchData.heroImage = 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80';
+      branchData.heroImage = branchData.media?.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80';
+    }
+
+    // Map media structure if gallery passed
+    if (branchData.gallery && !branchData.media?.interiorGallery) {
+      branchData.media = {
+        ...(branchData.media || {}),
+        heroImage: branchData.heroImage,
+        interiorGallery: branchData.gallery,
+      };
     }
 
     const branch = await Club.create(branchData);
 
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Gym Owner',
+        action: isDraft ? 'BRANCH_SAVED_AS_DRAFT' : 'BRANCH_SUBMITTED_FOR_VERIFICATION',
+        details: isDraft
+          ? `Branch "${branch.name}" (${branch.branchCode}) saved as draft by owner.`
+          : `Branch "${branch.name}" (${branch.branchCode}) submitted for Super Admin verification by owner.`,
+        newValue: {
+          branchId: branch._id,
+          branchCode: branch.branchCode,
+          verificationStatus: branch.verificationStatus,
+          operationalStatus: branch.operationalStatus,
+          publicationStatus: branch.publicationStatus,
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch create warning]:', logErr.message);
+    }
+
+    const branchObj = branch.toObject();
+    branchObj.liveStatus = computeLiveStatus(branch);
+
     res.status(201).json({
       success: true,
-      message: 'Branch commissioned successfully within subscription quota.',
-      data: branch,
+      message: isDraft
+        ? 'Branch saved as draft successfully.'
+        : 'Branch application submitted for verification. Super Admin will review documentation and territory.',
+      data: branchObj,
     });
   } catch (err) {
     res.status(400).json({
@@ -326,6 +368,226 @@ exports.deleteTenantBranch = async (req, res, next) => {
     }
     await Club.findByIdAndDelete(req.params.id);
     res.status(200).json({ success: true, message: 'Branch decommissioned successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Complete Branch Setup Wizard (Gym Owner after Super Admin Approval)
+// @route   PUT /api/saas/branches/:id/setup
+// @access  Private (Gym Owner, Company Admin)
+exports.completeBranchSetup = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const branch = await Club.findOne({ _id: req.params.id, organization: orgId });
+    if (!branch) {
+      return res.status(404).json({ success: false, message: 'Branch not found or unauthorized.' });
+    }
+
+    if (branch.verificationStatus !== 'APPROVED' && branch.verificationStatus !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message: `Branch setup can only be completed for approved branches. Current verification status: ${branch.verificationStatus}`,
+      });
+    }
+
+    const {
+      assignedManagerName,
+      assignedManagerEmail,
+      assignedTrainerIds,
+      openingHours,
+      operatingDays,
+      facilitiesBreakdown,
+      capacity,
+      pricingNotes,
+      settlementRatePerVisit,
+      gallery,
+      media,
+      emergencyContact,
+    } = req.body;
+
+    if (assignedManagerName) branch.assignedManagerName = assignedManagerName;
+    if (assignedManagerEmail) branch.assignedManagerEmail = assignedManagerEmail;
+    if (openingHours) branch.openingHours = openingHours;
+    if (operatingDays && Array.isArray(operatingDays)) branch.operatingDays = operatingDays;
+    if (facilitiesBreakdown) {
+      branch.facilitiesBreakdown = {
+        ...(branch.facilitiesBreakdown || {}),
+        ...facilitiesBreakdown,
+      };
+    }
+    if (capacity) branch.capacity = Number(capacity) || branch.capacity;
+    if (settlementRatePerVisit) branch.settlementRatePerVisit = Number(settlementRatePerVisit) || branch.settlementRatePerVisit;
+    if (gallery && Array.isArray(gallery)) branch.gallery = gallery;
+    if (media) {
+      branch.media = {
+        ...(branch.media || {}),
+        ...media,
+      };
+      if (media.heroImage) branch.heroImage = media.heroImage;
+      if (media.interiorGallery && (!gallery || gallery.length === 0)) branch.gallery = media.interiorGallery;
+    }
+    if (emergencyContact) {
+      branch.documents = branch.documents || {};
+      branch.documents.emergencyContact = emergencyContact;
+    }
+
+    // Link trainers to this branch if provided
+    if (Array.isArray(assignedTrainerIds) && assignedTrainerIds.length > 0) {
+      await Trainer.updateMany(
+        { _id: { $in: assignedTrainerIds }, organization: orgId },
+        { branch: branch._id }
+      );
+    }
+
+    branch.setupChecklist = {
+      managerConfigured: true,
+      trainersAssigned: true,
+      operatingHoursSet: true,
+      facilitiesConfigured: true,
+      pricingConfigured: true,
+      completed: true,
+      completedAt: new Date(),
+    };
+
+    branch.operationalStatus = 'ACTIVE';
+    branch.publicationStatus = 'READY_TO_PUBLISH';
+    branch.isActive = true;
+    branch.status = 'OPEN';
+
+    await branch.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Gym Owner',
+        action: 'BRANCH_SETUP_COMPLETED',
+        details: `Gym Owner completed full operational setup wizard for branch "${branch.name}". Branch is now READY_TO_PUBLISH.`,
+        newValue: {
+          branchId: branch._id,
+          operationalStatus: branch.operationalStatus,
+          publicationStatus: branch.publicationStatus,
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch setup warning]:', logErr.message);
+    }
+
+    const branchObj = branch.toObject();
+    branchObj.liveStatus = computeLiveStatus(branch);
+
+    res.status(200).json({
+      success: true,
+      message: 'Branch setup completed successfully! It is now Ready to Publish.',
+      data: branchObj,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Publish Branch to Public Website
+// @route   PUT /api/saas/branches/:id/publish
+// @access  Private (Gym Owner, Company Admin)
+exports.publishTenantBranch = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const branch = await Club.findOne({ _id: req.params.id, organization: orgId });
+    if (!branch) {
+      return res.status(404).json({ success: false, message: 'Branch not found or unauthorized.' });
+    }
+
+    if (branch.verificationStatus !== 'APPROVED' && branch.verificationStatus !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot publish branch: verification has not been approved by Super Admin.',
+      });
+    }
+
+    if (branch.operationalStatus === 'SUSPENDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot publish branch: this branch has been suspended by Super Admin.',
+      });
+    }
+
+    branch.publicationStatus = 'PUBLISHED';
+    branch.publishedAt = new Date();
+    branch.publishedBy = req.user._id;
+    branch.operationalStatus = 'ACTIVE';
+    branch.isActive = true;
+    branch.status = 'OPEN';
+    await branch.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Gym Owner',
+        action: 'BRANCH_PUBLISHED',
+        details: `Branch "${branch.name}" was published to public website by Gym Owner.`,
+        newValue: {
+          branchId: branch._id,
+          publicationStatus: 'PUBLISHED',
+          publishedAt: branch.publishedAt,
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog publish warning]:', logErr.message);
+    }
+
+    const branchObj = branch.toObject();
+    branchObj.liveStatus = computeLiveStatus(branch);
+
+    res.status(200).json({
+      success: true,
+      message: `Branch "${branch.name}" is now live and published on QNOX public website!`,
+      data: branchObj,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Unpublish Branch from Public Website
+// @route   PUT /api/saas/branches/:id/unpublish
+// @access  Private (Gym Owner, Company Admin)
+exports.unpublishTenantBranch = async (req, res, next) => {
+  try {
+    const orgId = req.tenantOrgId || req.user.organization;
+    const branch = await Club.findOne({ _id: req.params.id, organization: orgId });
+    if (!branch) {
+      return res.status(404).json({ success: false, message: 'Branch not found or unauthorized.' });
+    }
+
+    branch.publicationStatus = 'UNPUBLISHED';
+    branch.unpublishedAt = new Date();
+    branch.unpublishedBy = req.user._id;
+    await branch.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Gym Owner',
+        action: 'BRANCH_UNPUBLISHED',
+        details: `Branch "${branch.name}" unpublished from public website by Gym Owner. Existing operations & members remain intact.`,
+        newValue: {
+          branchId: branch._id,
+          publicationStatus: 'UNPUBLISHED',
+          unpublishedAt: branch.unpublishedAt,
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog unpublish warning]:', logErr.message);
+    }
+
+    const branchObj = branch.toObject();
+    branchObj.liveStatus = computeLiveStatus(branch);
+
+    res.status(200).json({
+      success: true,
+      message: `Branch "${branch.name}" has been unpublished. It is now hidden from the public website.`,
+      data: branchObj,
+    });
   } catch (err) {
     next(err);
   }
@@ -2048,8 +2310,10 @@ exports.getAdminGymVerifications = async (req, res, next) => {
       total: clubs.length,
       pending: clubs.filter((c) => c.verificationStatus === 'PENDING_VERIFICATION').length,
       territoryReview: clubs.filter((c) => c.verificationStatus === 'TERRITORY_REVIEW').length,
+      changesRequested: clubs.filter((c) => c.verificationStatus === 'CHANGES_REQUESTED').length,
       approved: clubs.filter((c) => c.verificationStatus === 'APPROVED' || c.verificationStatus === 'ACTIVE').length,
       rejected: clubs.filter((c) => c.verificationStatus === 'REJECTED').length,
+      suspended: clubs.filter((c) => c.operationalStatus === 'SUSPENDED').length,
     };
 
     res.status(200).json({
@@ -2084,12 +2348,27 @@ exports.approveAndActivateGymBranch = async (req, res, next) => {
       }
     }
 
-    club.verificationStatus = 'ACTIVE';
-    club.status = 'OPEN';
-    club.isActive = true;
+    club.verificationStatus = 'APPROVED';
     club.verifiedBy = req.user._id;
     club.verifiedAt = new Date();
-    if (adminNotes) club.rejectionReason = ''; // Clear rejection reason if any
+    if (adminNotes) {
+      club.rejectionReason = '';
+      club.changeRequestNotes = '';
+    }
+
+    // Determine operational readiness
+    if (club.setupChecklist && club.setupChecklist.completed) {
+      club.operationalStatus = 'ACTIVE';
+      club.publicationStatus = 'READY_TO_PUBLISH';
+      club.status = 'OPEN';
+      club.isActive = true;
+    } else {
+      club.operationalStatus = 'INACTIVE';
+      club.publicationStatus = 'DRAFT';
+      club.status = 'COMING SOON';
+      club.isActive = false;
+    }
+
     await club.save();
 
     // Update Organization Onboarding Stage to ACTIVE_COMPLETED
@@ -2105,9 +2384,14 @@ exports.approveAndActivateGymBranch = async (req, res, next) => {
       await AuditLog.create({
         adminId: req.user._id,
         adminName: req.user.name || 'Super Admin',
-        action: 'BRANCH_ACTIVATION_APPROVED',
-        details: `Super Admin approved and activated branch "${club.name}". Exceptional override: ${exceptionalApproval ? 'Yes (' + exceptionalApprovalJustification + ')' : 'No'}.`,
-        newValue: { clubId: club._id, status: 'OPEN', verificationStatus: 'ACTIVE' },
+        action: 'BRANCH_VERIFICATION_APPROVED',
+        details: `Super Admin approved verification for branch "${club.name}". Exceptional override: ${exceptionalApproval ? 'Yes (' + exceptionalApprovalJustification + ')' : 'No'}.`,
+        newValue: {
+          clubId: club._id,
+          verificationStatus: 'APPROVED',
+          operationalStatus: club.operationalStatus,
+          publicationStatus: club.publicationStatus,
+        },
       });
     } catch (logErr) {
       console.warn('[AuditLog branch activate warning]:', logErr.message);
@@ -2115,7 +2399,7 @@ exports.approveAndActivateGymBranch = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `Gym branch "${club.name}" is now approved, verified, and activated for public operations!`,
+      message: `Gym branch "${club.name}" verification approved! Owner can now complete operational setup.`,
       data: club,
     });
   } catch (err) {
@@ -2144,6 +2428,8 @@ exports.rejectGymBranch = async (req, res, next) => {
     }
 
     club.verificationStatus = 'REJECTED';
+    club.operationalStatus = 'INACTIVE';
+    club.publicationStatus = 'DRAFT';
     club.status = 'MAINTENANCE';
     club.isActive = false;
     club.rejectionReason = rejectionReason.trim();
@@ -2161,7 +2447,7 @@ exports.rejectGymBranch = async (req, res, next) => {
         adminName: req.user.name || 'Super Admin',
         action: 'BRANCH_VERIFICATION_REJECTED',
         details: `Rejected gym branch "${club.name}". Reason: ${rejectionReason.trim()}`,
-        newValue: { clubId: club._id, status: 'REJECTED' },
+        newValue: { clubId: club._id, verificationStatus: 'REJECTED', operationalStatus: 'INACTIVE' },
       });
     } catch (logErr) {
       console.warn('[AuditLog branch reject warning]:', logErr.message);
@@ -2170,6 +2456,106 @@ exports.rejectGymBranch = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Gym branch "${club.name}" rejected.`,
+      data: club,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Request Changes on Gym Branch Application (Super Admin)
+// @route   PUT /api/saas/admin/gym-verifications/:clubId/request-changes
+// @access  Private (Super Admin)
+exports.requestChangesBranch = async (req, res, next) => {
+  try {
+    const { clubId } = req.params;
+    const { changeRequestNotes } = req.body;
+
+    if (!changeRequestNotes || !changeRequestNotes.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Details/notes on required corrections are required.',
+      });
+    }
+
+    const club = await Club.findById(clubId).populate('organization');
+    if (!club) {
+      return res.status(404).json({ success: false, message: 'Gym branch not found.' });
+    }
+
+    club.verificationStatus = 'CHANGES_REQUESTED';
+    club.changeRequestNotes = changeRequestNotes.trim();
+    club.operationalStatus = 'INACTIVE';
+    club.publicationStatus = 'DRAFT';
+    club.status = 'MAINTENANCE';
+    club.isActive = false;
+    await club.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'BRANCH_CHANGES_REQUESTED',
+        details: `Requested changes for gym branch "${club.name}". Notes: ${changeRequestNotes.trim()}`,
+        newValue: { clubId: club._id, verificationStatus: 'CHANGES_REQUESTED' },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch changes warning]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Correction requested for "${club.name}". Gym owner has been notified to revise.`,
+      data: club,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Suspend Gym Branch (Super Admin)
+// @route   PUT /api/saas/admin/gym-verifications/:clubId/suspend
+// @access  Private (Super Admin)
+exports.suspendBranch = async (req, res, next) => {
+  try {
+    const { clubId } = req.params;
+    const { suspensionReason } = req.body;
+
+    if (!suspensionReason || !suspensionReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A suspension reason is required for compliance audit.',
+      });
+    }
+
+    const club = await Club.findById(clubId).populate('organization');
+    if (!club) {
+      return res.status(404).json({ success: false, message: 'Gym branch not found.' });
+    }
+
+    club.operationalStatus = 'SUSPENDED';
+    club.suspensionReason = suspensionReason.trim();
+    club.suspendedAt = new Date();
+    club.suspendedBy = req.user._id;
+    club.status = 'MAINTENANCE';
+    club.isActive = false;
+    await club.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'BRANCH_SUSPENDED',
+        details: `Suspended gym branch "${club.name}". Reason: ${suspensionReason.trim()}`,
+        newValue: { clubId: club._id, operationalStatus: 'SUSPENDED' },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch suspend warning]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Branch "${club.name}" suspended. It is immediately unlisted from public access.`,
       data: club,
     });
   } catch (err) {

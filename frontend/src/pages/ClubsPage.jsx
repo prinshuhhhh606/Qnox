@@ -342,10 +342,22 @@ export default function ClubsPage(props) {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
 
                   {/* Status Tag */}
-                  <div className="absolute top-4 left-4">
-                    <span className="text-[9px] px-2.5 py-1 bg-black/80 backdrop-blur-md text-[#c5a880] font-mono tracking-widest uppercase border border-white/10">
-                      {club.status || 'OPEN'}
+                  <div className="absolute top-4 left-4 flex items-center space-x-1.5">
+                    <span className={`text-[9px] px-2.5 py-1 bg-black/85 backdrop-blur-md font-mono tracking-widest uppercase border flex items-center space-x-1.5 ${
+                      (club.liveStatus === 'OPEN' || club.status === 'OPEN')
+                        ? 'text-emerald-400 border-emerald-500/50'
+                        : 'text-neutral-400 border-neutral-700'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        (club.liveStatus === 'OPEN' || club.status === 'OPEN') ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
+                      }`} />
+                      <span>{club.liveStatus || club.status || 'OPEN'}</span>
                     </span>
+                    {!club.isCompanyOwned && (
+                      <span className="text-[8px] px-2 py-0.5 bg-[#c5a880] text-black font-mono font-bold tracking-widest uppercase">
+                        PARTNER
+                      </span>
+                    )}
                   </div>
 
                   {/* Location Pin */}

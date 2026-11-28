@@ -2254,6 +2254,37 @@ export const createTenantBranch = async (payload) => {
   return data;
 };
 
+export const completeBranchSetup = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}/setup`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to complete branch setup');
+  return data;
+};
+
+export const publishTenantBranch = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}/publish`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to publish branch');
+  return data;
+};
+
+export const unpublishTenantBranch = async (id) => {
+  const res = await fetch(`${API_BASE}/saas/branches/${id}/unpublish`, {
+    method: 'PUT',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to unpublish branch');
+  return data;
+};
+
 export const fetchTenantAnalytics = async () => {
   const res = await fetch(`${API_BASE}/saas/analytics`, {
     headers: authHeaders(),
@@ -2760,6 +2791,28 @@ export const rejectGymBranch = async (clubId, payload) => {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to reject gym branch');
+  return data;
+};
+
+export const requestBranchChanges = async (clubId, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/gym-verifications/${clubId}/request-changes`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to request changes on gym branch');
+  return data;
+};
+
+export const suspendAdminBranch = async (clubId, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/gym-verifications/${clubId}/suspend`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to suspend branch');
   return data;
 };
 

@@ -11,6 +11,9 @@ const {
   updateTenantBranch,
   toggleTenantBranchStatus,
   deleteTenantBranch,
+  completeBranchSetup,
+  publishTenantBranch,
+  unpublishTenantBranch,
   getMyTrainers,
   createTenantTrainer,
   updateTenantTrainer,
@@ -45,6 +48,8 @@ const {
   getAdminGymVerifications,
   approveAndActivateGymBranch,
   rejectGymBranch,
+  requestChangesBranch,
+  suspendBranch,
   getGymOwnerOnboardingStatus,
 } = require('../controllers/saasController');
 const { protect, authorize } = require('../middlewares/auth');
@@ -69,6 +74,9 @@ router.put('/owner-profile', protect, authorize('Gym Owner', 'Company Admin', 'S
 router.get('/my-branches', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getMyBranches);
 router.post('/branches', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, createTenantBranch);
 router.put('/branches/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, updateTenantBranch);
+router.put('/branches/:id/setup', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, completeBranchSetup);
+router.put('/branches/:id/publish', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, publishTenantBranch);
+router.put('/branches/:id/unpublish', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, unpublishTenantBranch);
 router.put('/branches/:id/toggle-status', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, toggleTenantBranchStatus);
 router.delete('/branches/:id', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, deleteTenantBranch);
 
@@ -118,5 +126,7 @@ router.post('/branches/submit-initial', protect, authorize('Gym Owner', 'Company
 router.get('/admin/gym-verifications', protect, authorize('Super Admin'), getAdminGymVerifications);
 router.put('/admin/gym-verifications/:clubId/approve', protect, authorize('Super Admin'), approveAndActivateGymBranch);
 router.put('/admin/gym-verifications/:clubId/reject', protect, authorize('Super Admin'), rejectGymBranch);
+router.put('/admin/gym-verifications/:clubId/request-changes', protect, authorize('Super Admin'), requestChangesBranch);
+router.put('/admin/gym-verifications/:clubId/suspend', protect, authorize('Super Admin'), suspendBranch);
 
 module.exports = router;

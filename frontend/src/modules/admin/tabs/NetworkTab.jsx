@@ -23,6 +23,8 @@ import {
   fetchAdminGymVerifications,
   approveAndActivateGymBranch,
   rejectGymBranch,
+  requestBranchChanges,
+  suspendAdminBranch,
   requestAdditionalInfoApplication,
 } from '../../../services/api';
 import TerritoryManagementConsole from '../components/TerritoryManagementConsole';
@@ -68,6 +70,12 @@ export default function NetworkTab({ onShowToast }) {
   const [selectedVerificationBranch, setSelectedVerificationBranch] = useState(null);
   const [showBranchApproveModal, setShowBranchApproveModal] = useState(false);
   const [showBranchRejectModal, setShowBranchRejectModal] = useState(false);
+  const [showBranchChangesModal, setShowBranchChangesModal] = useState(false);
+  const [branchChangesNotes, setBranchChangesNotes] = useState('');
+  const [showBranchSuspendModal, setShowBranchSuspendModal] = useState(false);
+  const [branchSuspendReason, setBranchSuspendReason] = useState('');
+  const [showBranchDetailModal, setShowBranchDetailModal] = useState(false);
+  const [selectedBranchDetail, setSelectedBranchDetail] = useState(null);
   const [branchApproveNotes, setBranchApproveNotes] = useState('');
   const [branchApproveJustification, setBranchApproveJustification] = useState('');
   const [branchRejectReason, setBranchRejectReason] = useState('');
@@ -295,6 +303,58 @@ export default function NetworkTab({ onShowToast }) {
       });
       if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Gym branch rejected.' });
       setShowBranchRejectModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingBranchId(null);
+    }
+  };
+
+  const handleOpenRequestChangesBranch = (branch) => {
+    setSelectedVerificationBranch(branch);
+    setBranchChangesNotes('');
+    setShowBranchChangesModal(true);
+  };
+
+  const handleConfirmRequestChangesBranch = async () => {
+    if (!selectedVerificationBranch || !branchChangesNotes.trim()) {
+      if (onShowToast) onShowToast({ type: 'error', message: 'Details on required changes are required.' });
+      return;
+    }
+    setProcessingBranchId(selectedVerificationBranch._id);
+    try {
+      const res = await requestBranchChanges(selectedVerificationBranch._id, {
+        changeRequestNotes: branchChangesNotes.trim(),
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Changes requested from gym owner.' });
+      setShowBranchChangesModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingBranchId(null);
+    }
+  };
+
+  const handleOpenSuspendBranch = (branch) => {
+    setSelectedVerificationBranch(branch);
+    setBranchSuspendReason('');
+    setShowBranchSuspendModal(true);
+  };
+
+  const handleConfirmSuspendBranch = async () => {
+    if (!selectedVerificationBranch || !branchSuspendReason.trim()) {
+      if (onShowToast) onShowToast({ type: 'error', message: 'A suspension reason is required for compliance audit.' });
+      return;
+    }
+    setProcessingBranchId(selectedVerificationBranch._id);
+    try {
+      const res = await suspendAdminBranch(selectedVerificationBranch._id, {
+        suspensionReason: branchSuspendReason.trim(),
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Branch suspended.' });
+      setShowBranchSuspendModal(false);
       loadData();
     } catch (err) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
@@ -787,8 +847,10 @@ export default function NetworkTab({ onShowToast }) {
             {[
               { key: 'All', label: 'All Branches', count: gymVerifications.length },
               { key: 'PENDING_VERIFICATION', label: 'Pending Verification', count: gymVerifications.filter(v => v.verificationStatus === 'PENDING_VERIFICATION').length, highlight: true },
-              { key: 'TERRITORY_REVIEW', label: 'Territory Geofence Conflicts', count: gymVerifications.filter(v => v.verificationStatus === 'TERRITORY_REVIEW').length, alert: true },
-              { key: 'ACTIVE', label: 'Active & Verified', count: gymVerifications.filter(v => v.verificationStatus === 'ACTIVE' || v.verificationStatus === 'APPROVED').length },
+              { key: 'TERRITORY_REVIEW', label: 'Territory Conflicts', count: gymVerifications.filter(v => v.verificationStatus === 'TERRITORY_REVIEW').length, alert: true },
+              { key: 'CHANGES_REQUESTED', label: 'Changes Requested', count: gymVerifications.filter(v => v.verificationStatus === 'CHANGES_REQUESTED').length, warn: true },
+              { key: 'ACTIVE', label: 'Approved / Active', count: gymVerifications.filter(v => v.verificationStatus === 'ACTIVE' || v.verificationStatus === 'APPROVED').length },
+              { key: 'SUSPENDED', label: 'Suspended', count: gymVerifications.filter(v => v.operationalStatus === 'SUSPENDED').length, alert: true },
               { key: 'REJECTED', label: 'Rejected', count: gymVerifications.filter(v => v.verificationStatus === 'REJECTED').length },
             ].map((f) => (
               <button
@@ -806,6 +868,8 @@ export default function NetworkTab({ onShowToast }) {
                     ? 'bg-black text-[#c5a880]'
                     : f.alert && f.count > 0
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                    : f.warn && f.count > 0
+                    ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
                     : f.highlight && f.count > 0
                     ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
                     : 'bg-white/10 text-neutral-400'
@@ -827,6 +891,7 @@ export default function NetworkTab({ onShowToast }) {
               const filtered = gymVerifications.filter((b) => {
                 if (gymVerificationFilter === 'All') return true;
                 if (gymVerificationFilter === 'ACTIVE') return b.verificationStatus === 'ACTIVE' || b.verificationStatus === 'APPROVED';
+                if (gymVerificationFilter === 'SUSPENDED') return b.operationalStatus === 'SUSPENDED';
                 return b.verificationStatus === gymVerificationFilter;
               });
 
@@ -843,31 +908,37 @@ export default function NetworkTab({ onShowToast }) {
                   <table className="w-full text-left text-xs font-mono">
                     <thead className="text-[9px] uppercase tracking-wider text-[#c5a880] bg-[#141414] border-b border-white/10">
                       <tr>
-                        <th className="p-3.5">Gym Branch & Tenant Org</th>
-                        <th className="p-3.5">Facility Location & Address</th>
-                        <th className="p-3.5">GPS Geofence Audit</th>
-                        <th className="p-3.5">Property Documents</th>
-                        <th className="p-3.5 text-center">Gateway Status</th>
-                        <th className="p-3.5 text-right">Verification Action</th>
+                        <th className="p-3.5">Branch Code & Organization</th>
+                        <th className="p-3.5">Type & Location</th>
+                        <th className="p-3.5">Geofence Territory</th>
+                        <th className="p-3.5">Lifecycle Statuses</th>
+                        <th className="p-3.5 text-right">Admin Decision</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-neutral-300">
                       {filtered.map((b) => {
-                        const isPending = b.verificationStatus === 'PENDING_VERIFICATION' || b.verificationStatus === 'TERRITORY_REVIEW';
+                        const isPending = b.verificationStatus === 'PENDING_VERIFICATION' || b.verificationStatus === 'TERRITORY_REVIEW' || b.verificationStatus === 'CHANGES_REQUESTED';
                         const isConflict = b.verificationStatus === 'TERRITORY_REVIEW';
-                        const isActive = b.verificationStatus === 'ACTIVE' || b.verificationStatus === 'APPROVED';
+                        const isApproved = b.verificationStatus === 'ACTIVE' || b.verificationStatus === 'APPROVED';
                         const isRejected = b.verificationStatus === 'REJECTED';
+                        const isSuspended = b.operationalStatus === 'SUSPENDED';
 
                         return (
                           <tr key={b._id} className="hover:bg-white/[0.02] transition">
                             <td className="p-3.5">
-                              <div className="font-bold text-white text-sm">{b.name}</div>
-                              <div className="text-[11px] text-[#c5a880]">{b.organization?.name || 'SaaS Tenant'}</div>
-                              <div className="text-[10px] text-neutral-500">{b.organization?.contactEmail || b.email}</div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-[#c5a880] font-bold">{b.branchCode || 'BR-MAIN'}</span>
+                                <span className="font-bold text-white text-sm">{b.name}</span>
+                              </div>
+                              <div className="text-[11px] text-neutral-400 mt-0.5">{b.organization?.name || 'SaaS Tenant Org'}</div>
+                              <div className="text-[10px] text-neutral-500">{b.organization?.contactEmail || b.email || b.assignedManagerEmail}</div>
                             </td>
                             <td className="p-3.5">
-                              <div>{b.address}</div>
-                              <div className="text-[11px] text-neutral-400">{b.city}, {b.state} {b.postalCode}</div>
+                              <span className="px-1.5 py-0.5 text-[9px] bg-white/10 text-neutral-300 rounded font-bold uppercase mr-1.5">
+                                {b.branchType || 'Standard'}
+                              </span>
+                              <span>{b.address || b.location}</span>
+                              <div className="text-[11px] text-neutral-400">{b.city}{b.state ? `, ${b.state}` : ''} {b.postalCode || ''}</div>
                               <div className="text-[10px] text-neutral-500 font-mono">
                                 Lat: {b.latitude?.toFixed(4)}, Lon: {b.longitude?.toFixed(4)}
                               </div>
@@ -895,65 +966,108 @@ export default function NetworkTab({ onShowToast }) {
                               )}
                             </td>
                             <td className="p-3.5">
-                              {b.locationDocuments && b.locationDocuments.length > 0 ? (
-                                <div className="space-y-1">
-                                  {b.locationDocuments.map((doc, dIdx) => (
-                                    <a
-                                      key={dIdx}
-                                      href={doc.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 text-[11px] text-[#c5a880] hover:underline"
-                                    >
-                                      <FileText className="w-3 h-3" />
-                                      <span>{doc.title || 'Lease Proof'}</span>
-                                      <ExternalLink className="w-2.5 h-2.5" />
-                                    </a>
-                                  ))}
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-[9px] text-neutral-500 uppercase">Verification:</span>
+                                  <span className={`px-2 py-0.2 text-[9px] font-bold uppercase rounded ${
+                                    isApproved
+                                      ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                      : isConflict
+                                      ? 'bg-amber-950/70 text-amber-300 border border-amber-500/40 animate-pulse'
+                                      : b.verificationStatus === 'CHANGES_REQUESTED'
+                                      ? 'bg-orange-950/70 text-orange-400 border border-orange-500/40'
+                                      : isRejected
+                                      ? 'bg-rose-950/70 text-rose-400 border border-rose-500/40'
+                                      : 'bg-blue-950/70 text-blue-300 border border-blue-500/40'
+                                  }`}>
+                                    {b.verificationStatus}
+                                  </span>
                                 </div>
-                              ) : (
-                                <span className="text-[10px] text-neutral-500 italic">No deed uploaded</span>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-center">
-                              <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full ${
-                                isActive
-                                  ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
-                                  : isConflict
-                                  ? 'bg-amber-950/70 text-amber-300 border border-amber-500/40 animate-pulse'
-                                  : isRejected
-                                  ? 'bg-rose-950/70 text-rose-400 border border-rose-500/40'
-                                  : 'bg-blue-950/70 text-blue-300 border border-blue-500/40'
-                              }`}>
-                                {b.verificationStatus}
-                              </span>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-[9px] text-neutral-500 uppercase">Operational:</span>
+                                  <span className={`px-2 py-0.2 text-[9px] font-bold uppercase rounded ${
+                                    isSuspended
+                                      ? 'bg-rose-950/80 text-rose-300 border border-rose-500/60 font-bold'
+                                      : b.operationalStatus === 'ACTIVE'
+                                      ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/40'
+                                      : 'bg-neutral-800 text-neutral-400'
+                                  }`}>
+                                    {b.operationalStatus || 'INACTIVE'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-[9px] text-neutral-500 uppercase">Publication:</span>
+                                  <span className={`px-2 py-0.2 text-[9px] font-bold uppercase rounded ${
+                                    b.publicationStatus === 'PUBLISHED'
+                                      ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                      : b.publicationStatus === 'READY_TO_PUBLISH'
+                                      ? 'bg-sky-950/70 text-sky-300 border border-sky-500/40'
+                                      : 'bg-neutral-800 text-neutral-400'
+                                  }`}>
+                                    {b.publicationStatus || 'DRAFT'}
+                                  </span>
+                                </div>
+                              </div>
                             </td>
                             <td className="p-3.5 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end space-x-1.5">
-                                {isPending ? (
+                                <button
+                                  onClick={() => {
+                                    setSelectedBranchDetail(b);
+                                    setShowBranchDetailModal(true);
+                                  }}
+                                  className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[10px] font-bold uppercase rounded transition flex items-center space-x-1"
+                                  title="View complete application dossier"
+                                >
+                                  <Eye className="w-3 h-3 text-[#c5a880]" />
+                                  <span>DOSSIER</span>
+                                </button>
+
+                                {isPending && (
                                   <>
                                     <button
                                       onClick={() => handleOpenApproveBranchModal(b)}
                                       disabled={processingBranchId === b._id}
-                                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider rounded transition flex items-center space-x-1 disabled:opacity-50"
-                                      title="Approve and activate live sanctuary"
+                                      className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider rounded transition flex items-center space-x-1 disabled:opacity-50"
+                                      title="Approve branch verification"
                                     >
                                       <CheckCircle className="w-3 h-3" />
-                                      <span>APPROVE & ACTIVATE</span>
+                                      <span>APPROVE</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenRequestChangesBranch(b)}
+                                      disabled={processingBranchId === b._id}
+                                      className="px-2 py-1 bg-amber-900/60 hover:bg-amber-800 text-amber-200 text-[10px] font-bold uppercase rounded transition border border-amber-500/40 flex items-center space-x-1 disabled:opacity-50"
+                                      title="Request changes / corrections"
+                                    >
+                                      <span>CORRECT</span>
                                     </button>
                                     <button
                                       onClick={() => handleOpenRejectBranchModal(b)}
                                       disabled={processingBranchId === b._id}
-                                      className="px-2.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] font-bold uppercase tracking-wider rounded transition border border-rose-500/40 flex items-center space-x-1 disabled:opacity-50"
+                                      className="px-2 py-1 bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] font-bold uppercase rounded transition border border-rose-500/40 flex items-center space-x-1 disabled:opacity-50"
                                       title="Reject gym branch"
                                     >
                                       <XCircle className="w-3 h-3 text-rose-400" />
                                       <span>REJECT</span>
                                     </button>
                                   </>
-                                ) : (
-                                  <span className="text-[10px] text-neutral-500">
-                                    {isActive ? `Live (Verified ${b.verifiedAt ? new Date(b.verifiedAt).toLocaleDateString() : ''})` : 'Archived / Rejected'}
+                                )}
+
+                                {isApproved && !isSuspended && (
+                                  <button
+                                    onClick={() => handleOpenSuspendBranch(b)}
+                                    disabled={processingBranchId === b._id}
+                                    className="px-2 py-1 bg-rose-950 hover:bg-rose-900 text-rose-400 border border-rose-700/60 text-[10px] font-bold uppercase rounded transition flex items-center space-x-1 disabled:opacity-50"
+                                    title="Suspend branch operations"
+                                  >
+                                    <span>SUSPEND</span>
+                                  </button>
+                                )}
+
+                                {isSuspended && (
+                                  <span className="text-[10px] text-rose-400 font-bold">
+                                    SUSPENDED
                                   </span>
                                 )}
                               </div>
@@ -1973,6 +2087,279 @@ export default function NetworkTab({ onShowToast }) {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 7: REQUEST CHANGES ON BRANCH APPLICATION           */}
+      {/* ======================================================== */}
+      {showBranchChangesModal && selectedVerificationBranch && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-amber-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-amber-400 font-mono block">
+                  CORRECTION REQUIRED &bull; GATEWAY 2
+                </span>
+                <h3 className="text-lg font-serif text-white">Request Changes on {selectedVerificationBranch.name}</h3>
+              </div>
+              <button
+                onClick={() => setShowBranchChangesModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div className="p-3 bg-amber-950/20 border border-amber-500/20 text-neutral-300 space-y-1">
+                <p className="text-amber-300 font-medium">Correction Notice:</p>
+                <p className="text-[11px]">
+                  Specify what information, photos, or documents need revision. The branch will be marked <strong>CHANGES_REQUESTED</strong> and unlocked for the Gym Owner to amend.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Required Changes & Revision Instructions <span className="text-amber-400">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={branchChangesNotes}
+                  onChange={(e) => setBranchChangesNotes(e.target.value)}
+                  placeholder="e.g. Please provide high-resolution images of the functional cardio area and an updated fire safety operating license."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowBranchChangesModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmRequestChangesBranch}
+                  disabled={processingBranchId === selectedVerificationBranch._id || !branchChangesNotes.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-black text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingBranchId === selectedVerificationBranch._id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>TRANSMITTING NOTICE...</span>
+                    </>
+                  ) : (
+                    <span>DISPATCH CORRECTION REQUEST</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 8: SUSPEND GYM BRANCH                             */}
+      {/* ======================================================== */}
+      {showBranchSuspendModal && selectedVerificationBranch && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-rose-500/40 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-rose-400 font-mono block">
+                  COMPLIANCE SUSPENSION
+                </span>
+                <h3 className="text-lg font-serif text-white">Suspend {selectedVerificationBranch.name}</h3>
+              </div>
+              <button
+                onClick={() => setShowBranchSuspendModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div className="p-3 bg-rose-950/30 border border-rose-500/40 text-neutral-300 space-y-1">
+                <p className="text-rose-400 font-bold uppercase">Immediate Public Delisting Notice:</p>
+                <p className="text-[11px]">
+                  Suspension immediately removes the branch from public website discovery. Operational status becomes <strong>SUSPENDED</strong>.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Suspension Reason <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={branchSuspendReason}
+                  onChange={(e) => setBranchSuspendReason(e.target.value)}
+                  placeholder="e.g. Failure to comply with safety audit or pending commercial lease renewal..."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowBranchSuspendModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmSuspendBranch}
+                  disabled={processingBranchId === selectedVerificationBranch._id || !branchSuspendReason.trim()}
+                  className="px-5 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingBranchId === selectedVerificationBranch._id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>SUSPENDING...</span>
+                    </>
+                  ) : (
+                    <span>CONFIRM SUSPENSION</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 9: APPLICATION DOSSIER & COMPREHENSIVE VIEW        */}
+      {/* ======================================================== */}
+      {showBranchDetailModal && selectedBranchDetail && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0b0b0b] border border-[#c5a880]/30 w-full max-w-3xl p-6 space-y-6 my-8 max-h-[90vh] overflow-y-auto font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-0.5 bg-[#c5a880] text-black font-bold text-[10px] uppercase">
+                    {selectedBranchDetail.branchCode || 'BR-MAIN'}
+                  </span>
+                  <span className="text-white font-serif text-xl font-bold">{selectedBranchDetail.name}</span>
+                </div>
+                <p className="text-neutral-400 text-[11px] mt-1">
+                  Tenant: {selectedBranchDetail.organization?.name || 'SaaS Tenant'} &bull; Type: {selectedBranchDetail.branchType || 'Standard'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBranchDetailModal(false)}
+                className="p-2 text-neutral-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Hero & Media Gallery */}
+            <div className="space-y-2">
+              <span className="text-[10px] text-[#c5a880] uppercase tracking-wider font-bold block">FACILITY MEDIA & VISUAL ASSETS</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2 h-44 bg-neutral-900 overflow-hidden relative border border-white/10">
+                  <img
+                    src={selectedBranchDetail.media?.heroImage || selectedBranchDetail.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1200&q=80'}
+                    alt={selectedBranchDetail.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 text-[9px] text-[#c5a880] font-bold">
+                    HERO SANCTUARY VIEW
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <div className="p-3 bg-[#111] border border-white/10 space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase block">Max Member Capacity</span>
+                    <span className="text-white text-lg font-bold">{selectedBranchDetail.capacity || 150} Members</span>
+                  </div>
+                  <div className="p-3 bg-[#111] border border-white/10 space-y-1">
+                    <span className="text-[9px] text-neutral-500 uppercase block">Settlement Rate / Visit</span>
+                    <span className="text-[#c5a880] text-lg font-bold">₹{selectedBranchDetail.settlementRatePerVisit || 250}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Location & Contact Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-[#111] border border-white/10">
+              <div className="space-y-1">
+                <span className="text-[10px] text-[#c5a880] uppercase font-bold block">LOCATION SPECIFICATIONS</span>
+                <p className="text-white font-medium">{selectedBranchDetail.address || selectedBranchDetail.location}</p>
+                {selectedBranchDetail.landmark && <p className="text-neutral-400">Landmark: {selectedBranchDetail.landmark}</p>}
+                <p className="text-neutral-400">{selectedBranchDetail.city}, {selectedBranchDetail.state} {selectedBranchDetail.postalCode} ({selectedBranchDetail.country || 'India'})</p>
+                <p className="text-neutral-500 text-[10px]">GPS: {selectedBranchDetail.latitude?.toFixed(4)}, {selectedBranchDetail.longitude?.toFixed(4)}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] text-[#c5a880] uppercase font-bold block">OPERATIONAL MANAGEMENT</span>
+                <p className="text-white">Manager: {selectedBranchDetail.assignedManagerName || 'Owner Managed'}</p>
+                <p className="text-neutral-400">Phone: {selectedBranchDetail.phone || 'N/A'}</p>
+                <p className="text-neutral-400">Email: {selectedBranchDetail.email || selectedBranchDetail.assignedManagerEmail || 'N/A'}</p>
+                <p className="text-neutral-400">Operating Days: {selectedBranchDetail.operatingDays?.join(', ') || 'Monday - Sunday'}</p>
+                <p className="text-neutral-500 text-[10px]">Weekdays: {selectedBranchDetail.openingHours?.weekdays || '06:00 - 22:30'} | Weekends: {selectedBranchDetail.openingHours?.weekends || '07:30 - 20:00'}</p>
+              </div>
+            </div>
+
+            {/* Facilities & Infrastructure */}
+            <div className="space-y-2">
+              <span className="text-[10px] text-[#c5a880] uppercase tracking-wider font-bold block">AMENITIES & INFRASTRUCTURE</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {selectedBranchDetail.facilitiesBreakdown ? (
+                  Object.entries(selectedBranchDetail.facilitiesBreakdown).map(([k, v]) => (
+                    <div key={k} className={`p-2 border text-[10px] uppercase font-bold flex items-center justify-between ${v ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300' : 'bg-neutral-900 border-neutral-800 text-neutral-500'}`}>
+                      <span>{k.replace(/([A-Z])/g, ' $1')}</span>
+                      <span>{v ? '✓' : '—'}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-neutral-500 col-span-4">Default facilities enabled.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Documents & Compliance */}
+            <div className="space-y-2">
+              <span className="text-[10px] text-[#c5a880] uppercase tracking-wider font-bold block">BUSINESS & PROPERTY DOCUMENTS</span>
+              <div className="space-y-2">
+                {selectedBranchDetail.documents && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {selectedBranchDetail.documents.propertyLeaseDeed?.url && (
+                      <a href={selectedBranchDetail.documents.propertyLeaseDeed.url} target="_blank" rel="noreferrer" className="p-2.5 bg-[#141414] border border-white/10 text-[#c5a880] hover:border-[#c5a880] flex items-center justify-between">
+                        <span>Lease Agreement</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {selectedBranchDetail.documents.businessRegistration?.url && (
+                      <a href={selectedBranchDetail.documents.businessRegistration.url} target="_blank" rel="noreferrer" className="p-2.5 bg-[#141414] border border-white/10 text-[#c5a880] hover:border-[#c5a880] flex items-center justify-between">
+                        <span>Business Registration</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {selectedBranchDetail.documents.operatingLicense?.url && (
+                      <a href={selectedBranchDetail.documents.operatingLicense.url} target="_blank" rel="noreferrer" className="p-2.5 bg-[#141414] border border-white/10 text-[#c5a880] hover:border-[#c5a880] flex items-center justify-between">
+                        <span>Operating License</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                )}
+                {selectedBranchDetail.documents?.emergencyContact?.name && (
+                  <div className="p-2.5 bg-[#141414] border border-white/10 text-neutral-300">
+                    Emergency Contact: <span className="text-white font-bold">{selectedBranchDetail.documents.emergencyContact.name}</span> ({selectedBranchDetail.documents.emergencyContact.relation || 'Manager'}) &bull; {selectedBranchDetail.documents.emergencyContact.phone}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-white/10">
+              <button
+                onClick={() => setShowBranchDetailModal(false)}
+                className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black font-bold uppercase tracking-wider transition"
+              >
+                CLOSE DOSSIER
+              </button>
             </div>
           </div>
         </div>

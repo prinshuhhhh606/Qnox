@@ -167,8 +167,112 @@ const ClubSchema = new mongoose.Schema(
         'REJECTED',
         'ACTIVE',
         'SUSPENDED',
+        'CHANGES_REQUESTED',
       ],
+      default: 'APPROVED',
+    },
+    operationalStatus: {
+      type: String,
+      enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'],
       default: 'ACTIVE',
+    },
+    publicationStatus: {
+      type: String,
+      enum: ['DRAFT', 'READY_TO_PUBLISH', 'PUBLISHED', 'UNPUBLISHED'],
+      default: 'PUBLISHED',
+    },
+    branchType: {
+      type: String,
+      enum: ['Flagship', 'Premium', 'Standard'],
+      default: 'Standard',
+    },
+    landmark: {
+      type: String,
+      default: '',
+    },
+    country: {
+      type: String,
+      default: 'India',
+    },
+    operatingDays: {
+      type: [String],
+      default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    },
+    facilitiesBreakdown: {
+      cardioEquipment: { type: Boolean, default: true },
+      weightTraining: { type: Boolean, default: true },
+      personalTraining: { type: Boolean, default: true },
+      swimmingPool: { type: Boolean, default: false },
+      steamAndSauna: { type: Boolean, default: false },
+      lockerRoom: { type: Boolean, default: true },
+      showerFacilities: { type: Boolean, default: true },
+      parking: { type: Boolean, default: true },
+    },
+    media: {
+      heroImage: { type: String, default: '' },
+      interiorGallery: [{ type: String }],
+      equipmentImages: [{ type: String }],
+      exteriorImages: [{ type: String }],
+    },
+    documents: {
+      propertyLeaseDeed: {
+        title: { type: String, default: 'Property Ownership / Lease Agreement' },
+        url: { type: String, default: '' },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+      businessRegistration: {
+        title: { type: String, default: 'Business Registration' },
+        url: { type: String, default: '' },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+      operatingLicense: {
+        title: { type: String, default: 'Gym Operating License' },
+        url: { type: String, default: '' },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+      emergencyContact: {
+        name: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        relation: { type: String, default: '' },
+      },
+    },
+    setupChecklist: {
+      managerConfigured: { type: Boolean, default: false },
+      trainersAssigned: { type: Boolean, default: false },
+      operatingHoursSet: { type: Boolean, default: false },
+      facilitiesConfigured: { type: Boolean, default: false },
+      pricingConfigured: { type: Boolean, default: false },
+      completed: { type: Boolean, default: false },
+      completedAt: { type: Date },
+    },
+    changeRequestNotes: {
+      type: String,
+      default: '',
+    },
+    publishedAt: {
+      type: Date,
+    },
+    publishedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    unpublishedAt: {
+      type: Date,
+    },
+    unpublishedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    suspendedAt: {
+      type: Date,
+    },
+    suspendedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    suspensionReason: {
+      type: String,
+      default: '',
     },
     displayName: {
       type: String,

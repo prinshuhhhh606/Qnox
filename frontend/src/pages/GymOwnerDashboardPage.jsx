@@ -18,6 +18,9 @@ import {
   updateTenantBranch,
   toggleTenantBranchStatus,
   deleteTenantBranch,
+  completeBranchSetup,
+  publishTenantBranch,
+  unpublishTenantBranch,
   fetchMyTenantTrainers,
   createTenantTrainer,
   updateTenantTrainer,
@@ -71,6 +74,11 @@ export default function GymOwnerDashboardPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showAddBranchModal, setShowAddBranchModal] = useState(false);
   const [editingBranch, setEditingBranch] = useState(null);
+  const [showSetupWizardModal, setShowSetupWizardModal] = useState(false);
+  const [setupWizardBranch, setSetupWizardBranch] = useState(null);
+  const [showPublishPreviewModal, setShowPublishPreviewModal] = useState(false);
+  const [publishPreviewBranch, setPublishPreviewBranch] = useState(null);
+  const [activeBranchFormSection, setActiveBranchFormSection] = useState('basic');
   const [showAddTrainerModal, setShowAddTrainerModal] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -79,17 +87,68 @@ export default function GymOwnerDashboardPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Forms
-  const [branchForm, setBranchForm] = useState({
+  const defaultBranchForm = {
     name: '',
     branchCode: '',
-    location: '',
-    address: '',
-    city: '',
-    state: '',
+    branchType: 'Standard',
+    assignedManagerName: '',
     phone: '',
     email: '',
+    address: '',
+    landmark: '',
+    city: '',
+    state: '',
+    country: 'India',
+    postalCode: '',
+    latitude: 19.0760,
+    longitude: 72.8777,
+    propertyLeaseDeedUrl: '',
+    businessRegistrationUrl: '',
+    operatingLicenseUrl: '',
+    emergencyContact: { name: '', phone: '', relation: 'General Manager' },
+    facilitiesBreakdown: {
+      cardioEquipment: true,
+      weightTraining: true,
+      personalTraining: true,
+      swimmingPool: false,
+      steamAndSauna: false,
+      lockerRoom: true,
+      showerFacilities: true,
+      parking: true,
+    },
     openingHours: { weekdays: '06:00 - 22:30', weekends: '07:30 - 20:00' },
+    operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
     capacity: 150,
+    description: '',
+    heroImage: '',
+    interiorGallery: '',
+    equipmentImages: '',
+    exteriorImages: '',
+  };
+
+  const [branchForm, setBranchForm] = useState(defaultBranchForm);
+
+  const [wizardForm, setWizardForm] = useState({
+    assignedManagerName: '',
+    assignedManagerEmail: '',
+    assignedTrainerIds: [],
+    openingHours: { weekdays: '06:00 - 22:30', weekends: '07:30 - 20:00' },
+    operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    facilitiesBreakdown: {
+      cardioEquipment: true,
+      weightTraining: true,
+      personalTraining: true,
+      swimmingPool: false,
+      steamAndSauna: false,
+      lockerRoom: true,
+      showerFacilities: true,
+      parking: true,
+    },
+    capacity: 150,
+    settlementRatePerVisit: 250,
+    heroImage: '',
+    interiorGallery: '',
+    emergencyContact: { name: '', phone: '', relation: 'Branch Manager' },
   });
 
   const [trainerForm, setTrainerForm] = useState({
@@ -199,25 +258,146 @@ export default function GymOwnerDashboardPage() {
   };
 
   // Branch Handlers
-  const handleCreateBranch = async (e) => {
-    e.preventDefault();
+  const handleSaveBranch = async (actionType = 'SUBMIT') => {
     setActionLoading(true);
     try {
-      await createTenantBranch(branchForm);
-      showToast({ type: 'success', message: 'New branch commissioned successfully!' });
-      setShowAddBranchModal(false);
-      setBranchForm({
-        name: '',
-        branchCode: '',
-        location: '',
-        address: '',
-        city: '',
-        state: '',
-        phone: '',
-        email: '',
-        openingHours: { weekdays: '06:00 - 22:30', weekends: '07:30 - 20:00' },
-        capacity: 150,
+      const payload = {
+        name: branchForm.name,
+        branchCode: branchForm.branchCode || undefined,
+        branchType: branchForm.branchType || 'Standard',
+        assignedManagerName: branchForm.assignedManagerName,
+        phone: branchForm.phone,
+        email: branchForm.email,
+        location: `${branchForm.address}, ${branchForm.city}`,
+        address: branchForm.address,
+        landmark: branchForm.landmark,
+        city: branchForm.city,
+        state: branchForm.state,
+        country: branchForm.country || 'India',
+        postalCode: branchForm.postalCode,
+        latitude: Number(branchForm.latitude) || 19.0760,
+        longitude: Number(branchForm.longitude) || 72.8777,
+        capacity: Number(branchForm.capacity) || 150,
+        description: branchForm.description || `${branchForm.name} luxury wellness facilities.`,
+        openingHours: branchForm.openingHours,
+        operatingDays: branchForm.operatingDays,
+        facilitiesBreakdown: branchForm.facilitiesBreakdown,
+        documents: {
+          propertyLeaseDeed: { url: branchForm.propertyLeaseDeedUrl || 'https://qnox.luxury/docs/sample-lease.pdf' },
+          businessRegistration: { url: branchForm.businessRegistrationUrl || 'https://qnox.luxury/docs/sample-reg.pdf' },
+          operatingLicense: { url: branchForm.operatingLicenseUrl || 'https://qnox.luxury/docs/sample-license.pdf' },
+          emergencyContact: branchForm.emergencyContact,
+        },
+        locationDocuments: [
+          {
+            title: 'Property Lease Agreement',
+            url: branchForm.propertyLeaseDeedUrl || 'https://qnox.luxury/docs/sample-lease.pdf',
+            type: 'LEASE_OR_OWNERSHIP',
+          },
+        ],
+        heroImage: branchForm.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80',
+        media: {
+          heroImage: branchForm.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80',
+          interiorGallery: branchForm.interiorGallery ? branchForm.interiorGallery.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          equipmentImages: branchForm.equipmentImages ? branchForm.equipmentImages.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          exteriorImages: branchForm.exteriorImages ? branchForm.exteriorImages.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        },
+        action: actionType,
+        isDraft: actionType === 'DRAFT',
+      };
+
+      await createTenantBranch(payload);
+      showToast({
+        type: 'success',
+        message: actionType === 'DRAFT'
+          ? 'Branch saved as draft! You can submit for verification anytime.'
+          : 'Branch application submitted for verification. Super Admin will audit compliance.',
       });
+      setShowAddBranchModal(false);
+      setBranchForm(defaultBranchForm);
+      loadAllTenantData();
+    } catch (err) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenSetupWizard = (branch) => {
+    setSetupWizardBranch(branch);
+    setWizardForm({
+      assignedManagerName: branch.assignedManagerName || '',
+      assignedManagerEmail: branch.assignedManagerEmail || '',
+      assignedTrainerIds: trainers
+        .filter((t) => String(t.branch?._id || t.branch) === String(branch._id))
+        .map((t) => t._id),
+      openingHours: branch.openingHours || { weekdays: '06:00 - 22:30', weekends: '07:30 - 20:00' },
+      operatingDays: branch.operatingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      facilitiesBreakdown: branch.facilitiesBreakdown || {
+        cardioEquipment: true,
+        weightTraining: true,
+        personalTraining: true,
+        swimmingPool: false,
+        steamAndSauna: false,
+        lockerRoom: true,
+        showerFacilities: true,
+        parking: true,
+      },
+      capacity: branch.capacity || 150,
+      settlementRatePerVisit: branch.settlementRatePerVisit || 250,
+      heroImage: branch.heroImage || '',
+      interiorGallery: branch.gallery ? branch.gallery.join(', ') : '',
+      emergencyContact: branch.documents?.emergencyContact || { name: '', phone: '', relation: 'Branch Manager' },
+    });
+    setShowSetupWizardModal(true);
+  };
+
+  const handleCompleteSetup = async (e) => {
+    e.preventDefault();
+    if (!setupWizardBranch) return;
+    setActionLoading(true);
+    try {
+      const payload = {
+        ...wizardForm,
+        interiorGallery: wizardForm.interiorGallery ? wizardForm.interiorGallery.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        gallery: wizardForm.interiorGallery ? wizardForm.interiorGallery.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      };
+      await completeBranchSetup(setupWizardBranch._id, payload);
+      showToast({ type: 'success', message: 'Operational setup completed! Branch is now Ready to Publish.' });
+      setShowSetupWizardModal(false);
+      loadAllTenantData();
+    } catch (err) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenPublishPreview = (branch) => {
+    setPublishPreviewBranch(branch);
+    setShowPublishPreviewModal(true);
+  };
+
+  const handlePublishBranch = async (id) => {
+    setActionLoading(true);
+    try {
+      await publishTenantBranch(id);
+      showToast({ type: 'success', message: 'Branch published! It is now live on the public website.' });
+      setShowPublishPreviewModal(false);
+      loadAllTenantData();
+    } catch (err) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnpublishBranch = async (id) => {
+    if (!window.confirm('Are you sure you want to unpublish this branch? It will be hidden from the public website, but members and staff remain active.')) return;
+    setActionLoading(true);
+    try {
+      await unpublishTenantBranch(id);
+      showToast({ type: 'info', message: 'Branch unpublished from public listing.' });
       loadAllTenantData();
     } catch (err) {
       showToast({ type: 'error', message: err.message });
@@ -916,81 +1096,222 @@ export default function GymOwnerDashboardPage() {
 
               {/* Branches Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {branches.map((b) => (
-                  <div key={b._id} className="bg-[#0b0b0b] border border-neutral-800 overflow-hidden flex flex-col justify-between group">
-                    <div>
-                      <div className="h-44 bg-neutral-900 relative overflow-hidden">
-                        <img
-                          src={b.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=800&q=80'}
-                          alt={b.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute top-3 left-3 px-2 py-0.5 bg-black/80 border border-neutral-700 text-[10px] font-mono text-[#c5a880] font-bold">
-                          {b.branchCode || 'BR-01'}
+                {branches.map((b) => {
+                  const isVerified = b.verificationStatus === 'APPROVED' || b.verificationStatus === 'ACTIVE';
+                  const isPendingVerif = b.verificationStatus === 'PENDING_VERIFICATION' || b.verificationStatus === 'TERRITORY_REVIEW';
+                  const isChangesRequested = b.verificationStatus === 'CHANGES_REQUESTED';
+                  const isRejected = b.verificationStatus === 'REJECTED';
+                  const isSetupComplete = b.setupChecklist?.completed;
+                  const isReadyToPublish = b.publicationStatus === 'READY_TO_PUBLISH';
+                  const isPublished = b.publicationStatus === 'PUBLISHED';
+                  const isSuspended = b.operationalStatus === 'SUSPENDED';
+                  const isLiveOpen = b.liveStatus === 'OPEN';
+
+                  return (
+                    <div key={b._id} className="bg-[#0b0b0b] border border-neutral-800 overflow-hidden flex flex-col justify-between group relative">
+                      <div>
+                        <div className="h-44 bg-neutral-900 relative overflow-hidden">
+                          <img
+                            src={b.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=800&q=80'}
+                            alt={b.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute top-3 left-3 px-2 py-0.5 bg-black/80 border border-neutral-700 text-[10px] font-mono text-[#c5a880] font-bold">
+                            {b.branchCode || 'BR-MAIN'}
+                          </div>
+                          <div className="absolute top-3 right-3 flex items-center space-x-1.5">
+                            {/* Live Dynamic Status Badge */}
+                            <span className={`px-2 py-0.5 text-[10px] font-mono font-bold flex items-center space-x-1 ${
+                              isLiveOpen && !isSuspended
+                                ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/50'
+                                : 'bg-neutral-950/90 text-neutral-400 border border-neutral-700'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isLiveOpen && !isSuspended ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'}`} />
+                              <span>{isLiveOpen && !isSuspended ? 'LIVE: OPEN' : 'LIVE: CLOSED'}</span>
+                            </span>
+                          </div>
+                          <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 border border-neutral-700 text-[9px] font-mono text-neutral-300 uppercase">
+                            Type: {b.branchType || 'Standard'}
+                          </div>
                         </div>
-                        <div className="absolute top-3 right-3 px-2 py-0.5 bg-black/80 border border-neutral-700 text-[10px] font-mono text-white">
-                          CAP: {b.capacity || 150}
+
+                        <div className="p-5 space-y-3 font-mono">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-serif text-lg text-white font-bold">{b.name}</h4>
+                              <p className="text-[11px] text-neutral-400 flex items-center space-x-1 mt-0.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#c5a880] shrink-0" />
+                                <span className="truncate max-w-[200px]">{b.address || b.location}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 3 Strictly Independent Lifecycle Statuses */}
+                          <div className="p-2.5 bg-[#121212] border border-neutral-800 space-y-1.5 text-[10px]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-neutral-500 uppercase">Verification:</span>
+                              <span className={`px-1.5 py-0.2 rounded font-bold uppercase ${
+                                isVerified
+                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
+                                  : isPendingVerif
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-800/60'
+                                  : isChangesRequested
+                                  ? 'bg-orange-950 text-orange-400 border border-orange-800/60'
+                                  : isRejected
+                                  ? 'bg-rose-950 text-rose-400 border border-rose-800/60'
+                                  : 'bg-neutral-800 text-neutral-400'
+                              }`}>
+                                {b.verificationStatus || 'DRAFT'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-neutral-500 uppercase">Operational:</span>
+                              <span className={`px-1.5 py-0.2 rounded font-bold uppercase ${
+                                isSuspended
+                                  ? 'bg-rose-950 text-rose-300 border border-rose-700 font-bold'
+                                  : b.operationalStatus === 'ACTIVE'
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                                  : 'bg-neutral-800 text-neutral-400'
+                              }`}>
+                                {b.operationalStatus || 'INACTIVE'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-neutral-500 uppercase">Public Website:</span>
+                              <span className={`px-1.5 py-0.2 rounded font-bold uppercase ${
+                                isPublished
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                                  : isReadyToPublish
+                                  ? 'bg-sky-950 text-sky-300 border border-sky-500/50'
+                                  : 'bg-neutral-800 text-neutral-400'
+                              }`}>
+                                {b.publicationStatus || 'DRAFT'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Changes Requested Warning Box */}
+                          {isChangesRequested && b.changeRequestNotes && (
+                            <div className="p-2.5 bg-orange-950/40 border border-orange-500/40 text-orange-200 text-[10px] space-y-1">
+                              <span className="font-bold flex items-center space-x-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+                                <span>Super Admin Requested Corrections:</span>
+                              </span>
+                              <p className="leading-relaxed">{b.changeRequestNotes}</p>
+                              <button
+                                onClick={() => setEditingBranch({ ...b })}
+                                className="mt-1 text-orange-300 underline font-bold"
+                              >
+                                Revise Branch Details &rarr;
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Suspension Alert Box */}
+                          {isSuspended && (
+                            <div className="p-2.5 bg-rose-950/40 border border-rose-500/40 text-rose-200 text-[10px] space-y-1">
+                              <span className="font-bold flex items-center space-x-1">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                <span>Branch Suspended by Platform Admin</span>
+                              </span>
+                              <p className="leading-relaxed">{b.suspensionReason || 'Compliance review pending.'}</p>
+                            </div>
+                          )}
+
+                          {/* Key Statistics Bar */}
+                          <div className="grid grid-cols-2 gap-2 text-xs p-2 bg-[#101010] border border-neutral-800/60 rounded">
+                            <div>
+                              <span className="text-[10px] text-neutral-500 block">COACHES</span>
+                              <span className="text-white font-bold">{b.trainersCount ?? 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-neutral-500 block">CLIENTELE</span>
+                              <span className="text-white font-bold">{b.membersCount ?? 0}</span>
+                            </div>
+                          </div>
+
+                          {/* Workflow Action Bar */}
+                          <div className="pt-1">
+                            {isVerified && !isSetupComplete && (
+                              <button
+                                onClick={() => handleOpenSetupWizard(b)}
+                                className="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-500 text-black font-bold uppercase text-[10px] tracking-wider rounded flex items-center justify-center space-x-1.5 shadow"
+                              >
+                                <span>CONFIGURE SETUP (STEP 5)</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {isSetupComplete && isReadyToPublish && (
+                              <button
+                                onClick={() => handleOpenPublishPreview(b)}
+                                className="w-full py-2 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-bold uppercase text-[10px] tracking-wider rounded flex items-center justify-center space-x-1.5 shadow"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>PREVIEW & PUBLISH TO WEBSITE</span>
+                              </button>
+                            )}
+
+                            {isPublished && (
+                              <div className="flex items-center space-x-2">
+                                <a
+                                  href={`/clubs/${b.slug}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold uppercase text-[10px] tracking-wider rounded text-center flex items-center justify-center space-x-1"
+                                >
+                                  <span>VIEW LIVE</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <button
+                                  onClick={() => handleUnpublishBranch(b._id)}
+                                  className="px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-[10px] uppercase rounded border border-neutral-700"
+                                  title="Hide from public listing"
+                                >
+                                  UNPUBLISH
+                                </button>
+                              </div>
+                            )}
+
+                            {b.publicationStatus === 'UNPUBLISHED' && (
+                              <button
+                                onClick={() => handlePublishBranch(b._id)}
+                                className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold uppercase text-[10px] tracking-wider rounded"
+                              >
+                                REPUBLISH TO WEBSITE
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="p-5 space-y-3">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-serif text-lg text-white">{b.name}</h4>
-                          <span
-                            className={`px-2 py-0.5 text-[9px] font-mono uppercase font-bold ${
-                              b.isActive !== false
-                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
-                                : 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
-                            }`}
+                      <div className="p-3 bg-[#0e0e0e] border-t border-neutral-800/80 flex items-center justify-between text-xs font-mono">
+                        <button
+                          onClick={() => handleToggleBranchStatus(b._id)}
+                          className="text-neutral-400 hover:text-white transition-colors text-[11px]"
+                        >
+                          {b.isActive !== false ? 'Deactivate Ops' : 'Activate Ops'}
+                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => setEditingBranch({ ...b })}
+                            className="p-1.5 text-[#c5a880] hover:text-white transition-colors"
+                            title="Edit Branch Information"
                           >
-                            {b.isActive !== false ? 'OPEN' : 'MAINTENANCE'}
-                          </span>
-                        </div>
-
-                        <p className="text-xs text-neutral-400 flex items-center space-x-1 font-mono">
-                          <MapPin className="w-3.5 h-3.5 text-[#c5a880] shrink-0" />
-                          <span className="truncate">{b.address || b.location}</span>
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs font-mono p-2.5 bg-[#101010] border border-neutral-800/60 rounded">
-                          <div>
-                            <span className="text-[10px] text-neutral-500 block">COACHES</span>
-                            <span className="text-white font-bold">{b.trainersCount ?? 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-neutral-500 block">CLIENTELE</span>
-                            <span className="text-white font-bold">{b.membersCount ?? 0}</span>
-                          </div>
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBranch(b._id)}
+                            className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
+                            title="Decommission Branch"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     </div>
-
-                    <div className="p-4 bg-[#0e0e0e] border-t border-neutral-800/80 flex items-center justify-between text-xs font-mono">
-                      <button
-                        onClick={() => handleToggleBranchStatus(b._id)}
-                        className="text-neutral-400 hover:text-white transition-colors"
-                      >
-                        {b.isActive !== false ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setEditingBranch({ ...b })}
-                          className="p-1.5 text-[#c5a880] hover:text-white transition-colors"
-                          title="Edit Branch"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBranch(b._id)}
-                          className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
-                          title="Decommission Branch"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1536,116 +1857,471 @@ export default function GymOwnerDashboardPage() {
         </main>
       </div>
 
-      {/* MODAL 1: ADD BRANCH */}
+      {/* MODAL 1: ADD NEW BRANCH (ENTERPRISE MULTI-SECTION WORKFLOW) */}
       {showAddBranchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#0c0c0c] border border-neutral-800 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-3xl bg-[#0b0b0b] border border-[#c5a880]/30 p-6 space-y-5 my-8 max-h-[92vh] overflow-y-auto font-mono text-xs">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-              <h3 className="text-xl font-serif text-white">Commission New Branch</h3>
-              <button onClick={() => setShowAddBranchModal(false)} className="text-neutral-400 hover:text-white">✕</button>
-            </div>
-            <form onSubmit={handleCreateBranch} className="space-y-3 text-xs font-mono">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">Branch Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Mayfair Central"
-                    value={branchForm.name}
-                    onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">Branch Code</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. BR-MYF"
-                    value={branchForm.branchCode}
-                    onChange={(e) => setBranchForm({ ...branchForm, branchCode: e.target.value })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block uppercase text-neutral-400 mb-1">Street Address</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="14 Berkeley Street"
-                  value={branchForm.address}
-                  onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-                  className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                />
+                <span className="text-[10px] tracking-widest uppercase text-[#c5a880] font-bold block">
+                  MULTI-BRANCH EXPANSION PROTOCOL
+                </span>
+                <h3 className="text-xl font-serif text-white font-bold">Commission New Branch Facility</h3>
               </div>
+              <button
+                onClick={() => setShowAddBranchModal(false)}
+                className="text-neutral-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">City</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="London"
-                    value={branchForm.city}
-                    onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">State / Region</label>
-                  <input
-                    type="text"
-                    placeholder="Greater London"
-                    value={branchForm.state}
-                    onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-              </div>
+            {/* Navigation Tabs for 6 Form Sections */}
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-800/80 pb-3">
+              {[
+                { id: 'basic', label: '1. Basic Info' },
+                { id: 'location', label: '2. Location' },
+                { id: 'docs', label: '3. Documents' },
+                { id: 'facilities', label: '4. Facilities' },
+                { id: 'operating', label: '5. Operating' },
+                { id: 'media', label: '6. Media' },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActiveBranchFormSection(s.id)}
+                  className={`px-3 py-1.5 uppercase font-bold text-[10px] tracking-wider rounded transition ${
+                    activeBranchFormSection === s.id
+                      ? 'bg-[#c5a880] text-black shadow'
+                      : 'bg-[#141414] text-neutral-400 hover:text-white border border-neutral-800'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">Contact Phone</label>
-                  <input
-                    type="text"
-                    placeholder="+44 20 7946 0920"
-                    value={branchForm.phone}
-                    onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-                <div>
-                  <label className="block uppercase text-neutral-400 mb-1">Capacity</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="5000"
-                    value={branchForm.capacity}
-                    onChange={(e) => setBranchForm({ ...branchForm, capacity: Number(e.target.value) })}
-                    className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880]"
-                  />
-                </div>
-              </div>
+            <div className="space-y-4">
+              {/* SECTION 1: BASIC INFORMATION */}
+              {activeBranchFormSection === 'basic' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Branch Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Bandra Luxury Sanctuary"
+                        value={branchForm.name}
+                        onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Branch Code (Auto / Custom)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. BR-BANDRA"
+                        value={branchForm.branchCode}
+                        onChange={(e) => setBranchForm({ ...branchForm, branchCode: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end space-x-3 pt-3 border-t border-neutral-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Branch Type</label>
+                      <select
+                        value={branchForm.branchType}
+                        onChange={(e) => setBranchForm({ ...branchForm, branchType: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      >
+                        <option value="Standard">Standard</option>
+                        <option value="Premium">Premium</option>
+                        <option value="Flagship">Flagship</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Branch Manager Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Rohan Mehra"
+                        value={branchForm.assignedManagerName}
+                        onChange={(e) => setBranchForm({ ...branchForm, assignedManagerName: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Contact Phone</label>
+                      <input
+                        type="text"
+                        placeholder="+91 98765 43210"
+                        value={branchForm.phone}
+                        onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Branch Official Email</label>
+                    <input
+                      type="email"
+                      placeholder="bandra@qnoxfit.com"
+                      value={branchForm.email}
+                      onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: LOCATION INFORMATION */}
+              {activeBranchFormSection === 'location' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Street Address *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Plot 42, Turner Road, Bandra West"
+                      value={branchForm.address}
+                      onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Landmark</label>
+                      <input
+                        type="text"
+                        placeholder="Near Linking Road Junction"
+                        value={branchForm.landmark}
+                        onChange={(e) => setBranchForm({ ...branchForm, landmark: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">City *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Mumbai"
+                        value={branchForm.city}
+                        onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">State / Region</label>
+                      <input
+                        type="text"
+                        placeholder="Maharashtra"
+                        value={branchForm.state}
+                        onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">PIN / Postal Code</label>
+                      <input
+                        type="text"
+                        placeholder="400050"
+                        value={branchForm.postalCode}
+                        onChange={(e) => setBranchForm({ ...branchForm, postalCode: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">GPS Latitude (Territory Geofence)</label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={branchForm.latitude}
+                        onChange={(e) => setBranchForm({ ...branchForm, latitude: Number(e.target.value) })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">GPS Longitude</label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={branchForm.longitude}
+                        onChange={(e) => setBranchForm({ ...branchForm, longitude: Number(e.target.value) })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 3: BUSINESS VERIFICATION DOCUMENTS */}
+              {activeBranchFormSection === 'docs' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-[11px] leading-relaxed">
+                    Super Admin verifies property lease deeds and operating licenses before granting approval. Provide public or cloud URLs for your verification dossiers.
+                  </div>
+
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Property Ownership / Lease Agreement URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://drive.google.com/lease-agreement.pdf"
+                      value={branchForm.propertyLeaseDeedUrl}
+                      onChange={(e) => setBranchForm({ ...branchForm, propertyLeaseDeedUrl: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Business Registration Certificate URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://cloud.qnox.com/business-reg.pdf"
+                        value={branchForm.businessRegistrationUrl}
+                        onChange={(e) => setBranchForm({ ...branchForm, businessRegistrationUrl: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Gym Operating License URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://cloud.qnox.com/operating-license.pdf"
+                        value={branchForm.operatingLicenseUrl}
+                        onChange={(e) => setBranchForm({ ...branchForm, operatingLicenseUrl: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-[#111] border border-neutral-800">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Emergency Contact Name</label>
+                      <input
+                        type="text"
+                        placeholder="Anil Gupta"
+                        value={branchForm.emergencyContact.name}
+                        onChange={(e) => setBranchForm({
+                          ...branchForm,
+                          emergencyContact: { ...branchForm.emergencyContact, name: e.target.value }
+                        })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Emergency Phone</label>
+                      <input
+                        type="text"
+                        placeholder="+91 98200 11223"
+                        value={branchForm.emergencyContact.phone}
+                        onChange={(e) => setBranchForm({
+                          ...branchForm,
+                          emergencyContact: { ...branchForm.emergencyContact, phone: e.target.value }
+                        })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Relation / Role</label>
+                      <input
+                        type="text"
+                        placeholder="General Manager"
+                        value={branchForm.emergencyContact.relation}
+                        onChange={(e) => setBranchForm({
+                          ...branchForm,
+                          emergencyContact: { ...branchForm.emergencyContact, relation: e.target.value }
+                        })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4: FACILITIES & INFRASTRUCTURE */}
+              {activeBranchFormSection === 'facilities' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
+                    Select All Amenities Available at this Physical Branch:
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { key: 'cardioEquipment', label: 'Cardio Equipment' },
+                      { key: 'weightTraining', label: 'Weight Training' },
+                      { key: 'personalTraining', label: 'Personal Training' },
+                      { key: 'swimmingPool', label: 'Swimming Pool' },
+                      { key: 'steamAndSauna', label: 'Steam & Sauna' },
+                      { key: 'lockerRoom', label: 'Locker Room' },
+                      { key: 'showerFacilities', label: 'Shower Facilities' },
+                      { key: 'parking', label: 'Dedicated Parking' },
+                    ].map((amenity) => (
+                      <label
+                        key={amenity.key}
+                        className={`p-3 border flex items-center space-x-2.5 cursor-pointer rounded transition ${
+                          branchForm.facilitiesBreakdown[amenity.key]
+                            ? 'bg-[#c5a880]/15 border-[#c5a880] text-white'
+                            : 'bg-[#121212] border-neutral-800 text-neutral-500'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={branchForm.facilitiesBreakdown[amenity.key]}
+                          onChange={(e) => setBranchForm({
+                            ...branchForm,
+                            facilitiesBreakdown: {
+                              ...branchForm.facilitiesBreakdown,
+                              [amenity.key]: e.target.checked,
+                            },
+                          })}
+                          className="accent-[#c5a880]"
+                        />
+                        <span className="text-[11px] font-semibold">{amenity.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 5: OPERATING INFO */}
+              {activeBranchFormSection === 'operating' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Weekday Operating Hours</label>
+                      <input
+                        type="text"
+                        placeholder="06:00 - 22:30"
+                        value={branchForm.openingHours.weekdays}
+                        onChange={(e) => setBranchForm({
+                          ...branchForm,
+                          openingHours: { ...branchForm.openingHours, weekdays: e.target.value }
+                        })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Weekend Operating Hours</label>
+                      <input
+                        type="text"
+                        placeholder="07:30 - 20:00"
+                        value={branchForm.openingHours.weekends}
+                        onChange={(e) => setBranchForm({
+                          ...branchForm,
+                          openingHours: { ...branchForm.openingHours, weekends: e.target.value }
+                        })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Maximum Member Capacity *</label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="10000"
+                      value={branchForm.capacity}
+                      onChange={(e) => setBranchForm({ ...branchForm, capacity: Number(e.target.value) })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Branch Description</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe the aesthetic, elite facilities, and services available..."
+                      value={branchForm.description}
+                      onChange={(e) => setBranchForm({ ...branchForm, description: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 6: MEDIA */}
+              {activeBranchFormSection === 'media' && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Hero Image URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/photo-1540497077202-7c8a3999166f..."
+                      value={branchForm.heroImage}
+                      onChange={(e) => setBranchForm({ ...branchForm, heroImage: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Interior Gallery URLs (Comma-separated)</label>
+                    <textarea
+                      rows={2}
+                      placeholder="https://example.com/interior1.jpg, https://example.com/interior2.jpg"
+                      value={branchForm.interiorGallery}
+                      onChange={(e) => setBranchForm({ ...branchForm, interiorGallery: e.target.value })}
+                      className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Equipment Images URLs</label>
+                      <input
+                        type="text"
+                        placeholder="Comma-separated image URLs"
+                        value={branchForm.equipmentImages}
+                        onChange={(e) => setBranchForm({ ...branchForm, equipmentImages: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block uppercase text-neutral-400 mb-1">Exterior Facade Image URLs</label>
+                      <input
+                        type="text"
+                        placeholder="Comma-separated image URLs"
+                        value={branchForm.exteriorImages}
+                        onChange={(e) => setBranchForm({ ...branchForm, exteriorImages: e.target.value })}
+                        className="w-full bg-[#141414] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions: Save as Draft vs Submit for Verification */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-neutral-800">
+              <span className="text-[10px] text-neutral-500">
+                * Submitted applications undergo Super Admin geofence & compliance verification.
+              </span>
+              <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddBranchModal(false)}
-                  className="px-4 py-2 border border-neutral-800 text-neutral-400 uppercase"
+                  disabled={actionLoading}
+                  onClick={() => handleSaveBranch('DRAFT')}
+                  className="px-4 py-2 border border-neutral-700 hover:border-neutral-500 text-neutral-300 uppercase font-bold text-[10px] tracking-wider rounded transition"
                 >
-                  CANCEL
+                  SAVE AS DRAFT
                 </button>
                 <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 bg-[#c5a880] text-black font-semibold uppercase"
+                  type="button"
+                  disabled={actionLoading || !branchForm.name || !branchForm.address || !branchForm.city}
+                  onClick={() => handleSaveBranch('SUBMIT')}
+                  className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black font-bold uppercase text-[10px] tracking-wider rounded transition disabled:opacity-40"
                 >
-                  {actionLoading ? 'COMMISSIONING...' : 'COMMISSION'}
+                  {actionLoading ? 'SUBMITTING...' : 'SUBMIT FOR VERIFICATION'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -1719,6 +2395,251 @@ export default function GymOwnerDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2B: BRANCH OPERATIONAL SETUP WIZARD (STEP 5) */}
+      {showSetupWizardModal && setupWizardBranch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-2xl bg-[#0b0b0b] border border-[#c5a880]/40 p-6 space-y-5 my-8 max-h-[92vh] overflow-y-auto font-mono text-xs">
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-emerald-400 font-bold block flex items-center space-x-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>SUPER ADMIN VERIFIED &bull; SETUP WIZARD (STEP 5)</span>
+                </span>
+                <h3 className="text-xl font-serif text-white font-bold">Configure Operations: {setupWizardBranch.name}</h3>
+              </div>
+              <button onClick={() => setShowSetupWizardModal(false)} className="text-neutral-400 hover:text-white p-1">✕</button>
+            </div>
+
+            <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 text-emerald-200 text-[11px] leading-relaxed">
+              Complete the operational setup checklist below to transition your branch from <strong>INACTIVE</strong> to <strong>ACTIVE</strong> and unlock public website publication.
+            </div>
+
+            <form onSubmit={handleCompleteSetup} className="space-y-4">
+              {/* 1. Branch Manager Assignment */}
+              <div className="p-3.5 bg-[#121212] border border-neutral-800 space-y-2.5">
+                <span className="text-[#c5a880] font-bold uppercase text-[10px] block">1. ASSIGN BRANCH MANAGER</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Manager Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Vikram Sharma"
+                      value={wizardForm.assignedManagerName}
+                      onChange={(e) => setWizardForm({ ...wizardForm, assignedManagerName: e.target.value })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Manager Direct Email *</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="vikram@sanctuary.in"
+                      value={wizardForm.assignedManagerEmail}
+                      onChange={(e) => setWizardForm({ ...wizardForm, assignedManagerEmail: e.target.value })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Assign Coaches / Trainers */}
+              <div className="p-3.5 bg-[#121212] border border-neutral-800 space-y-2.5">
+                <span className="text-[#c5a880] font-bold uppercase text-[10px] block">2. ASSIGN SANCTUARY COACHES / TRAINERS</span>
+                {trainers.length === 0 ? (
+                  <p className="text-neutral-500 text-[11px]">No coaches on roster yet. You can onboard coaches anytime in Coaches tab.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {trainers.map((t) => {
+                      const isAssigned = wizardForm.assignedTrainerIds.includes(t._id);
+                      return (
+                        <label
+                          key={t._id}
+                          className={`p-2.5 border rounded flex items-center space-x-2.5 cursor-pointer transition ${
+                            isAssigned ? 'bg-[#c5a880]/15 border-[#c5a880] text-white' : 'bg-[#181818] border-neutral-800 text-neutral-400'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isAssigned}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setWizardForm({
+                                ...wizardForm,
+                                assignedTrainerIds: checked
+                                  ? [...wizardForm.assignedTrainerIds, t._id]
+                                  : wizardForm.assignedTrainerIds.filter((id) => id !== t._id),
+                              });
+                            }}
+                            className="accent-[#c5a880]"
+                          />
+                          <div>
+                            <span className="font-bold text-white block">{t.name}</span>
+                            <span className="text-[10px] text-neutral-400">{t.title}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Confirm Operating Hours */}
+              <div className="p-3.5 bg-[#121212] border border-neutral-800 space-y-2.5">
+                <span className="text-[#c5a880] font-bold uppercase text-[10px] block">3. CONFIRM OPERATING SCHEDULE</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Weekdays Hours</label>
+                    <input
+                      type="text"
+                      value={wizardForm.openingHours.weekdays}
+                      onChange={(e) => setWizardForm({
+                        ...wizardForm,
+                        openingHours: { ...wizardForm.openingHours, weekdays: e.target.value }
+                      })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Weekends Hours</label>
+                    <input
+                      type="text"
+                      value={wizardForm.openingHours.weekends}
+                      onChange={(e) => setWizardForm({
+                        ...wizardForm,
+                        openingHours: { ...wizardForm.openingHours, weekends: e.target.value }
+                      })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Pricing & Settlement Rate */}
+              <div className="p-3.5 bg-[#121212] border border-neutral-800 space-y-2.5">
+                <span className="text-[#c5a880] font-bold uppercase text-[10px] block">4. CAPACITY & CROSS-SANCTUARY REVENUE SETTLEMENT</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Member Capacity</label>
+                    <input
+                      type="number"
+                      value={wizardForm.capacity}
+                      onChange={(e) => setWizardForm({ ...wizardForm, capacity: Number(e.target.value) })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block uppercase text-neutral-400 mb-1">Settlement Rate per Visit (₹)</label>
+                    <input
+                      type="number"
+                      value={wizardForm.settlementRatePerVisit}
+                      onChange={(e) => setWizardForm({ ...wizardForm, settlementRatePerVisit: Number(e.target.value) })}
+                      className="w-full bg-[#181818] border border-neutral-800 px-3 py-2 text-white focus:border-[#c5a880] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-3 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setShowSetupWizardModal(false)}
+                  className="px-4 py-2 border border-neutral-800 text-neutral-400 uppercase font-bold text-[10px]"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 bg-[#c5a880] hover:bg-white text-black font-bold uppercase text-[10px] tracking-wider rounded transition"
+                >
+                  {actionLoading ? 'SAVING CONFIGURATION...' : 'COMPLETE SETUP & UNLOCK PUBLICATION'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2C: PREVIEW & PUBLISH TO PUBLIC WEBSITE (STEP 7) */}
+      {showPublishPreviewModal && publishPreviewBranch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-xl bg-[#0b0b0b] border border-sky-500/40 p-6 space-y-5 my-8 font-mono text-xs">
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-sky-400 font-bold block flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  <span>STEP 7 &bull; PUBLIC LISTING PREVIEW</span>
+                </span>
+                <h3 className="text-xl font-serif text-white font-bold">Publish {publishPreviewBranch.name} to Website</h3>
+              </div>
+              <button onClick={() => setShowPublishPreviewModal(false)} className="text-neutral-400 hover:text-white p-1">✕</button>
+            </div>
+
+            <p className="text-neutral-300 text-[11px] leading-relaxed">
+              Below is an exact preview of how your verified branch will be presented to prospective luxury members on the QNOX public website discovery portal:
+            </p>
+
+            {/* Public Card Mockup */}
+            <div className="bg-[#121212] border border-neutral-800 rounded overflow-hidden shadow-2xl">
+              <div className="h-44 bg-neutral-900 relative">
+                <img
+                  src={publishPreviewBranch.heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1200&q=80'}
+                  alt={publishPreviewBranch.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 left-3 px-2 py-0.5 bg-black/80 border border-neutral-700 text-[10px] font-bold text-[#c5a880]">
+                  {publishPreviewBranch.branchCode || 'BR-MAIN'}
+                </div>
+                <div className="absolute top-3 right-3 px-2 py-0.5 bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 text-[10px] font-bold flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>LIVE: OPEN</span>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-serif text-lg text-white font-bold">{publishPreviewBranch.name}</h4>
+                    <p className="text-[11px] text-neutral-400 flex items-center space-x-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#c5a880]" />
+                      <span>{publishPreviewBranch.address || publishPreviewBranch.location}</span>
+                    </p>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 bg-[#c5a880]/15 text-[#c5a880] border border-[#c5a880]/30 font-bold uppercase rounded">
+                    {publishPreviewBranch.branchType || 'Standard'}
+                  </span>
+                </div>
+
+                <div className="text-[10px] text-neutral-400 pt-1">
+                  Hours: {publishPreviewBranch.openingHours?.weekdays || '06:00 - 22:30'} &bull; Max Cap: {publishPreviewBranch.capacity || 150} Members
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-3 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setShowPublishPreviewModal(false)}
+                className="px-4 py-2 border border-neutral-800 text-neutral-400 uppercase font-bold text-[10px]"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handlePublishBranch(publishPreviewBranch._id)}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-[10px] tracking-wider rounded transition flex items-center space-x-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>CONFIRM & PUBLISH TO WEBSITE</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
