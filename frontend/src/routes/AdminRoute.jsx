@@ -10,7 +10,7 @@ export default function AdminRoute({ children }) {
   const { showToast } = useNotifications();
 
   const [email, setEmail] = useState('admin@qnoxgym.com');
-  const [password, setPassword] = useState('Admin@QNOX2026!');
+  const [password, setPassword] = useState('admin123');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -59,7 +59,7 @@ export default function AdminRoute({ children }) {
 
   const handleFillSuperAdmin = () => {
     setEmail('admin@qnoxgym.com');
-    setPassword('Admin@QNOX2026!');
+    setPassword('admin123');
     setErrorMsg('');
   };
 

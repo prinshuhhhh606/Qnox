@@ -10,7 +10,7 @@ body:
   content: |-
     {
       "email": "admin@qnoxgym.com",
-      "password": "Admin@QNOX2026!"
+      "password": "admin123"
     }
 scripts:
   - type: afterResponse

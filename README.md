@@ -28,7 +28,7 @@
 - **Password Recovery**: Secure 30-minute SHA-256 tokens with luxury reset emails.
 - **Pre-Seeded Super Admin**:
   - **Email**: `admin@qnoxgym.com`
-  - **Password**: `Admin@QNOX2026!`
+  - **Password**: `admin123`
 
 ### 3. Membership & Razorpay Payments
 - **Multi-Term Pricing**: 1 Month, 3 Months (Quarterly), 6 Months (Half-Yearly), 12 Months (Annual).
@@ -241,5 +241,5 @@ Starts at **`http://localhost:3000`**
 ## 🔑 Default Super Admin Credentials
 
 - **Email**: `admin@qnoxgym.com`
-- **Password**: `Admin@QNOX2026!`
+- **Password**: `admin123`
 - **Access**: Click **SIGN IN** on the top navigation bar, then click the **"FILL SUPER ADMIN LOGIN"** button to auto-fill credentials, and enter the **ADMIN SUITE**.

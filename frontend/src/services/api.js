@@ -108,7 +108,7 @@ export const loginUser = async (credentials) => {
   // Pre-seeded Super Admin demo credentials fallback if backend process is offline
   if (
     credentials.email === 'admin@qnoxgym.com' &&
-    credentials.password === 'Admin@QNOX2026!'
+    credentials.password === 'admin123'
   ) {
     const demoAdminUser = {
       id: 'usr_admin_demo',

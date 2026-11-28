@@ -107,7 +107,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast,
     setFormData({
       ...formData,
       email: 'admin@qnoxgym.com',
-      password: 'Admin@QNOX2026!',
+      password: 'admin123',
     });
     setMode('login');
   };
