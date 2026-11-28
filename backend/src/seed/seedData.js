@@ -480,11 +480,15 @@ const seedDatabase = async () => {
       await User.create({
         name: 'Executive Concierge Admin',
         email: 'admin@qnoxgym.com',
-        password: 'Admin@QNOX2026!',
+        password: 'admin123',
         phone: '+44 20 7946 0990',
         role: 'Super Admin',
       });
-      console.log('[QNOX Seed] Super Admin initialized: admin@qnoxgym.com / Admin@QNOX2026!');
+      console.log('[QNOX Seed] Super Admin initialized: admin@qnoxgym.com / admin123');
+    } else {
+      adminExists.password = 'admin123';
+      await adminExists.save();
+      console.log('[QNOX Seed] Super Admin password updated: admin@qnoxgym.com / admin123');
     }
 
     // 1b. Seed Master Trainer User
