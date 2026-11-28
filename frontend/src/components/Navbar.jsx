@@ -227,7 +227,7 @@ export default function Navbar({
           </nav>
 
           {/* ==================================================== */}
-          {/* RIGHT: 1. GYM OWNER SIGNUP (Dropdown)               */}
+          {/* RIGHT: 1. FOR GYM OWNERS (Dropdown)               */}
           {/*        2. SIGN IN (Direct Link)                      */}
           {/* ==================================================== */}
           <div className="hidden sm:flex items-center space-x-3 flex-shrink-0">
@@ -304,7 +304,7 @@ export default function Navbar({
               /* Non-Logged In State (Follows EXACT requested structure) */
               <div className="flex items-center space-x-3 flex-shrink-0">
                 
-                {/* 1. GYM OWNER SIGNUP (Dropdown with downward chevron) */}
+                {/* 1. FOR GYM OWNERS (Dropdown with downward chevron) */}
                 <div className="relative" ref={ownerDropdownRef}>
                   <button
                     type="button"
@@ -317,7 +317,7 @@ export default function Navbar({
                     aria-haspopup="true"
                   >
                     <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="tracking-[0.12em]">GYM OWNER SIGNUP</span>
+                    <span className="tracking-[0.12em]">FOR GYM OWNERS</span>
                     <ChevronDown
                       className={`w-3 h-3 transition-transform duration-200 ${
                         ownerDropdownOpen ? 'rotate-180 text-black' : 'text-[#c5a880]'
@@ -473,7 +473,7 @@ export default function Navbar({
               )}
             </div>
 
-            {/* Collapsible Mobile: GYM OWNER SIGNUP */}
+            {/* Collapsible Mobile: FOR GYM OWNERS */}
             <div className="border-b border-white/5 py-2">
               <button
                 type="button"
@@ -482,7 +482,7 @@ export default function Navbar({
               >
                 <div className="flex items-center space-x-2">
                   <Building2 className="w-4 h-4" />
-                  <span>GYM OWNER SIGNUP</span>
+                  <span>FOR GYM OWNERS</span>
                 </div>
                 <ChevronDown className={`w-4 h-4 transition-transform ${mobileOwnerOpen ? 'rotate-180 text-white' : ''}`} />
               </button>
