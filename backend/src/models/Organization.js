@@ -37,9 +37,48 @@ const OrganizationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Active', 'Pending-Approval', 'Pending-Payment', 'Suspended', 'Cancelled'],
+      enum: ['Active', 'Pending-Approval', 'Pending-Payment', 'Payment-Failed', 'Suspended', 'Cancelled'],
       default: 'Active',
     },
+    // Multi-Stage Onboarding Matrix Lifecycle
+    onboardingStage: {
+      type: String,
+      enum: [
+        'REGISTRATION_PENDING',
+        'ADMIN_REVIEW',
+        'ADMIN_APPROVED',
+        'PAYMENT_PENDING',
+        'SUBSCRIPTION_ACTIVE',
+        'GYM_SUBMITTED',
+        'GYM_VERIFICATION',
+        'TERRITORY_REVIEW',
+        'ACTIVE_COMPLETED',
+        'GYM_REJECTED',
+      ],
+      default: 'ACTIVE_COMPLETED',
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['PENDING_PAYMENT', 'ACTIVE', 'PAYMENT_FAILED', 'EXPIRED', 'CANCELLED'],
+      default: 'ACTIVE',
+    },
+    businessType: {
+      type: String,
+      default: 'Independent Studio',
+    },
+    gstNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    businessDocuments: [
+      {
+        docType: { type: String, required: true },
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
     contactEmail: {
       type: String,
       trim: true,

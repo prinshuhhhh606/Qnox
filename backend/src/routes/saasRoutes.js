@@ -40,6 +40,12 @@ const {
   initiateSaaSCheckout,
   getAdminTerritories,
   updateBranchTerritory,
+  requestAdditionalInfoApplication,
+  submitInitialGymBranch,
+  getAdminGymVerifications,
+  approveAndActivateGymBranch,
+  rejectGymBranch,
+  getGymOwnerOnboardingStatus,
 } = require('../controllers/saasController');
 const { protect, authorize } = require('../middlewares/auth');
 const { verifyTenant } = require('../middlewares/tenant');
@@ -93,14 +99,24 @@ router.get('/admin/tenants', protect, authorize('Super Admin'), getAdminTenants)
 router.put('/admin/tenants/:id/status', protect, authorize('Super Admin'), updateAdminTenantStatus);
 router.put('/admin/tenants/:id/plan', protect, authorize('Super Admin'), updateAdminTenantPlan);
 
-// Super Admin Gym Owner Pre-Approval Pipeline
+// Super Admin Gym Owner Pre-Approval Pipeline (Gateway 1)
 router.get('/admin/applications', protect, authorize('Super Admin'), getAdminGymOwnerApplications);
 router.get('/admin/applications/:id', protect, authorize('Super Admin'), getAdminGymOwnerApplicationById);
 router.put('/admin/applications/:id/approve', protect, authorize('Super Admin'), approveGymOwnerApplication);
 router.put('/admin/applications/:id/reject', protect, authorize('Super Admin'), rejectGymOwnerApplication);
+router.put('/admin/applications/:id/request-info', protect, authorize('Super Admin'), requestAdditionalInfoApplication);
 
 // Super Admin Territory Protection & Geofencing Console
 router.get('/admin/territories', protect, authorize('Super Admin'), getAdminTerritories);
 router.put('/admin/territories/branch/:id', protect, authorize('Super Admin'), updateBranchTerritory);
+
+// Gym Owner Onboarding Status & Initial Branch Setup
+router.get('/onboarding-status', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, getGymOwnerOnboardingStatus);
+router.post('/branches/submit-initial', protect, authorize('Gym Owner', 'Company Admin', 'Super Admin'), verifyTenant, submitInitialGymBranch);
+
+// Super Admin Final Gym Branch Verification & Activation (Gateway 2)
+router.get('/admin/gym-verifications', protect, authorize('Super Admin'), getAdminGymVerifications);
+router.put('/admin/gym-verifications/:clubId/approve', protect, authorize('Super Admin'), approveAndActivateGymBranch);
+router.put('/admin/gym-verifications/:clubId/reject', protect, authorize('Super Admin'), rejectGymBranch);
 
 module.exports = router;

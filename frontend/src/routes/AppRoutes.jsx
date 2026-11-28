@@ -31,6 +31,7 @@ import TrainerDashboardPage from '../modules/trainer/pages/TrainerDashboardPage'
 import AdminDashboardPage from '../modules/admin/pages/AdminDashboardPage';
 import GymOwnerDashboardPage from '../pages/GymOwnerDashboardPage';
 import GymOwnerOnboardPage from '../pages/GymOwnerOnboardPage';
+import GymOwnerRegisterPage from '../pages/GymOwnerRegisterPage';
 
 export default function AppRoutes() {
   return (
@@ -98,6 +99,7 @@ export default function AppRoutes() {
       </Route>
 
       {/* Public Onboarding with Pre-Approval Invitation Token */}
+      <Route path="/gym-owner/register" element={<GymOwnerRegisterPage />} />
       <Route path="/gym-owner/onboard" element={<GymOwnerOnboardPage />} />
 
       {/* 5. GYM OWNER PANEL (Protected SaaS Partner Suite) */}

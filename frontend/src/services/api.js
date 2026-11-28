@@ -2606,6 +2606,8 @@ export const applyGymOwner = async (payload) => {
   return data;
 };
 
+export const applyGymOwnerPartner = applyGymOwner;
+
 export const fetchAdminGymOwnerApplications = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/saas/admin/applications${query ? `?${query}` : ''}`, {
@@ -2695,5 +2697,71 @@ export const updateBranchTerritory = async (id, payload) => {
   if (!res.ok) throw new Error(data.message || 'Failed to update branch territory');
   return data;
 };
+
+export const requestAdditionalInfoApplication = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/applications/${id}/request-info`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to request additional information');
+  return data;
+};
+
+export const submitInitialGymBranch = async (payload) => {
+  const res = await fetch(`${API_BASE}/saas/branches/submit-initial`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to submit gym branch');
+  return data;
+};
+
+export const fetchOnboardingStatus = async () => {
+  const res = await fetch(`${API_BASE}/saas/onboarding-status`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch onboarding status');
+  return data.data;
+};
+
+export const fetchAdminGymVerifications = async (status) => {
+  const url = status && status !== 'All'
+    ? `${API_BASE}/saas/admin/gym-verifications?status=${encodeURIComponent(status)}`
+    : `${API_BASE}/saas/admin/gym-verifications`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch gym verifications queue');
+  return data;
+};
+
+export const approveAndActivateGymBranch = async (clubId, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/gym-verifications/${clubId}/approve`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to approve and activate gym branch');
+  return data;
+};
+
+export const rejectGymBranch = async (clubId, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/gym-verifications/${clubId}/reject`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reject gym branch');
+  return data;
+};
+
 
 

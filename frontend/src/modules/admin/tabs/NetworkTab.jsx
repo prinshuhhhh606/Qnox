@@ -20,6 +20,10 @@ import {
   rejectAdminGymOwnerApplication,
   fetchAdminTerritories,
   updateBranchTerritory,
+  fetchAdminGymVerifications,
+  approveAndActivateGymBranch,
+  rejectGymBranch,
+  requestAdditionalInfoApplication,
 } from '../../../services/api';
 import TerritoryManagementConsole from '../components/TerritoryManagementConsole';
 
@@ -51,6 +55,24 @@ export default function NetworkTab({ onShowToast }) {
   const [processingGymAppId, setProcessingGymAppId] = useState(null);
   const [invitationResult, setInvitationResult] = useState(null);
 
+  // Request Additional Info state (Gateway 1)
+  const [showRequestInfoModal, setShowRequestInfoModal] = useState(false);
+  const [requestInfoMessage, setRequestInfoMessage] = useState('');
+  const [requestInfoDocInput, setRequestInfoDocInput] = useState('');
+  const [processingRequestInfo, setProcessingRequestInfo] = useState(false);
+
+  // Gym Verifications & Branch Activations state (Gateway 2)
+  const [gymVerifications, setGymVerifications] = useState([]);
+  const [loadingGymVerifications, setLoadingGymVerifications] = useState(false);
+  const [gymVerificationFilter, setGymVerificationFilter] = useState('All');
+  const [selectedVerificationBranch, setSelectedVerificationBranch] = useState(null);
+  const [showBranchApproveModal, setShowBranchApproveModal] = useState(false);
+  const [showBranchRejectModal, setShowBranchRejectModal] = useState(false);
+  const [branchApproveNotes, setBranchApproveNotes] = useState('');
+  const [branchApproveJustification, setBranchApproveJustification] = useState('');
+  const [branchRejectReason, setBranchRejectReason] = useState('');
+  const [processingBranchId, setProcessingBranchId] = useState(null);
+
   // QR Scanner verification state
   const [qrInputToken, setQrInputToken] = useState('');
   const [selectedScanClubId, setSelectedScanClubId] = useState('');
@@ -68,14 +90,16 @@ export default function NetworkTab({ onShowToast }) {
     setLoadingSettlements(true);
     setLoadingTenants(true);
     setLoadingGymApps(true);
+    setLoadingGymVerifications(true);
     try {
-      const [analyticsData, appsData, settlementsData, clubsData, tenantsData, gymAppsData] = await Promise.allSettled([
+      const [analyticsData, appsData, settlementsData, clubsData, tenantsData, gymAppsData, gymVerifData] = await Promise.allSettled([
         fetchMultiGymAnalytics(),
         fetchPartnershipApplications(),
         fetchPartnerSettlements(),
         fetchClubs(),
         fetchAdminTenants(),
         fetchAdminGymOwnerApplications(),
+        fetchAdminGymVerifications(),
       ]);
 
       if (analyticsData.status === 'fulfilled' && analyticsData.value) {
@@ -93,6 +117,9 @@ export default function NetworkTab({ onShowToast }) {
       if (gymAppsData.status === 'fulfilled' && gymAppsData.value?.data) {
         setGymApplications(gymAppsData.value.data);
       }
+      if (gymVerifData.status === 'fulfilled' && gymVerifData.value?.data) {
+        setGymVerifications(gymVerifData.value.data);
+      }
       if (clubsData.status === 'fulfilled' && clubsData.value) {
         const list = Array.isArray(clubsData.value) ? clubsData.value : clubsData.value.data || [];
         setClubs(list);
@@ -108,6 +135,7 @@ export default function NetworkTab({ onShowToast }) {
       setLoadingSettlements(false);
       setLoadingTenants(false);
       setLoadingGymApps(false);
+      setLoadingGymVerifications(false);
     }
   };
 
@@ -178,6 +206,100 @@ export default function NetworkTab({ onShowToast }) {
       if (onShowToast) onShowToast({ type: 'error', message: err.message });
     } finally {
       setProcessingGymAppId(null);
+    }
+  };
+
+  const handleOpenRequestInfoModal = (app) => {
+    setActiveAppActionId(app._id);
+    setSelectedGymApp(app);
+    setRequestInfoMessage('');
+    setRequestInfoDocInput('');
+    setShowRequestInfoModal(true);
+  };
+
+  const handleConfirmRequestInfo = async () => {
+    if (!activeAppActionId || !requestInfoMessage.trim()) {
+      if (onShowToast) onShowToast({ type: 'error', message: 'Detailed message explaining required info is required.' });
+      return;
+    }
+    setProcessingRequestInfo(true);
+    try {
+      const docs = requestInfoDocInput.split(',').map(s => s.trim()).filter(Boolean);
+      const res = await requestAdditionalInfoApplication(activeAppActionId, {
+        message: requestInfoMessage.trim(),
+        requestedDocuments: docs,
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Information request dispatched to applicant.' });
+      setShowRequestInfoModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingRequestInfo(false);
+    }
+  };
+
+  const handleOpenApproveBranchModal = (branch) => {
+    setSelectedVerificationBranch(branch);
+    setBranchApproveNotes('');
+    setBranchApproveJustification('');
+    setShowBranchApproveModal(true);
+  };
+
+  const handleConfirmApproveBranch = async () => {
+    if (!selectedVerificationBranch) return;
+    const isConflict = selectedVerificationBranch.verificationStatus === 'TERRITORY_REVIEW';
+    if (isConflict && (!branchApproveJustification.trim() || branchApproveJustification.trim().length < 10)) {
+      if (onShowToast) {
+        onShowToast({
+          type: 'error',
+          message: 'Territory Conflict: Exceptional approval requires a detailed justification (min 10 characters).',
+        });
+      }
+      return;
+    }
+
+    setProcessingBranchId(selectedVerificationBranch._id);
+    try {
+      const res = await approveAndActivateGymBranch(selectedVerificationBranch._id, {
+        adminNotes: branchApproveNotes,
+        exceptionalApproval: isConflict,
+        exceptionalApprovalJustification: isConflict ? branchApproveJustification.trim() : undefined,
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Gym branch approved and activated live!' });
+      setShowBranchApproveModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingBranchId(null);
+    }
+  };
+
+  const handleOpenRejectBranchModal = (branch) => {
+    setSelectedVerificationBranch(branch);
+    setBranchRejectReason('');
+    setShowBranchRejectModal(true);
+  };
+
+  const handleConfirmRejectBranch = async () => {
+    if (!selectedVerificationBranch || !branchRejectReason.trim()) {
+      if (onShowToast) onShowToast({ type: 'error', message: 'Rejection reason is required.' });
+      return;
+    }
+
+    setProcessingBranchId(selectedVerificationBranch._id);
+    try {
+      const res = await rejectGymBranch(selectedVerificationBranch._id, {
+        rejectionReason: branchRejectReason.trim(),
+      });
+      if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Gym branch rejected.' });
+      setShowBranchRejectModal(false);
+      loadData();
+    } catch (err) {
+      if (onShowToast) onShowToast({ type: 'error', message: err.message });
+    } finally {
+      setProcessingBranchId(null);
     }
   };
 
@@ -350,9 +472,16 @@ export default function NetworkTab({ onShowToast }) {
           },
           {
             id: 'applications',
-            label: 'Partner Applications Pipeline',
+            label: 'Gateway 1: Partner Applications',
             icon: UserCheck,
-            badge: gymApplications.filter(a => ['PENDING_APPROVAL', 'TERRITORY_CONFLICT'].includes(a.status)).length,
+            badge: gymApplications.filter(a => ['PENDING_APPROVAL', 'TERRITORY_CONFLICT', 'ADDITIONAL_INFORMATION_REQUIRED'].includes(a.status)).length,
+          },
+          {
+            id: 'gymVerifications',
+            label: 'Gateway 2: Branch Verifications',
+            icon: ShieldCheck,
+            badge: gymVerifications.filter(v => ['PENDING_VERIFICATION', 'TERRITORY_REVIEW'].includes(v.verificationStatus)).length,
+            alert: gymVerifications.filter(v => v.verificationStatus === 'TERRITORY_REVIEW').length,
           },
           {
             id: 'tenants',
@@ -622,6 +751,223 @@ export default function NetworkTab({ onShowToast }) {
           })()
         )}
       </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* GATEWAY 2: GYM BRANCH FACILITY & TERRITORY VERIFICATIONS */}
+      {/* ======================================================== */}
+      {activeConsoleSection === 'gymVerifications' && (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#c5a880] font-semibold block">
+                  STAGE 5 & 6 AUDIT QUEUE
+                </span>
+                <span className="px-2 py-0.5 text-[9px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-full font-bold">
+                  GATEWAY 2
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white">SaaS Gym Branch Verifications & Live Activations</h3>
+              <p className="text-xs text-neutral-400 font-light mt-0.5">
+                Audit initial gym branches submitted post-payment. Verify facility coordinates against company territory geofences, inspect lease deeds, and activate live sanctuary status.
+              </p>
+            </div>
+            <button
+              onClick={loadData}
+              className="p-2 bg-[#121212] border border-white/10 hover:border-[#c5a880] text-neutral-300 hover:text-white transition flex items-center gap-1.5 text-xs font-mono"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingGymVerifications ? 'animate-spin text-[#c5a880]' : ''}`} />
+              <span>REFRESH QUEUE</span>
+            </button>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { key: 'All', label: 'All Branches', count: gymVerifications.length },
+              { key: 'PENDING_VERIFICATION', label: 'Pending Verification', count: gymVerifications.filter(v => v.verificationStatus === 'PENDING_VERIFICATION').length, highlight: true },
+              { key: 'TERRITORY_REVIEW', label: 'Territory Geofence Conflicts', count: gymVerifications.filter(v => v.verificationStatus === 'TERRITORY_REVIEW').length, alert: true },
+              { key: 'ACTIVE', label: 'Active & Verified', count: gymVerifications.filter(v => v.verificationStatus === 'ACTIVE' || v.verificationStatus === 'APPROVED').length },
+              { key: 'REJECTED', label: 'Rejected', count: gymVerifications.filter(v => v.verificationStatus === 'REJECTED').length },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setGymVerificationFilter(f.key)}
+                className={`px-3 py-1 text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1.5 border ${
+                  gymVerificationFilter === f.key
+                    ? 'bg-[#c5a880] text-black border-[#c5a880] font-bold shadow-[0_0_10px_rgba(197,168,128,0.2)]'
+                    : 'bg-[#0e0e0e] text-neutral-400 border-white/10 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                <span>{f.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  gymVerificationFilter === f.key
+                    ? 'bg-black text-[#c5a880]'
+                    : f.alert && f.count > 0
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                    : f.highlight && f.count > 0
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                    : 'bg-white/10 text-neutral-400'
+                }`}>
+                  {f.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Verifications Queue Table */}
+          {loadingGymVerifications ? (
+            <div className="py-8 text-center text-xs font-mono text-neutral-500 uppercase tracking-widest bg-[#0c0c0c] border border-white/10">
+              <RefreshCw className="w-4 h-4 animate-spin inline-block mr-2 text-[#c5a880]" />
+              Auditing Branch Verification Queue...
+            </div>
+          ) : (
+            (() => {
+              const filtered = gymVerifications.filter((b) => {
+                if (gymVerificationFilter === 'All') return true;
+                if (gymVerificationFilter === 'ACTIVE') return b.verificationStatus === 'ACTIVE' || b.verificationStatus === 'APPROVED';
+                return b.verificationStatus === gymVerificationFilter;
+              });
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="p-8 text-center border border-white/10 bg-[#0e0e0e] text-xs text-neutral-500 font-mono">
+                    No gym branch verification requests match current filter.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto border border-white/10 bg-[#0c0c0c]">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="text-[9px] uppercase tracking-wider text-[#c5a880] bg-[#141414] border-b border-white/10">
+                      <tr>
+                        <th className="p-3.5">Gym Branch & Tenant Org</th>
+                        <th className="p-3.5">Facility Location & Address</th>
+                        <th className="p-3.5">GPS Geofence Audit</th>
+                        <th className="p-3.5">Property Documents</th>
+                        <th className="p-3.5 text-center">Gateway Status</th>
+                        <th className="p-3.5 text-right">Verification Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-neutral-300">
+                      {filtered.map((b) => {
+                        const isPending = b.verificationStatus === 'PENDING_VERIFICATION' || b.verificationStatus === 'TERRITORY_REVIEW';
+                        const isConflict = b.verificationStatus === 'TERRITORY_REVIEW';
+                        const isActive = b.verificationStatus === 'ACTIVE' || b.verificationStatus === 'APPROVED';
+                        const isRejected = b.verificationStatus === 'REJECTED';
+
+                        return (
+                          <tr key={b._id} className="hover:bg-white/[0.02] transition">
+                            <td className="p-3.5">
+                              <div className="font-bold text-white text-sm">{b.name}</div>
+                              <div className="text-[11px] text-[#c5a880]">{b.organization?.name || 'SaaS Tenant'}</div>
+                              <div className="text-[10px] text-neutral-500">{b.organization?.contactEmail || b.email}</div>
+                            </td>
+                            <td className="p-3.5">
+                              <div>{b.address}</div>
+                              <div className="text-[11px] text-neutral-400">{b.city}, {b.state} {b.postalCode}</div>
+                              <div className="text-[10px] text-neutral-500 font-mono">
+                                Lat: {b.latitude?.toFixed(4)}, Lon: {b.longitude?.toFixed(4)}
+                              </div>
+                            </td>
+                            <td className="p-3.5">
+                              {b.nearestCompanyBranch ? (
+                                <div className="space-y-1">
+                                  <div className="text-[11px] text-neutral-300">
+                                    Nearest: <span className="font-semibold text-white">{b.nearestCompanyBranch.name}</span>
+                                  </div>
+                                  {b.nearestCompanyBranch.distanceKm <= b.nearestCompanyBranch.radiusKm ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-500/40">
+                                      <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                      CONFLICT: {b.nearestCompanyBranch.distanceKm} KM (Zone: {b.nearestCompanyBranch.radiusKm} KM)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/70 text-emerald-300 border border-emerald-500/40">
+                                      <CheckCircle className="w-3 h-3 text-emerald-400" />
+                                      CLEARED: {b.nearestCompanyBranch.distanceKm} KM
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-neutral-500">No company branches nearby</span>
+                              )}
+                            </td>
+                            <td className="p-3.5">
+                              {b.locationDocuments && b.locationDocuments.length > 0 ? (
+                                <div className="space-y-1">
+                                  {b.locationDocuments.map((doc, dIdx) => (
+                                    <a
+                                      key={dIdx}
+                                      href={doc.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] text-[#c5a880] hover:underline"
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      <span>{doc.title || 'Lease Proof'}</span>
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-neutral-500 italic">No deed uploaded</span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full ${
+                                isActive
+                                  ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40'
+                                  : isConflict
+                                  ? 'bg-amber-950/70 text-amber-300 border border-amber-500/40 animate-pulse'
+                                  : isRejected
+                                  ? 'bg-rose-950/70 text-rose-400 border border-rose-500/40'
+                                  : 'bg-blue-950/70 text-blue-300 border border-blue-500/40'
+                              }`}>
+                                {b.verificationStatus}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end space-x-1.5">
+                                {isPending ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleOpenApproveBranchModal(b)}
+                                      disabled={processingBranchId === b._id}
+                                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider rounded transition flex items-center space-x-1 disabled:opacity-50"
+                                      title="Approve and activate live sanctuary"
+                                    >
+                                      <CheckCircle className="w-3 h-3" />
+                                      <span>APPROVE & ACTIVATE</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenRejectBranchModal(b)}
+                                      disabled={processingBranchId === b._id}
+                                      className="px-2.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] font-bold uppercase tracking-wider rounded transition border border-rose-500/40 flex items-center space-x-1 disabled:opacity-50"
+                                      title="Reject gym branch"
+                                    >
+                                      <XCircle className="w-3 h-3 text-rose-400" />
+                                      <span>REJECT</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-neutral-500">
+                                    {isActive ? `Live (Verified ${b.verifiedAt ? new Date(b.verifiedAt).toLocaleDateString() : ''})` : 'Archived / Rejected'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()
+          )}
+        </div>
       )}
 
       {/* Multi-Tenant B2B SaaS Partner Gyms Ecosystem */}
@@ -1069,8 +1415,33 @@ export default function NetworkTab({ onShowToast }) {
               </div>
             )}
 
+            {selectedGymApp.documents && selectedGymApp.documents.length > 0 && (
+              <div className="p-3 bg-[#141414] border border-white/5 text-xs font-mono space-y-2">
+                <span className="text-[10px] uppercase text-[#c5a880] block font-bold">Business & Legal Credentials Attached</span>
+                <div className="space-y-1.5">
+                  {selectedGymApp.documents.map((doc, dIdx) => (
+                    <div key={dIdx} className="flex items-center justify-between p-2 rounded bg-black/40 border border-white/5">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-[#c5a880]" />
+                        <span className="text-white text-xs">{doc.title}</span>
+                      </div>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#c5a880] hover:underline flex items-center gap-1"
+                      >
+                        <span>VIEW DOCUMENT</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
-              {selectedGymApp.status === 'PENDING_APPROVAL' && (
+              {['PENDING_APPROVAL', 'TERRITORY_CONFLICT', 'ADDITIONAL_INFORMATION_REQUIRED'].includes(selectedGymApp.status) && (
                 <>
                   <button
                     onClick={() => {
@@ -1081,6 +1452,16 @@ export default function NetworkTab({ onShowToast }) {
                   >
                     <CheckCircle className="w-3.5 h-3.5 mr-1" />
                     <span>APPROVE APPLICATION</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowGymAppModal(false);
+                      handleOpenRequestInfoModal(selectedGymApp);
+                    }}
+                    className="px-3 py-2 bg-amber-900/60 hover:bg-amber-800 text-amber-200 text-xs font-mono uppercase tracking-wider font-bold transition flex items-center space-x-1 border border-amber-500/40"
+                  >
+                    <FileText className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                    <span>REQUEST INFO</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1330,6 +1711,264 @@ export default function NetworkTab({ onShowToast }) {
                     <>
                       <XCircle className="w-3.5 h-3.5" />
                       <span>CONFIRM REJECTION</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: REQUEST ADDITIONAL INFORMATION (GATEWAY 1)     */}
+      {/* ======================================================== */}
+      {showRequestInfoModal && selectedGymApp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-amber-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-amber-400 font-mono block">
+                  GATEWAY 1 COMPLIANCE AUDIT
+                </span>
+                <h3 className="text-lg font-serif text-white">Request Additional Information</h3>
+                <span className="text-xs font-mono text-neutral-400">{selectedGymApp.gymName} ({selectedGymApp.ownerName})</span>
+              </div>
+              <button
+                onClick={() => setShowRequestInfoModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div className="p-3 bg-amber-950/20 border border-amber-500/20 text-neutral-300 space-y-1">
+                <p className="text-amber-300 font-medium">Applicant Notification Notice:</p>
+                <p className="text-[11px]">
+                  Specify the documentation or information required. Status will transition to <strong>ADDITIONAL_INFORMATION_REQUIRED</strong> and a notification will be dispatched to <strong>{selectedGymApp.email}</strong>.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Required Information / Document Request Message <span className="text-amber-400">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={requestInfoMessage}
+                  onChange={(e) => setRequestInfoMessage(e.target.value)}
+                  placeholder="e.g. Please provide a clear copy of your Certificate of Incorporation and updated commercial property lease deed showing authorized gym usage."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Document Names (Comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={requestInfoDocInput}
+                  onChange={(e) => setRequestInfoDocInput(e.target.value)}
+                  placeholder="e.g. Certificate of Incorporation, Trade License, Lease Deed"
+                  className="w-full p-2 bg-[#141414] border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowRequestInfoModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmRequestInfo}
+                  disabled={processingRequestInfo || !requestInfoMessage.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-black text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingRequestInfo ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>DISPATCHING REQUEST...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>DISPATCH INFO REQUEST</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: APPROVE & ACTIVATE GYM BRANCH (GATEWAY 2)      */}
+      {/* ======================================================== */}
+      {showBranchApproveModal && selectedVerificationBranch && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-emerald-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-emerald-400 font-mono block">
+                  STAGE 6: LIVE SANCTUARY ACTIVATION
+                </span>
+                <h3 className="text-lg font-serif text-white">Approve & Activate {selectedVerificationBranch.name}</h3>
+              </div>
+              <button
+                onClick={() => setShowBranchApproveModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              {selectedVerificationBranch.verificationStatus === 'TERRITORY_REVIEW' ? (
+                <div className="p-3 bg-amber-950/40 border border-amber-500/40 text-amber-200 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-400">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span>Territory Conflict Detected: Exceptional Authorization Mandatory</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    This branch falls within the protected zone of a company-owned luxury branch. Approval requires Super Admin exceptional authorization with a mandatory justification (min 10 characters).
+                  </p>
+                  <div>
+                    <label className="block text-[10px] uppercase text-amber-300 font-bold mb-1">
+                      Super Admin Exceptional Justification *
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={branchApproveJustification}
+                      onChange={(e) => setBranchApproveJustification(e.target.value)}
+                      placeholder="e.g. Authorized exceptional partnership: specialized boutique boxing studio with non-competing luxury client demographic..."
+                      className="w-full p-2.5 bg-[#141414] border border-amber-500/50 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 text-emerald-200 space-y-1">
+                  <p className="font-bold text-emerald-300">Location Verification Clear:</p>
+                  <p className="text-[11px] text-neutral-300">
+                    This gym branch is outside protected company territories. Approving will activate the branch (status: OPEN), unlock full dashboard access for the Gym Owner, and assign the facility to the tenant organization.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Internal Verification Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={branchApproveNotes}
+                  onChange={(e) => setBranchApproveNotes(e.target.value)}
+                  placeholder="e.g. Commercial lease agreement verified. GPS coordinates confirmed."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-[#c5a880]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowBranchApproveModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmApproveBranch}
+                  disabled={
+                    processingBranchId === selectedVerificationBranch._id ||
+                    (selectedVerificationBranch.verificationStatus === 'TERRITORY_REVIEW' &&
+                      branchApproveJustification.trim().length < 10)
+                  }
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingBranchId === selectedVerificationBranch._id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>ACTIVATING SANCTUARY...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>CONFIRM & ACTIVATE SANCTUARY LIVE</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 6: REJECT GYM BRANCH (GATEWAY 2)                  */}
+      {/* ======================================================== */}
+      {showBranchRejectModal && selectedVerificationBranch && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border border-rose-500/30 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] tracking-widest uppercase text-rose-400 font-mono block">
+                  GATEWAY 2: BRANCH REJECTION NOTICE
+                </span>
+                <h3 className="text-lg font-serif text-white">Reject {selectedVerificationBranch.name}</h3>
+              </div>
+              <button
+                onClick={() => setShowBranchRejectModal(false)}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div className="p-3 bg-rose-950/20 border border-rose-500/20 text-neutral-300 space-y-1">
+                <p className="text-rose-300 font-medium">Rejection Compliance Protocol:</p>
+                <p className="text-[11px]">
+                  State the compliance or lease verification deficiency. The Gym Owner will be notified in their onboarding tracking view to submit revised documents.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-neutral-400 mb-1">
+                  Rejection Reason <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={branchRejectReason}
+                  onChange={(e) => setBranchRejectReason(e.target.value)}
+                  placeholder="e.g. Commercial lease agreement illegible or expired. Please upload valid lease deed with landlord authorization."
+                  className="w-full p-2.5 bg-[#141414] border border-white/10 text-white placeholder-neutral-600 focus:outline-none focus:border-rose-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => setShowBranchRejectModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/5 text-neutral-400 text-xs uppercase"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmRejectBranch}
+                  disabled={processingBranchId === selectedVerificationBranch._id || !branchRejectReason.trim()}
+                  className="px-5 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {processingBranchId === selectedVerificationBranch._id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>DISPATCHING REJECTION...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>CONFIRM BRANCH REJECTION</span>
                     </>
                   )}
                 </button>

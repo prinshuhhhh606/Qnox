@@ -1015,7 +1015,7 @@ function resolveFacilityCoordinates(latitude, longitude, city, address) {
 }
 
 // Great-circle distance between two GPS coordinates using Haversine formula
-function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
+exports.calculateHaversineDistanceKm = function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth mean radius in kilometers
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -1027,7 +1027,8 @@ function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 100) / 100;
-}
+};
+const calculateHaversineDistanceKm = exports.calculateHaversineDistanceKm;
 
 // @desc    Submit Public Gym Owner Partnership Application (Pre-Approval with Territory Protection)
 // @route   POST /api/saas/apply
@@ -1049,6 +1050,13 @@ exports.applyGymOwner = async (req, res, next) => {
       partnershipType = 'QNOX Franchise Gym',
       latitude,
       longitude,
+      businessType = 'Private Limited',
+      businessAddress = '',
+      gstNumber = '',
+      password = '',
+      documents = [],
+      emailVerified = true,
+      phoneVerified = true,
     } = req.body;
 
     if (!ownerName || !email || !phone || !gymName || !gymAddress || !city || !state) {
@@ -1148,6 +1156,13 @@ exports.applyGymOwner = async (req, res, next) => {
       branchCount: Math.max(1, Number(branchCount) || 1),
       expectedMembers: Math.max(1, Number(expectedMembers) || 100),
       businessDescription: (businessDescription || '').trim(),
+      businessType: businessType || 'Private Limited',
+      businessAddress: (businessAddress || gymAddress).trim(),
+      gstNumber: (gstNumber || '').trim(),
+      password: password ? await bcrypt.hash(password, 10) : undefined,
+      documents: Array.isArray(documents) ? documents : [],
+      emailVerified: Boolean(emailVerified),
+      phoneVerified: Boolean(phoneVerified),
       status: initialStatus,
     });
 
@@ -1523,6 +1538,12 @@ exports.registerApprovedGymOwner = async (req, res, next) => {
       slug,
       type: 'SaaS-Partner',
       status: 'Pending-Payment',
+      subscriptionStatus: 'PENDING_PAYMENT',
+      onboardingStage: 'PAYMENT_PENDING',
+      businessType: application.businessType || 'Private Limited',
+      businessAddress: application.businessAddress || application.gymAddress,
+      gstNumber: application.gstNumber || '',
+      businessDocuments: application.documents || [],
       contactEmail: application.email,
       phone: application.phone,
       address: application.gymAddress,
@@ -1555,25 +1576,6 @@ exports.registerApprovedGymOwner = async (req, res, next) => {
     application.registeredUser = user._id;
     application.registeredOrganization = organization._id;
     await application.save();
-
-    // Create initial primary branch for the gym
-    await Club.create({
-      name: `${application.gymName} (Main Branch)`,
-      slug: `${slug}-main`,
-      organization: organization._id,
-      address: application.gymAddress,
-      city: application.city,
-      state: application.state,
-      location: `${application.city}, ${application.state}`,
-      phone: application.phone,
-      email: application.email,
-      branchCode: 'BR-01',
-      tagline: `Flagship Sanctuary of ${application.gymName}`,
-      description: application.businessDescription || `Premier athletic sanctuary branch of ${application.gymName}.`,
-      heroImage: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80',
-      isActive: true,
-      operatingHours: { open: '06:00', close: '22:00' },
-    });
 
     // Generate JWT token
     const jwtToken = jwt.sign(
@@ -1768,6 +1770,510 @@ exports.updateBranchTerritory = async (req, res, next) => {
       success: true,
       message: `Territory protection updated for branch "${branch.name}". Protected radius is now ${branch.protectionRadiusKm} KM.`,
       data: branch,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// =========================================================================
+// Gym Owner Onboarding Workflow & Final Branch Verification (Gateway 2)
+// =========================================================================
+
+// @desc    Request Additional Information for Application (Gateway 1)
+// @route   PUT /api/saas/admin/applications/:id/request-info
+// @access  Private (Super Admin)
+exports.requestAdditionalInfoApplication = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { message, requestedDocuments } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A detailed message explaining what information or documents are required is mandatory.',
+      });
+    }
+
+    const application = await GymOwnerApplication.findById(id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    const prevStatus = application.status;
+    application.status = 'ADDITIONAL_INFORMATION_REQUIRED';
+    application.additionalInfoRequested = {
+      requested: true,
+      message: message.trim(),
+      requestedDocuments: Array.isArray(requestedDocuments) ? requestedDocuments : [],
+      requestedAt: new Date(),
+    };
+
+    if (!application.history) application.history = [];
+    application.history.push({
+      status: 'ADDITIONAL_INFORMATION_REQUIRED',
+      changedAt: new Date(),
+      changedBy: req.user._id,
+      notes: message.trim(),
+    });
+
+    await application.save();
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'APPLICATION_INFO_REQUESTED',
+        details: `Requested additional information for application ${application.applicationId} (${application.gymName}): ${message.trim()}`,
+        previousValue: { status: prevStatus },
+        newValue: { status: application.status, message: message.trim() },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog info request warning]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Additional information requested from ${application.ownerName} (${application.email}).`,
+      data: application,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Submit Initial Gym Branch for Verification (Post-Payment Setup)
+// @route   POST /api/saas/branches/submit-initial
+// @access  Private (Gym Owner)
+exports.submitInitialGymBranch = async (req, res, next) => {
+  try {
+    const orgId = req.user.organization || req.tenantOrgId;
+    if (!orgId) {
+      return res.status(400).json({ success: false, message: 'Tenant organization not found in session.' });
+    }
+
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ success: false, message: 'Organization record not found.' });
+    }
+
+    // Check subscription status
+    if (org.subscriptionStatus !== 'ACTIVE' && org.status !== 'Active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Active SaaS subscription required before submitting gym branch details.',
+      });
+    }
+
+    const {
+      name,
+      displayName,
+      tagline,
+      description,
+      logo,
+      address,
+      city,
+      state,
+      postalCode,
+      phone,
+      email,
+      latitude,
+      longitude,
+      openingHours,
+      amenities,
+      features,
+      heroImage,
+      gallery,
+      locationDocuments,
+    } = req.body;
+
+    if (!name || !address || !city || !state) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gym name, address, city, and state are mandatory fields.',
+      });
+    }
+
+    // Check branch quota limit
+    await enforceQuotaLimit(org, 'branch');
+
+    // Resolve GPS coordinates
+    const coords = resolveFacilityCoordinates(latitude, longitude, city, address);
+
+    // Geofencing Check against Company-Owned Branches
+    const companyBranches = await Club.find({
+      $or: [{ gymType: 'Company-Owned' }, { isCompanyOwned: true }],
+      isActive: true,
+      isTerritoryProtected: { $ne: false },
+    });
+
+    let minDistanceKm = Infinity;
+    let conflictBranch = null;
+    let hasConflict = false;
+
+    for (const cb of companyBranches) {
+      const bLat = cb.latitude ?? 51.5118;
+      const bLon = cb.longitude ?? -0.1473;
+      const radius = cb.protectionRadiusKm || 5;
+
+      const dist = calculateHaversineDistanceKm(coords.lat, coords.lon, bLat, bLon);
+      if (dist < minDistanceKm) {
+        minDistanceKm = dist;
+      }
+      if (dist <= radius && !conflictBranch) {
+        hasConflict = true;
+        conflictBranch = cb;
+      }
+    }
+
+    // Branch Slug
+    const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30)}-${Math.random().toString(36).substring(2, 6)}`;
+
+    const initialVerificationStatus = hasConflict ? 'TERRITORY_REVIEW' : 'PENDING_VERIFICATION';
+
+    const club = await Club.create({
+      name: name.trim(),
+      displayName: displayName ? displayName.trim() : name.trim(),
+      slug,
+      organization: org._id,
+      address: address.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      postalCode: (postalCode || '').trim(),
+      location: `${city.trim()}, ${state.trim()}`,
+      phone: (phone || org.phone || '').trim(),
+      email: (email || org.contactEmail || '').trim(),
+      logo: logo || '',
+      tagline: tagline || `Sanctuary of ${name.trim()}`,
+      description: description || `Premier athletic sanctuary branch of ${name.trim()}.`,
+      heroImage: heroImage || 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1600&q=80',
+      gallery: Array.isArray(gallery) ? gallery : [],
+      amenities: Array.isArray(amenities) ? amenities : ['Strength Equipment', 'Cardio Suite', 'Locker Rooms'],
+      features: features || { pool: false, altitudeChamber: false, cryotherapy: false, spaAndRecovery: true, valet: false },
+      openingHours: openingHours || { weekdays: '06:00 - 22:30', weekends: '07:30 - 20:00' },
+      latitude: coords.lat,
+      longitude: coords.lon,
+      isCompanyOwned: false,
+      isTerritoryProtected: false,
+      gymType: 'SaaS-Partner',
+      status: 'COMING SOON',
+      isActive: false, // Activated only upon Super Admin Gateway 2 approval
+      verificationStatus: initialVerificationStatus,
+      locationDocuments: Array.isArray(locationDocuments) ? locationDocuments : [],
+    });
+
+    // Update organization stage
+    org.onboardingStage = hasConflict ? 'TERRITORY_REVIEW' : 'GYM_VERIFICATION';
+    await org.save();
+
+    // Log in AuditLog
+    try {
+      await AuditLog.create({
+        adminName: req.user.name || 'Gym Owner',
+        action: 'BRANCH_SUBMITTED_FOR_VERIFICATION',
+        details: `Gym branch "${club.name}" submitted for verification. Initial status: ${club.verificationStatus}. Nearest company branch: ${minDistanceKm !== Infinity ? minDistanceKm + ' KM' : 'None nearby'}.`,
+        newValue: { clubId: club._id, status: club.verificationStatus },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch submit warning]:', logErr.message);
+    }
+
+    const message = hasConflict
+      ? `Your gym location falls within the protected territory of an existing QNOX Luxury Gym branch (${conflictBranch?.name}, ${minDistanceKm} KM away). Your submission requires special management review.`
+      : 'Gym branch submitted successfully for final verification. Super Admin will review your location documents and activate your sanctuary.';
+
+    res.status(201).json({
+      success: true,
+      message,
+      hasTerritoryConflict: hasConflict,
+      data: {
+        club,
+        onboardingStage: org.onboardingStage,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get All Gym Verifications Queue (Super Admin Gateway 2)
+// @route   GET /api/saas/admin/gym-verifications
+// @access  Private (Super Admin)
+exports.getAdminGymVerifications = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    let query = {
+      isCompanyOwned: { $ne: true },
+    };
+
+    if (status && status !== 'All') {
+      query.verificationStatus = status;
+    }
+
+    const clubs = await Club.find(query)
+      .populate('organization', 'name status onboardingStage subscriptionStatus contactEmail phone')
+      .populate('verifiedBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Fetch company-owned branches for distance reference
+    const companyBranches = await Club.find({
+      $or: [{ gymType: 'Company-Owned' }, { isCompanyOwned: true }],
+      isActive: true,
+    });
+
+    const enrichedClubs = clubs.map((c) => {
+      let nearest = null;
+      let minDistance = Infinity;
+
+      for (const cb of companyBranches) {
+        const dist = calculateHaversineDistanceKm(
+          c.latitude ?? 51.5118,
+          c.longitude ?? -0.1473,
+          cb.latitude ?? 51.5118,
+          cb.longitude ?? -0.1473
+        );
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = cb;
+        }
+      }
+
+      return {
+        ...c.toObject(),
+        nearestCompanyBranch: nearest ? { name: nearest.name, distanceKm: minDistance, radiusKm: nearest.protectionRadiusKm || 5 } : null,
+      };
+    });
+
+    const counts = {
+      total: clubs.length,
+      pending: clubs.filter((c) => c.verificationStatus === 'PENDING_VERIFICATION').length,
+      territoryReview: clubs.filter((c) => c.verificationStatus === 'TERRITORY_REVIEW').length,
+      approved: clubs.filter((c) => c.verificationStatus === 'APPROVED' || c.verificationStatus === 'ACTIVE').length,
+      rejected: clubs.filter((c) => c.verificationStatus === 'REJECTED').length,
+    };
+
+    res.status(200).json({
+      success: true,
+      counts,
+      data: enrichedClubs,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Approve and Activate Gym Branch (Super Admin Gateway 2)
+// @route   PUT /api/saas/admin/gym-verifications/:clubId/approve
+// @access  Private (Super Admin)
+exports.approveAndActivateGymBranch = async (req, res, next) => {
+  try {
+    const { clubId } = req.params;
+    const { adminNotes, exceptionalApproval = false, exceptionalApprovalJustification = '' } = req.body;
+
+    const club = await Club.findById(clubId).populate('organization');
+    if (!club) {
+      return res.status(404).json({ success: false, message: 'Gym branch not found.' });
+    }
+
+    if (club.verificationStatus === 'TERRITORY_REVIEW' && !exceptionalApproval) {
+      if (!exceptionalApprovalJustification || exceptionalApprovalJustification.trim().length < 10) {
+        return res.status(400).json({
+          success: false,
+          message: 'Territory Review Conflict: This gym requires explicit exceptional approval and a detailed justification (min 10 characters).',
+        });
+      }
+    }
+
+    club.verificationStatus = 'ACTIVE';
+    club.status = 'OPEN';
+    club.isActive = true;
+    club.verifiedBy = req.user._id;
+    club.verifiedAt = new Date();
+    if (adminNotes) club.rejectionReason = ''; // Clear rejection reason if any
+    await club.save();
+
+    // Update Organization Onboarding Stage to ACTIVE_COMPLETED
+    if (club.organization) {
+      await Organization.findByIdAndUpdate(club.organization._id || club.organization, {
+        onboardingStage: 'ACTIVE_COMPLETED',
+        status: 'Active',
+      });
+    }
+
+    // Create Audit Log
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'BRANCH_ACTIVATION_APPROVED',
+        details: `Super Admin approved and activated branch "${club.name}". Exceptional override: ${exceptionalApproval ? 'Yes (' + exceptionalApprovalJustification + ')' : 'No'}.`,
+        newValue: { clubId: club._id, status: 'OPEN', verificationStatus: 'ACTIVE' },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch activate warning]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Gym branch "${club.name}" is now approved, verified, and activated for public operations!`,
+      data: club,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Reject Gym Branch Verification (Super Admin Gateway 2)
+// @route   PUT /api/saas/admin/gym-verifications/:clubId/reject
+// @access  Private (Super Admin)
+exports.rejectGymBranch = async (req, res, next) => {
+  try {
+    const { clubId } = req.params;
+    const { rejectionReason, adminNotes } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A rejection reason is required for compliance.',
+      });
+    }
+
+    const club = await Club.findById(clubId).populate('organization');
+    if (!club) {
+      return res.status(404).json({ success: false, message: 'Gym branch not found.' });
+    }
+
+    club.verificationStatus = 'REJECTED';
+    club.status = 'MAINTENANCE';
+    club.isActive = false;
+    club.rejectionReason = rejectionReason.trim();
+    await club.save();
+
+    if (club.organization) {
+      await Organization.findByIdAndUpdate(club.organization._id || club.organization, {
+        onboardingStage: 'GYM_REJECTED',
+      });
+    }
+
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'BRANCH_VERIFICATION_REJECTED',
+        details: `Rejected gym branch "${club.name}". Reason: ${rejectionReason.trim()}`,
+        newValue: { clubId: club._id, status: 'REJECTED' },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog branch reject warning]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Gym branch "${club.name}" rejected.`,
+      data: club,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get Real-Time Onboarding Status & Visual Progress Tracking
+// @route   GET /api/saas/onboarding-status
+// @access  Private (Gym Owner)
+exports.getGymOwnerOnboardingStatus = async (req, res, next) => {
+  try {
+    const orgId = req.user.organization || req.tenantOrgId;
+    if (!orgId) {
+      return res.status(400).json({ success: false, message: 'No organization attached to session.' });
+    }
+
+    const org = await Organization.findById(orgId).populate('subscription');
+    if (!org) {
+      return res.status(404).json({ success: false, message: 'Organization not found.' });
+    }
+
+    const latestClub = await Club.findOne({ organization: org._id }).sort({ createdAt: -1 });
+
+    const subscription = org.subscription || null;
+
+    // Build standard 6-stage tracker
+    // Stages: 1. Registration, 2. Admin Verification, 3. SaaS Subscription, 4. Branch Setup, 5. Territory Geofence Audit, 6. Live & Active
+    const stage = org.onboardingStage || 'PAYMENT_PENDING';
+
+    const stages = [
+      {
+        id: 1,
+        key: 'REGISTRATION',
+        title: 'Gym Owner Registration',
+        description: 'Account profile and business credentials submitted.',
+        status: 'COMPLETED',
+      },
+      {
+        id: 2,
+        key: 'ADMIN_VERIFICATION',
+        title: 'Admin Verification (Gateway 1)',
+        description: 'Super Admin credentials approval & invitation access granted.',
+        status: 'COMPLETED',
+      },
+      {
+        id: 3,
+        key: 'SAAS_SUBSCRIPTION',
+        title: 'SaaS Subscription & Payment',
+        description: 'Choose tier (Starter, Pro, Enterprise) and verify payment.',
+        status:
+          org.subscriptionStatus === 'ACTIVE'
+            ? 'COMPLETED'
+            : stage === 'PAYMENT_PENDING'
+            ? 'CURRENT'
+            : 'PENDING',
+      },
+      {
+        id: 4,
+        key: 'BRANCH_SETUP',
+        title: 'Initial Branch & Facility Setup',
+        description: 'Facility address, GPS location, operating hours, and documents.',
+        status: latestClub
+          ? 'COMPLETED'
+          : org.subscriptionStatus === 'ACTIVE'
+          ? 'CURRENT'
+          : 'PENDING',
+      },
+      {
+        id: 5,
+        key: 'TERRITORY_AUDIT',
+        title: 'Territory Geofence Audit',
+        description: 'Haversine distance verification vs company-owned luxury branches.',
+        status: !latestClub
+          ? 'PENDING'
+          : latestClub.verificationStatus === 'TERRITORY_REVIEW'
+          ? 'WARNING'
+          : 'COMPLETED',
+      },
+      {
+        id: 6,
+        key: 'LIVE_ACTIVE',
+        title: 'Final Activation (Gateway 2)',
+        description: 'Super Admin facility review & full dashboard access.',
+        status:
+          latestClub && (latestClub.verificationStatus === 'ACTIVE' || org.onboardingStage === 'ACTIVE_COMPLETED')
+            ? 'COMPLETED'
+            : latestClub && latestClub.verificationStatus === 'REJECTED'
+            ? 'FAILED'
+            : latestClub
+            ? 'CURRENT'
+            : 'PENDING',
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        organization: org,
+        subscription,
+        latestClub,
+        onboardingStage: stage,
+        stages,
+      },
     });
   } catch (err) {
     next(err);

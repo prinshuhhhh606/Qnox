@@ -57,7 +57,7 @@ export default function PublicLayout() {
         onOpenMemberPortal={() => setIsMemberPortalOpen(true)}
         onOpenAdmin={handleOpenAdmin}
         onLogout={handleLogout}
-        onOpenGymOwnerRegister={() => setIsGymOwnerRegisterOpen(true)}
+        onOpenGymOwnerRegister={() => navigate('/gym-owner/register')}
       />
 
       <main className="flex-grow">
@@ -91,7 +91,7 @@ export default function PublicLayout() {
         isOpen={isAuthModalOpen}
         initialRole={authModalRole}
         onClose={() => setIsAuthModalOpen(false)}
-        onOpenGymOwnerRegister={() => setIsGymOwnerRegisterOpen(true)}
+        onOpenGymOwnerRegister={() => navigate('/gym-owner/register')}
         onAuthSuccess={(user) => {
           if (setCurrentUser) {
             setCurrentUser(user);

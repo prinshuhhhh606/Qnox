@@ -50,6 +50,38 @@ const GymOwnerApplicationSchema = new mongoose.Schema(
       default: 'India',
       trim: true,
     },
+    // Business entity metadata
+    businessType: {
+      type: String,
+      enum: ['Sole Proprietorship', 'Partnership', 'Private Limited', 'LLP', 'Independent Studio'],
+      default: 'Independent Studio',
+    },
+    gstNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    password: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+    phoneVerified: {
+      type: Boolean,
+      default: true,
+    },
+    documents: [
+      {
+        docType: { type: String, required: true }, // 'Business Registration', 'GST Certificate', 'Owner ID Proof', 'Fitness License', 'Location Lease'
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
     // Partnership Policy (Franchise vs SaaS)
     partnershipType: {
       type: String,
@@ -111,10 +143,30 @@ const GymOwnerApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING_APPROVAL', 'TERRITORY_CONFLICT', 'APPROVED', 'REJECTED', 'REGISTERED'],
+      enum: [
+        'PENDING_APPROVAL',
+        'UNDER_REVIEW',
+        'ADDITIONAL_INFORMATION_REQUIRED',
+        'TERRITORY_CONFLICT',
+        'APPROVED',
+        'REJECTED',
+        'REGISTERED',
+      ],
       default: 'PENDING_APPROVAL',
       index: true,
     },
+    additionalInfoRequested: {
+      type: String,
+      default: '',
+    },
+    history: [
+      {
+        status: { type: String, required: true },
+        note: { type: String, default: '' },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        changedAt: { type: Date, default: Date.now },
+      },
+    ],
     adminNotes: {
       type: String,
       default: '',

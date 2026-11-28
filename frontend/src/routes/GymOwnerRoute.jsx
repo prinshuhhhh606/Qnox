@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
-import { Building2, Lock, ArrowRight, ShieldAlert, CreditCard, LogOut, RefreshCw, Sparkles } from 'lucide-react';
+import { Outlet, useNavigate, Link } from 'react-router-dom';
+import { Building2, Lock, ArrowRight, ShieldAlert, CreditCard, LogOut, RefreshCw, Sparkles, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { loginUser, fetchMyOrganization, verifySaaSPayment } from '../services/api';
@@ -8,15 +8,17 @@ import { loginUser, fetchMyOrganization, verifySaaSPayment } from '../services/a
 export default function GymOwnerRoute({ children }) {
   const { currentUser, setCurrentUser, logout, loading, isGymOwner, isAdmin } = useAuth();
   const { showToast } = useNotifications();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Organization subscription active validation state
+  // Organization subscription & onboarding stage validation state
   const [checkingOrg, setCheckingOrg] = useState(false);
   const [tenantOrg, setTenantOrg] = useState(null);
+  const [onboardingStage, setOnboardingStage] = useState('ACTIVE_COMPLETED');
   const [subscriptionValid, setSubscriptionValid] = useState(true);
 
   useEffect(() => {
@@ -26,9 +28,12 @@ export default function GymOwnerRoute({ children }) {
         .then((data) => {
           if (data && data.organization) {
             setTenantOrg(data.organization);
+            const stage = data.organization.onboardingStage || 'PAYMENT_PENDING';
+            setOnboardingStage(stage);
+
             const status = data.organization.status;
-            // Only Active status allows dashboard access
-            if (status === 'Active') {
+            // Full dashboard access granted ONLY when stage is ACTIVE_COMPLETED and status is Active
+            if (status === 'Active' && stage === 'ACTIVE_COMPLETED') {
               setSubscriptionValid(true);
             } else {
               setSubscriptionValid(false);
@@ -46,55 +51,59 @@ export default function GymOwnerRoute({ children }) {
 
   if (loading || checkingOrg) {
     return (
-      <div className="min-h-screen bg-[#070707] flex flex-col items-center justify-center space-y-4 text-[#c5a880]">
-        <div className="w-8 h-8 border-2 border-[#c5a880] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#070707] flex flex-col items-center justify-center space-y-4 text-[#D4AF37]">
+        <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
         <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-          VERIFYING GYM SUBSCRIPTION & TENANT ACCREDITATION...
+          VERIFYING ONBOARDING STAGE & ACCREDITATION GATEWAYS...
         </span>
       </div>
     );
   }
 
-  // If authenticated as Gym Owner but subscription is not Active, render Subscription Inactive Status Screen
+  // If authenticated as Gym Owner but has NOT completed all onboarding stages, render stage gate modal
   if (currentUser && isGymOwner && !isAdmin && !subscriptionValid && tenantOrg) {
-    const handleReactivatePayment = async () => {
-      setSubmitting(true);
-      try {
-        await verifySaaSPayment({
-          organizationId: tenantOrg._id,
-          planCode: 'starter',
-          billingCycle: 'monthly',
-          adminBypass: true,
-        });
-        showToast({ type: 'success', message: 'Subscription activated! Welcome to your Command Dashboard.' });
-        setSubscriptionValid(true);
-      } catch (err) {
-        showToast({ type: 'error', message: err.message });
-      } finally {
-        setSubmitting(false);
-      }
-    };
+    const isPaymentPending = onboardingStage === 'PAYMENT_PENDING';
+    const isBranchSetupPending = onboardingStage === 'SUBSCRIPTION_ACTIVE';
+    const isVerificationPending = onboardingStage === 'GYM_VERIFICATION' || onboardingStage === 'TERRITORY_REVIEW';
+    const isRejected = onboardingStage === 'GYM_REJECTED';
 
     return (
-      <div className="min-h-screen bg-[#050505] text-[#f5f5f5] flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-[#0a0a0a] border border-amber-600/40 p-8 space-y-6 text-center relative shadow-2xl">
-          <div className="inline-flex p-3 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-1">
-            <ShieldAlert className="w-8 h-8" />
+      <div className="min-h-screen bg-[#080808] text-[#f5f5f5] flex items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-[#111111] border border-[#262626] rounded-2xl p-8 space-y-6 text-center relative shadow-2xl overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-[#D4AF37]/5 rounded-full blur-3xl -z-10 pointer-events-none" />
+
+          <div className="inline-flex p-3 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 text-[#D4AF37] mb-1">
+            {isPaymentPending ? (
+              <CreditCard className="w-8 h-8" />
+            ) : isBranchSetupPending ? (
+              <Building2 className="w-8 h-8" />
+            ) : isVerificationPending ? (
+              <Clock className="w-8 h-8" />
+            ) : (
+              <ShieldAlert className="w-8 h-8" />
+            )}
           </div>
 
           <div>
-            <span className="px-3 py-1 bg-amber-950/60 border border-amber-700/60 text-amber-300 text-xs font-mono uppercase tracking-widest">
-              SUBSCRIPTION {tenantOrg.status?.toUpperCase() || 'INACTIVE'}
+            <span className="px-3 py-1 bg-[#181818] border border-[#333] text-[#D4AF37] text-xs font-mono uppercase tracking-widest rounded-full">
+              ONBOARDING STAGE: {onboardingStage.replace('_', ' ')}
             </span>
-            <h2 className="text-2xl font-serif text-white mt-4">
-              Access Restricted for {tenantOrg.name || 'Your Gym'}
+            <h2 className="text-2xl font-bold text-white mt-4 tracking-tight">
+              {isPaymentPending && 'Subscription Activation Required'}
+              {isBranchSetupPending && 'Initial Sanctuary Branch Setup Pending'}
+              {isVerificationPending && 'Gateway 2 Branch Verification in Progress'}
+              {isRejected && 'Branch Verification Needs Revision'}
+              {!isPaymentPending && !isBranchSetupPending && !isVerificationPending && !isRejected && 'Account Under Verification'}
             </h2>
             <p className="text-xs text-neutral-400 font-mono mt-2 leading-relaxed">
-              Your gym organization account is currently '{tenantOrg.status}'. Dashboard management of branches, coaches, and members requires an active verified subscription.
+              {isPaymentPending && 'Your gym owner account is provisioned. Please complete your SaaS plan subscription payment to unlock branch setup.'}
+              {isBranchSetupPending && 'Your SaaS subscription is active! Please complete your initial gym branch address, GPS coordinates, and documents.'}
+              {isVerificationPending && 'Your facility setup has been submitted. Super Admin is verifying your property deeds and territory geofence before live activation.'}
+              {isRejected && 'Your gym branch submission was not approved during Gateway 2 review. Please update your facility details.'}
             </p>
           </div>
 
-          <div className="p-4 bg-[#111111] border border-neutral-800 text-left text-xs font-mono space-y-1.5">
+          <div className="p-4 bg-[#181818] border border-[#262626] rounded-xl text-left text-xs font-mono space-y-1.5">
             <div className="flex justify-between text-neutral-400">
               <span>Organization:</span>
               <span className="text-white font-bold">{tenantOrg.name}</span>
@@ -104,23 +113,22 @@ export default function GymOwnerRoute({ children }) {
               <span className="text-white">{tenantOrg.ownerEmail || currentUser.email}</span>
             </div>
             <div className="flex justify-between text-neutral-400">
-              <span>Current Status:</span>
-              <span className="text-amber-400 font-bold">{tenantOrg.status}</span>
+              <span>Onboarding Stage:</span>
+              <span className="text-[#D4AF37] font-bold">{onboardingStage}</span>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
-              onClick={handleReactivatePayment}
-              disabled={submitting}
-              className="flex-1 py-3 bg-[#c5a880] hover:bg-[#d8be98] text-black font-mono text-xs uppercase tracking-widest font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
+              onClick={() => navigate('/gym-owner/onboard')}
+              className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B38F24] hover:from-[#c49f30] hover:to-[#9e7d1d] text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#D4AF37]/15 transition-all"
             >
-              <CreditCard className="w-4 h-4" />
-              <span>{submitting ? 'PROCESSING...' : 'ACTIVATE SUBSCRIPTION'}</span>
+              <span>CONTINUE ONBOARDING WIZARD</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
             <button
               onClick={logout}
-              className="px-4 py-3 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white font-mono text-xs uppercase tracking-widest flex items-center justify-center space-x-1.5"
+              className="px-4 py-3.5 rounded-xl border border-[#333] hover:border-[#555] text-neutral-400 hover:text-white text-xs uppercase tracking-wider font-semibold flex items-center justify-center gap-1.5 transition-all"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>LOGOUT</span>
@@ -131,7 +139,7 @@ export default function GymOwnerRoute({ children }) {
     );
   }
 
-  // If already authenticated as Gym Owner (with Active subscription) or Super Admin
+  // If already authenticated as Gym Owner (with Active completed onboarding) or Super Admin
   if (currentUser && (isGymOwner || isAdmin)) {
     return children ? children : <Outlet />;
   }
@@ -162,16 +170,16 @@ export default function GymOwnerRoute({ children }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#f5f5f5] flex items-center justify-center p-4 selection:bg-[#c5a880] selection:text-black">
-      <div className="w-full max-w-md bg-[#090909] border border-[#c5a880]/30 shadow-2xl p-8 space-y-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070707] text-[#f5f5f5] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-[#111111] border border-[#262626] rounded-2xl shadow-2xl p-8 space-y-6 relative overflow-hidden">
         {/* Architectural Glow */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#c5a880] to-transparent" />
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
         
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3 rounded-full bg-[#c5a880]/10 border border-[#c5a880]/20 text-[#c5a880] mb-2">
+          <div className="inline-flex p-3 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] mb-2">
             <Building2 className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-serif text-[#f5f5f5] tracking-wide">
+          <h2 className="text-2xl font-bold text-[#f5f5f5] tracking-tight">
             GYM OWNER PORTAL
           </h2>
           <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
@@ -180,7 +188,7 @@ export default function GymOwnerRoute({ children }) {
         </div>
 
         {errorMsg && (
-          <div className="p-3 bg-red-950/40 border border-red-800/50 text-red-300 text-xs text-center font-mono">
+          <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-red-300 text-xs text-center font-mono">
             {errorMsg}
           </div>
         )}
@@ -196,7 +204,7 @@ export default function GymOwnerRoute({ children }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="owner@yourgym.com"
-              className="w-full bg-[#111111] border border-neutral-800 px-4 py-2.5 text-sm text-[#f5f5f5] focus:outline-none focus:border-[#c5a880] transition-colors"
+              className="w-full bg-[#181818] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-[#f5f5f5] focus:outline-none focus:border-[#D4AF37] transition-colors"
             />
           </div>
 
@@ -210,14 +218,14 @@ export default function GymOwnerRoute({ children }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full bg-[#111111] border border-neutral-800 px-4 py-2.5 text-sm text-[#f5f5f5] focus:outline-none focus:border-[#c5a880] transition-colors"
+              className="w-full bg-[#181818] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-[#f5f5f5] focus:outline-none focus:border-[#D4AF37] transition-colors"
             />
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-[#c5a880] hover:bg-[#d8be98] text-black font-mono text-xs uppercase tracking-widest font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50 mt-6"
+            className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#B38F24] hover:from-[#c49f30] hover:to-[#9e7d1d] text-black font-mono text-xs uppercase tracking-widest font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 mt-6"
           >
             {submitting ? (
               <span>VERIFYING ACCREDITATION...</span>
@@ -230,10 +238,16 @@ export default function GymOwnerRoute({ children }) {
           </button>
         </form>
 
-        <div className="pt-4 border-t border-neutral-900 text-center">
-          <p className="text-[11px] text-neutral-500 font-mono">
-            Not yet onboarded? Register your gym on the Navbar under "FOR GYM OWNERS".
+        <div className="pt-4 border-t border-[#262626] text-center space-y-1">
+          <p className="text-[11px] text-neutral-400 font-mono">
+            Not registered yet?
           </p>
+          <Link
+            to="/gym-owner/register"
+            className="text-xs text-[#D4AF37] hover:underline font-bold inline-block"
+          >
+            Apply for Gym Owner & Partner Registration &rarr;
+          </Link>
         </div>
       </div>
     </div>

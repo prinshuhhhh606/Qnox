@@ -155,6 +155,52 @@ const ClubSchema = new mongoose.Schema(
       type: Number,
       default: 250,
     },
+    // Onboarding Verification & Activation Workflow
+    verificationStatus: {
+      type: String,
+      enum: [
+        'DRAFT',
+        'PENDING_VERIFICATION',
+        'UNDER_REVIEW',
+        'TERRITORY_REVIEW',
+        'APPROVED',
+        'REJECTED',
+        'ACTIVE',
+        'SUSPENDED',
+      ],
+      default: 'ACTIVE',
+    },
+    displayName: {
+      type: String,
+      default: '',
+    },
+    postalCode: {
+      type: String,
+      default: '',
+    },
+    logo: {
+      type: String,
+      default: '',
+    },
+    locationDocuments: [
+      {
+        title: { type: String, default: 'Location Proof' },
+        url: { type: String, required: true },
+        type: { type: String, default: 'LEASE_OR_OWNERSHIP' },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+    rejectionReason: {
+      type: String,
+      default: '',
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    verifiedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

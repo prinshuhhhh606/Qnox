@@ -335,9 +335,21 @@ exports.verifyAndActivateSaaSSubscription = async ({
   // Activate Organization
   organization.subscription = subscription._id;
   organization.status = 'Active';
+  organization.subscriptionStatus = 'ACTIVE';
   organization.branchesLimit = plan.maxBranches;
   organization.trainersLimit = plan.maxTrainers;
   organization.membersLimit = plan.maxMembers;
+
+  const branchCount = await Club.countDocuments({ organization: organization._id });
+  if (branchCount === 0) {
+    organization.onboardingStage = 'SUBSCRIPTION_ACTIVE';
+  } else {
+    const verifiedBranch = await Club.findOne({
+      organization: organization._id,
+      verificationStatus: 'ACTIVE',
+    });
+    organization.onboardingStage = verifiedBranch ? 'ACTIVE_COMPLETED' : 'GYM_VERIFICATION';
+  }
   await organization.save();
 
   // Create an official Payment ledger record with strict unique QNOX-INV invoiceNumber
