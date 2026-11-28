@@ -13,12 +13,12 @@ const AuditLogSchema = new mongoose.Schema(
     memberId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
     },
     memberName: {
       type: String,
-      required: true,
+      default: 'System Entity',
     },
     action: {
       type: String,

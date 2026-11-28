@@ -50,6 +50,51 @@ const GymOwnerApplicationSchema = new mongoose.Schema(
       default: 'India',
       trim: true,
     },
+    // Partnership Policy (Franchise vs SaaS)
+    partnershipType: {
+      type: String,
+      enum: ['QNOX Franchise Gym', 'QNOX SaaS Partner Gym'],
+      default: 'QNOX Franchise Gym',
+      index: true,
+    },
+    // GPS Geolocation & Territory Protection Fields
+    latitude: {
+      type: Number,
+      default: null,
+    },
+    longitude: {
+      type: Number,
+      default: null,
+    },
+    hasTerritoryConflict: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    conflictingBranch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Club',
+    },
+    conflictingBranchName: {
+      type: String,
+      default: '',
+    },
+    conflictDistanceKm: {
+      type: Number,
+      default: null,
+    },
+    exceptionalApproval: {
+      type: Boolean,
+      default: false,
+    },
+    exceptionalApprovalJustification: {
+      type: String,
+      default: '',
+    },
+    exceptionalApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     branchCount: {
       type: Number,
       default: 1,
@@ -66,7 +111,7 @@ const GymOwnerApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'REGISTERED'],
+      enum: ['PENDING_APPROVAL', 'TERRITORY_CONFLICT', 'APPROVED', 'REJECTED', 'REGISTERED'],
       default: 'PENDING_APPROVAL',
       index: true,
     },

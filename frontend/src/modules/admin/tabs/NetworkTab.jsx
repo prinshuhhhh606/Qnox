@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Globe, Shield, CheckCircle, XCircle, Clock, DollarSign,
   QrCode, RefreshCw, Building, Award, AlertTriangle, ArrowRight, UserCheck,
-  Copy, ExternalLink, Mail, Phone, MapPin, Building2, Eye, Filter, Search, X
+  Copy, ExternalLink, Mail, Phone, MapPin, Building2, Eye, Filter, Search, X,
+  Compass, ShieldAlert, Navigation, Layers
 } from 'lucide-react';
 import {
   fetchMultiGymAnalytics,
@@ -17,9 +18,13 @@ import {
   fetchAdminGymOwnerApplications,
   approveAdminGymOwnerApplication,
   rejectAdminGymOwnerApplication,
+  fetchAdminTerritories,
+  updateBranchTerritory,
 } from '../../../services/api';
+import TerritoryManagementConsole from '../components/TerritoryManagementConsole';
 
 export default function NetworkTab({ onShowToast }) {
+  const [activeConsoleSection, setActiveConsoleSection] = useState('territory');
   const [analytics, setAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [applications, setApplications] = useState([]);
@@ -40,6 +45,7 @@ export default function NetworkTab({ onShowToast }) {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [adminNotesInput, setAdminNotesInput] = useState('');
+  const [exceptionalJustificationInput, setExceptionalJustificationInput] = useState('');
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [activeAppActionId, setActiveAppActionId] = useState(null);
   const [processingGymAppId, setProcessingGymAppId] = useState(null);
@@ -113,15 +119,32 @@ export default function NetworkTab({ onShowToast }) {
     setActiveAppActionId(app._id);
     setSelectedGymApp(app);
     setAdminNotesInput(app.adminNotes || '');
+    setExceptionalJustificationInput(app.exceptionalApprovalJustification || '');
     setInvitationResult(null);
     setShowApproveModal(true);
   };
 
   const handleConfirmApproveGym = async () => {
     if (!activeAppActionId) return;
+
+    const isConflict = selectedGymApp?.hasTerritoryConflict || selectedGymApp?.status === 'TERRITORY_CONFLICT';
+    if (isConflict && (!exceptionalJustificationInput.trim() || exceptionalJustificationInput.trim().length < 10)) {
+      if (onShowToast) {
+        onShowToast({
+          type: 'error',
+          message: 'Territory Conflict: A detailed justification (minimum 10 characters) is required for exceptional approval.',
+        });
+      }
+      return;
+    }
+
     setProcessingGymAppId(activeAppActionId);
     try {
-      const res = await approveAdminGymOwnerApplication(activeAppActionId, { adminNotes: adminNotesInput });
+      const res = await approveAdminGymOwnerApplication(activeAppActionId, {
+        adminNotes: adminNotesInput,
+        exceptionalApproval: isConflict,
+        exceptionalApprovalJustification: isConflict ? exceptionalJustificationInput.trim() : undefined,
+      });
       if (onShowToast) onShowToast({ type: 'success', message: res.message || 'Application approved and invitation dispatched!' });
       setInvitationResult(res.data);
       loadData();
@@ -316,9 +339,74 @@ export default function NetworkTab({ onShowToast }) {
         </div>
       </div>
 
+      {/* Sub-Section Executive Navigation Bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+        {[
+          {
+            id: 'territory',
+            label: 'Territory Protection & Radar',
+            icon: Compass,
+            alert: gymApplications.filter(a => a.hasTerritoryConflict || a.status === 'TERRITORY_CONFLICT').length,
+          },
+          {
+            id: 'applications',
+            label: 'Partner Applications Pipeline',
+            icon: UserCheck,
+            badge: gymApplications.filter(a => ['PENDING_APPROVAL', 'TERRITORY_CONFLICT'].includes(a.status)).length,
+          },
+          {
+            id: 'tenants',
+            label: 'SaaS Tenants & Quotas',
+            icon: Building2,
+            badge: tenants.length,
+          },
+          {
+            id: 'settlements',
+            label: 'All-Access Network & Settlements',
+            icon: DollarSign,
+          },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeConsoleSection === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveConsoleSection(tab.id)}
+              className={`px-4 py-2 text-xs font-mono uppercase tracking-wider transition flex items-center space-x-2 border ${
+                isActive
+                  ? 'bg-[#c5a880] text-black border-[#c5a880] font-bold shadow-[0_0_15px_rgba(197,168,128,0.25)]'
+                  : 'bg-[#121212] text-neutral-400 border-white/10 hover:border-white/30 hover:text-white'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+              {tab.alert > 0 && (
+                <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-500 text-white rounded-full animate-pulse">
+                  {tab.alert} CONFLICT
+                </span>
+              )}
+              {tab.badge > 0 && !tab.alert && (
+                <span className={`px-1.5 py-0.2 text-[9px] font-bold rounded-full ${isActive ? 'bg-black text-[#c5a880]' : 'bg-white/10 text-neutral-300'}`}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* VIEW 1: Dedicated Territory Protection & Geofencing Radar */}
+      {activeConsoleSection === 'territory' && (
+        <TerritoryManagementConsole
+          onShowToast={onShowToast}
+          onDataChanged={loadData}
+        />
+      )}
+
       {/* ======================================================== */}
       {/* 1. GYM OWNER APPLICATIONS (PRE-APPROVAL PIPELINE)       */}
       {/* ======================================================== */}
+      {activeConsoleSection === 'applications' && (
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/10 pb-3">
           <div>
@@ -534,8 +622,10 @@ export default function NetworkTab({ onShowToast }) {
           })()
         )}
       </div>
+      )}
 
       {/* Multi-Tenant B2B SaaS Partner Gyms Ecosystem */}
+      {activeConsoleSection === 'tenants' && (
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div>
@@ -625,8 +715,11 @@ export default function NetworkTab({ onShowToast }) {
           </div>
         )}
       </div>
+      )}
 
       {/* Staff Universal QR Check-In Scanner Engine */}
+      {activeConsoleSection === 'settlements' && (
+      <>
       <div className="p-6 bg-[#0c0c0c] border border-[#c5a880]/30 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
           <div className="flex items-center space-x-3">
@@ -900,6 +993,8 @@ export default function NetworkTab({ onShowToast }) {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* ======================================================== */}
       {/* MODAL 1: VIEW APPLICATION DOSSIER                       */}
@@ -1036,24 +1131,55 @@ export default function NetworkTab({ onShowToast }) {
 
             {!invitationResult ? (
               <div className="space-y-4 text-xs font-mono">
-                <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 space-y-1">
-                  <p className="text-emerald-300 font-medium">
-                    Approving this application will:
-                  </p>
-                  <ul className="list-disc list-inside text-neutral-300 space-y-0.5 text-[11px]">
-                    <li>Mark application status as <strong>APPROVED</strong>.</li>
-                    <li>Generate a cryptographically secure, single-use token valid for 7 days.</li>
-                    <li>Send an official registration invitation email to <strong>{selectedGymApp.email}</strong>.</li>
-                    <li>Allow the applicant to set their password and choose a SaaS subscription.</li>
-                  </ul>
-                </div>
+                {/* Territory Conflict Notice if applicable */}
+                {(selectedGymApp.hasTerritoryConflict || selectedGymApp.status === 'TERRITORY_CONFLICT') ? (
+                  <div className="p-3 bg-amber-950/40 border border-amber-500/50 space-y-1.5">
+                    <div className="flex items-center space-x-2 text-amber-300 font-bold text-xs uppercase">
+                      <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                      <span>TERRITORY CONFLICT ACTIVE &bull; EXCEPTIONAL AUTHORIZATION REQUIRED</span>
+                    </div>
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                      Applicant is located <strong>{selectedGymApp.conflictDistanceKm ? `${selectedGymApp.conflictDistanceKm} KM` : 'nearby'}</strong> from company branch <strong>{selectedGymApp.conflictingBranchName}</strong> (Protected radius: 5.0 KM).
+                    </p>
+                    <p className="text-[10px] text-neutral-400">
+                      * Exceptional approval requires a mandatory audit justification below (minimum 10 characters).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 space-y-1">
+                    <p className="text-emerald-300 font-medium">
+                      Approving this application will:
+                    </p>
+                    <ul className="list-disc list-inside text-neutral-300 space-y-0.5 text-[11px]">
+                      <li>Mark application status as <strong>APPROVED</strong>.</li>
+                      <li>Generate a cryptographically secure, single-use token valid for 7 days.</li>
+                      <li>Send an official registration invitation email to <strong>{selectedGymApp.email}</strong>.</li>
+                      <li>Allow the applicant to set their password and choose a SaaS subscription.</li>
+                    </ul>
+                  </div>
+                )}
+
+                {(selectedGymApp.hasTerritoryConflict || selectedGymApp.status === 'TERRITORY_CONFLICT') && (
+                  <div>
+                    <label className="block text-[10px] uppercase text-amber-300 font-bold mb-1">
+                      Super Admin Exceptional Justification * (Min 10 characters)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={exceptionalJustificationInput}
+                      onChange={(e) => setExceptionalJustificationInput(e.target.value)}
+                      placeholder="e.g. Authorized by Executive Board: non-competing athletic specialty with cross-licensing royalty..."
+                      className="w-full p-2.5 bg-[#141414] border border-amber-500/40 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[10px] uppercase text-neutral-400 mb-1">
                     Internal Admin Notes (Optional)
                   </label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={adminNotesInput}
                     onChange={(e) => setAdminNotesInput(e.target.value)}
                     placeholder="e.g. Credentials and facility photos verified. Approved for Starter/Professional onboarding."
@@ -1070,8 +1196,12 @@ export default function NetworkTab({ onShowToast }) {
                   </button>
                   <button
                     onClick={handleConfirmApproveGym}
-                    disabled={processingGymAppId === activeAppActionId}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+                    disabled={
+                      processingGymAppId === activeAppActionId ||
+                      ((selectedGymApp.hasTerritoryConflict || selectedGymApp.status === 'TERRITORY_CONFLICT') &&
+                        exceptionalJustificationInput.trim().length < 10)
+                    }
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs uppercase tracking-wider font-bold transition flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {processingGymAppId === activeAppActionId ? (
                       <>

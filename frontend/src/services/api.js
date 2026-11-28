@@ -2676,4 +2676,24 @@ export const initiateSaaSCheckout = async (payload) => {
   return data.data;
 };
 
+export const fetchAdminTerritories = async () => {
+  const res = await fetch(`${API_BASE}/saas/admin/territories`, {
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch territory protection data');
+  return data.data;
+};
+
+export const updateBranchTerritory = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/saas/admin/territories/branch/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to update branch territory');
+  return data;
+};
+
 

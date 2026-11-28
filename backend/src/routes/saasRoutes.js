@@ -38,6 +38,8 @@ const {
   verifyInvitationToken,
   registerApprovedGymOwner,
   initiateSaaSCheckout,
+  getAdminTerritories,
+  updateBranchTerritory,
 } = require('../controllers/saasController');
 const { protect, authorize } = require('../middlewares/auth');
 const { verifyTenant } = require('../middlewares/tenant');
@@ -96,5 +98,9 @@ router.get('/admin/applications', protect, authorize('Super Admin'), getAdminGym
 router.get('/admin/applications/:id', protect, authorize('Super Admin'), getAdminGymOwnerApplicationById);
 router.put('/admin/applications/:id/approve', protect, authorize('Super Admin'), approveGymOwnerApplication);
 router.put('/admin/applications/:id/reject', protect, authorize('Super Admin'), rejectGymOwnerApplication);
+
+// Super Admin Territory Protection & Geofencing Console
+router.get('/admin/territories', protect, authorize('Super Admin'), getAdminTerritories);
+router.put('/admin/territories/branch/:id', protect, authorize('Super Admin'), updateBranchTerritory);
 
 module.exports = router;

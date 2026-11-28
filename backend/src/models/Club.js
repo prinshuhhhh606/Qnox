@@ -89,6 +89,29 @@ const ClubSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // GPS Territory Protection & Geofencing
+    latitude: {
+      type: Number,
+      default: 51.5118, // Default central location
+    },
+    longitude: {
+      type: Number,
+      default: -0.1473,
+    },
+    isCompanyOwned: {
+      type: Boolean,
+      default: true,
+    },
+    isTerritoryProtected: {
+      type: Boolean,
+      default: true,
+    },
+    protectionRadiusKm: {
+      type: Number,
+      default: 5, // Default 5 KM protected geographical radius
+      min: [0.5, 'Protected radius must be at least 0.5 KM'],
+      max: [50, 'Protected radius cannot exceed 50 KM'],
+    },
     // Multi-Branch / Multi-Gym Architecture
     organization: {
       type: mongoose.Schema.Types.ObjectId,

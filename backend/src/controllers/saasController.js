@@ -13,6 +13,7 @@ const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
 const Counter = require('../models/Counter');
 const GymOwnerApplication = require('../models/GymOwnerApplication');
+const AuditLog = require('../models/AuditLog');
 const emailService = require('../services/emailService');
 const invoiceService = require('../services/invoiceService');
 const {
@@ -953,7 +954,82 @@ exports.updateAdminTenantPlan = async (req, res, next) => {
 // PRE-APPROVAL GYM OWNER ONBOARDING WORKFLOW
 // ==========================================
 
-// @desc    Submit Public Gym Owner Partnership Application (Pre-Approval)
+// =========================================================================
+// GPS Territory Protection & Geocoding Calculation Utilities
+// =========================================================================
+
+// High-confidence fallback coordinates for major metropolitan centers
+const METRO_GEO_REGISTRY = {
+  // UK / Europe HQ
+  'mayfair': { lat: 51.5118, lon: -0.1473 },
+  'soho': { lat: 51.5133, lon: -0.1322 },
+  'canary wharf': { lat: 51.5033, lon: -0.0197 },
+  'london': { lat: 51.5074, lon: -0.1278 },
+  'manchester': { lat: 53.4808, lon: -2.2426 },
+  'birmingham': { lat: 52.4862, lon: -1.8904 },
+  // India Metropolitan Hubs
+  'bandra': { lat: 19.0596, lon: 72.8295 },
+  'andheri': { lat: 19.1136, lon: 72.8697 },
+  'mumbai': { lat: 19.0760, lon: 72.8777 },
+  'connaught place': { lat: 28.6315, lon: 77.2167 },
+  'saket': { lat: 28.5244, lon: 77.2166 },
+  'new delhi': { lat: 28.6139, lon: 77.2090 },
+  'delhi': { lat: 28.6139, lon: 77.2090 },
+  'indiranagar': { lat: 12.9784, lon: 77.6408 },
+  'koramangala': { lat: 12.9352, lon: 77.6245 },
+  'bengaluru': { lat: 12.9716, lon: 77.5946 },
+  'bangalore': { lat: 12.9716, lon: 77.5946 },
+  'hyderabad': { lat: 17.3850, lon: 78.4867 },
+  'pune': { lat: 18.5204, lon: 73.8567 },
+  'chennai': { lat: 13.0827, lon: 80.2707 },
+  'kolkata': { lat: 22.5726, lon: 88.3639 },
+  'ahmedabad': { lat: 23.0225, lon: 72.5714 },
+  'jaipur': { lat: 26.9124, lon: 75.7873 },
+  'gurugram': { lat: 28.4595, lon: 77.0266 },
+  'gurgaon': { lat: 28.4595, lon: 77.0266 },
+  'noida': { lat: 28.5355, lon: 77.3910 },
+  'chandigarh': { lat: 30.7333, lon: 76.7794 },
+  // International Hubs
+  'dubai': { lat: 25.2048, lon: 55.2708 },
+  'new york': { lat: 40.7128, lon: -74.0060 },
+  'singapore': { lat: 1.3521, lon: 103.8198 },
+};
+
+function resolveFacilityCoordinates(latitude, longitude, city, address) {
+  let lat = Number(latitude);
+  let lon = Number(longitude);
+
+  if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+    return { lat, lon, isExactGPS: true };
+  }
+
+  const normalized = `${address || ''} ${city || ''}`.toLowerCase();
+  for (const [key, coords] of Object.entries(METRO_GEO_REGISTRY)) {
+    if (normalized.includes(key)) {
+      return { lat: coords.lat, lon: coords.lon, isExactGPS: false };
+    }
+  }
+
+  // Global default: Mayfair Sanctuary HQ
+  return { lat: 51.5118, lon: -0.1473, isExactGPS: false };
+}
+
+// Great-circle distance between two GPS coordinates using Haversine formula
+function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth mean radius in kilometers
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+// @desc    Submit Public Gym Owner Partnership Application (Pre-Approval with Territory Protection)
 // @route   POST /api/saas/apply
 // @access  Public
 exports.applyGymOwner = async (req, res, next) => {
@@ -970,6 +1046,9 @@ exports.applyGymOwner = async (req, res, next) => {
       branchCount = 1,
       expectedMembers = 100,
       businessDescription = '',
+      partnershipType = 'QNOX Franchise Gym',
+      latitude,
+      longitude,
     } = req.body;
 
     if (!ownerName || !email || !phone || !gymName || !gymAddress || !city || !state) {
@@ -988,19 +1067,58 @@ exports.applyGymOwner = async (req, res, next) => {
       });
     }
 
-    // Check for existing pending application
+    // Check for existing pending/conflict application
     const existingApp = await GymOwnerApplication.findOne({
       email: email.toLowerCase().trim(),
-      status: 'PENDING_APPROVAL',
+      status: { $in: ['PENDING_APPROVAL', 'TERRITORY_CONFLICT'] },
     });
     if (existingApp) {
       return res.status(400).json({
         success: false,
-        message: `An application (${existingApp.applicationId}) with this email is already under Super Admin review.`,
+        message: `An application (${existingApp.applicationId}) with this email is already under review.`,
       });
     }
 
-    // Generate unique sequential application ID (e.g. QNOX-APP-2026-000001)
+    // 1. Resolve GPS Coordinates
+    const coords = resolveFacilityCoordinates(latitude, longitude, city, gymAddress);
+
+    // 2. Fetch all company-owned branches with territory protection active
+    const companyBranches = await Club.find({
+      $or: [{ gymType: 'Company-Owned' }, { isCompanyOwned: true }],
+      isActive: true,
+      isTerritoryProtected: { $ne: false },
+    });
+
+    // 3. Compute Distance against Company-Owned Branches
+    let minDistanceKm = Infinity;
+    let nearestBranch = null;
+    let conflictBranch = null;
+    let hasTerritoryConflict = false;
+
+    for (const branch of companyBranches) {
+      const bLat = branch.latitude ?? 51.5118;
+      const bLon = branch.longitude ?? -0.1473;
+      const protectedRadius = branch.protectionRadiusKm || 5;
+
+      const dist = calculateHaversineDistanceKm(coords.lat, coords.lon, bLat, bLon);
+      if (dist < minDistanceKm) {
+        minDistanceKm = dist;
+        nearestBranch = branch;
+      }
+      if (dist <= protectedRadius && !conflictBranch) {
+        hasTerritoryConflict = true;
+        conflictBranch = branch;
+      }
+    }
+
+    // 4. Evaluate Policy: Franchise vs SaaS
+    // QNOX Franchise Gym: Strictly territory protected
+    // QNOX SaaS Partner Gym: Independent software customer; franchise territory restriction is NOT automatically applied
+    const isFranchise = partnershipType === 'QNOX Franchise Gym';
+    const effectiveConflict = isFranchise && hasTerritoryConflict;
+    const initialStatus = effectiveConflict ? 'TERRITORY_CONFLICT' : 'PENDING_APPROVAL';
+
+    // 5. Generate sequential application ID
     const currentYear = new Date().getFullYear();
     const counter = await Counter.findByIdAndUpdate(
       `gym_app_${currentYear}`,
@@ -1020,10 +1138,17 @@ exports.applyGymOwner = async (req, res, next) => {
       city: city.trim(),
       state: state.trim(),
       country: country.trim(),
+      partnershipType,
+      latitude: coords.lat,
+      longitude: coords.lon,
+      hasTerritoryConflict: effectiveConflict,
+      conflictingBranch: effectiveConflict ? conflictBranch?._id : null,
+      conflictingBranchName: effectiveConflict ? (conflictBranch?.name || '') : '',
+      conflictDistanceKm: effectiveConflict ? minDistanceKm : (nearestBranch ? minDistanceKm : null),
       branchCount: Math.max(1, Number(branchCount) || 1),
       expectedMembers: Math.max(1, Number(expectedMembers) || 100),
       businessDescription: (businessDescription || '').trim(),
-      status: 'PENDING_APPROVAL',
+      status: initialStatus,
     });
 
     // Send confirmation email
@@ -1033,15 +1158,26 @@ exports.applyGymOwner = async (req, res, next) => {
       console.warn('[Application Submitted Email Notice]:', mailErr.message);
     }
 
+    const responseMessage = effectiveConflict
+      ? `Your gym location falls within the protected territory of an existing QNOX Luxury Gym branch (${conflictBranch?.name || 'Company Branch'}, ${minDistanceKm} KM away, protected radius ${conflictBranch?.protectionRadiusKm || 5} KM). Your application requires special management review.`
+      : 'Partnership application submitted successfully. Our executive board will review your credentials and issue a private invitation link.';
+
     res.status(201).json({
       success: true,
-      message: 'Partnership application submitted successfully. Our executive board will review your credentials and issue a private invitation link.',
+      message: responseMessage,
+      hasTerritoryConflict: effectiveConflict,
       data: {
         applicationId: application.applicationId,
         ownerName: application.ownerName,
         gymName: application.gymName,
         email: application.email,
+        partnershipType: application.partnershipType,
         status: application.status,
+        latitude: application.latitude,
+        longitude: application.longitude,
+        hasTerritoryConflict: application.hasTerritoryConflict,
+        conflictingBranchName: application.conflictingBranchName,
+        conflictDistanceKm: application.conflictDistanceKm,
         createdAt: application.createdAt,
       },
     });
@@ -1081,6 +1217,7 @@ exports.getAdminGymOwnerApplications = async (req, res, next) => {
     const counts = {
       total: await GymOwnerApplication.countDocuments(),
       pending: await GymOwnerApplication.countDocuments({ status: 'PENDING_APPROVAL' }),
+      conflicts: await GymOwnerApplication.countDocuments({ $or: [{ status: 'TERRITORY_CONFLICT' }, { hasTerritoryConflict: true }] }),
       approved: await GymOwnerApplication.countDocuments({ status: 'APPROVED' }),
       rejected: await GymOwnerApplication.countDocuments({ status: 'REJECTED' }),
       registered: await GymOwnerApplication.countDocuments({ status: 'REGISTERED' }),
@@ -1117,17 +1254,53 @@ exports.getAdminGymOwnerApplicationById = async (req, res, next) => {
   }
 };
 
-// @desc    Approve Gym Owner Application & Issue Secure Invitation Token
+// @desc    Approve Gym Owner Application & Issue Secure Invitation Token (with Territory Protection & Exceptional Override)
 // @route   PUT /api/saas/admin/applications/:id/approve
 // @access  Private (Super Admin)
 exports.approveGymOwnerApplication = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { adminNotes } = req.body;
+    const {
+      adminNotes,
+      exceptionalApproval = false,
+      exceptionalApprovalJustification = '',
+    } = req.body;
 
     const application = await GymOwnerApplication.findById(id);
     if (!application) {
       return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    // 1. Enforce Territory Protection Policy
+    const hasConflict = application.hasTerritoryConflict || application.status === 'TERRITORY_CONFLICT';
+    if (hasConflict) {
+      if (!exceptionalApproval || !exceptionalApprovalJustification || exceptionalApprovalJustification.trim().length < 10) {
+        return res.status(400).json({
+          success: false,
+          message: 'Territory Protection Conflict: This gym location falls within the protected zone of a company-owned branch. Approval requires explicit exceptional authorization and a mandatory detailed justification (min 10 characters).',
+          hasTerritoryConflict: true,
+          conflictingBranchName: application.conflictingBranchName,
+          conflictDistanceKm: application.conflictDistanceKm,
+        });
+      }
+
+      application.exceptionalApproval = true;
+      application.exceptionalApprovalJustification = exceptionalApprovalJustification.trim();
+      application.exceptionalApprovedBy = req.user._id;
+
+      // Log in AuditLog
+      try {
+        await AuditLog.create({
+          adminId: req.user._id,
+          adminName: req.user.name || 'Super Admin',
+          action: 'TERRITORY_OVERRIDE_APPROVAL',
+          details: `Super Admin exceptional override approved for application ${application.applicationId} (${application.gymName}). Protected Branch: ${application.conflictingBranchName} (${application.conflictDistanceKm} KM away). Justification: ${exceptionalApprovalJustification.trim()}`,
+          previousValue: { status: application.status, hasTerritoryConflict: true },
+          newValue: { status: 'APPROVED', exceptionalApproval: true },
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog territory override warning]:', logErr.message);
+      }
     }
 
     // Generate random 32-byte secure invitation token
@@ -1166,6 +1339,7 @@ exports.approveGymOwnerApplication = async (req, res, next) => {
       data: {
         applicationId: application.applicationId,
         status: application.status,
+        exceptionalApproval: application.exceptionalApproval,
         expiresAt,
         invitationUrl,
       },
@@ -1497,6 +1671,103 @@ exports.initiateSaaSCheckout = async (req, res, next) => {
         razorpayOrder,
         key: process.env.RAZORPAY_KEY_ID || 'rzp_test_qnox_luxury_key',
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// =========================================================================
+// Super Admin Territory Protection & Geofencing Management
+// =========================================================================
+
+// @desc    Get Territory Protection Management Data (Super Admin)
+// @route   GET /api/saas/admin/territories
+// @access  Private (Super Admin)
+exports.getAdminTerritories = async (req, res, next) => {
+  try {
+    const branches = await Club.find({
+      $or: [{ gymType: 'Company-Owned' }, { isCompanyOwned: true }],
+    }).sort({ name: 1 });
+
+    const applications = await GymOwnerApplication.find()
+      .populate('conflictingBranch', 'name location latitude longitude protectionRadiusKm')
+      .sort({ createdAt: -1 });
+
+    const conflicts = applications.filter(
+      (app) => app.hasTerritoryConflict || app.status === 'TERRITORY_CONFLICT'
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        branches,
+        applications,
+        conflicts,
+        stats: {
+          totalBranches: branches.length,
+          protectedBranches: branches.filter((b) => b.isTerritoryProtected !== false).length,
+          totalConflicts: conflicts.length,
+          pendingReviewCount: conflicts.filter((c) => c.status === 'TERRITORY_CONFLICT').length,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Branch Territory Protection Radius and Coordinates (Super Admin)
+// @route   PUT /api/saas/admin/territories/branch/:id
+// @access  Private (Super Admin)
+exports.updateBranchTerritory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { latitude, longitude, protectionRadiusKm, isTerritoryProtected } = req.body;
+
+    const branch = await Club.findById(id);
+    if (!branch) {
+      return res.status(404).json({ success: false, message: 'Branch not found.' });
+    }
+
+    const previousRadius = branch.protectionRadiusKm || 5;
+    const previousLat = branch.latitude;
+    const previousLon = branch.longitude;
+
+    if (latitude !== undefined) branch.latitude = Number(latitude);
+    if (longitude !== undefined) branch.longitude = Number(longitude);
+    if (protectionRadiusKm !== undefined) {
+      branch.protectionRadiusKm = Math.max(0.5, Math.min(50, Number(protectionRadiusKm)));
+    }
+    if (isTerritoryProtected !== undefined) {
+      branch.isTerritoryProtected = Boolean(isTerritoryProtected);
+    }
+
+    await branch.save();
+
+    // Create Audit Log
+    try {
+      await AuditLog.create({
+        adminId: req.user._id,
+        adminName: req.user.name || 'Super Admin',
+        action: 'TERRITORY_CONFIG_UPDATE',
+        details: `Updated territory protection for company-owned branch "${branch.name}": Protected Radius ${previousRadius} KM -> ${branch.protectionRadiusKm} KM, Protection: ${branch.isTerritoryProtected ? 'Active' : 'Disabled'}`,
+        previousValue: { radius: previousRadius, latitude: previousLat, longitude: previousLon },
+        newValue: {
+          radius: branch.protectionRadiusKm,
+          latitude: branch.latitude,
+          longitude: branch.longitude,
+          isTerritoryProtected: branch.isTerritoryProtected,
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog territory config notice]:', logErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Territory protection updated for branch "${branch.name}". Protected radius is now ${branch.protectionRadiusKm} KM.`,
+      data: branch,
     });
   } catch (err) {
     next(err);
